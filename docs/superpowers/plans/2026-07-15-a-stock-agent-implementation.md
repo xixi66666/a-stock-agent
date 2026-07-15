@@ -6,7 +6,7 @@
 
 **Architecture:** A modular Spring Boot monolith separates provider adapters, normalized market-data records, technical analysis, research aggregation, Spring AI tools, and the web UI. Provider failures remain section-local, every datum carries provenance, and the model can only call bounded tools over normalized data.
 
-**Tech Stack:** Java 21.0.11+10, Maven 3.9.11 Wrapper, Spring Boot 3.5.16, Spring AI 1.1.8, ta4j 0.23.0, Caffeine, ECharts 6.1.0 WebJar, Lucide 1.16.0 WebJar, JUnit 5, AssertJ, MockWebServer, MockMvc, Playwright CLI.
+**Tech Stack:** Java 21.0.11+10, Maven 3.9.11 Wrapper, Spring Boot 3.5.16, Spring AI 1.1.8, ta4j 0.18, Caffeine, ECharts 6.1.0 WebJar, Lucide 1.16.0 WebJar, JUnit 5, AssertJ, MockWebServer, MockMvc, Playwright CLI.
 
 ---
 
@@ -101,7 +101,7 @@ class AStockAgentApplicationTest {
 
 - [ ] **Step 2: Create the pinned Maven build and verify RED**
 
-Pin Spring Boot `3.5.16`, Spring AI BOM `1.1.8`, Java `21`, ta4j `0.23.0`, ECharts WebJar `6.1.0`, and Lucide WebJar `1.16.0`. Add `spring-boot-starter-web`, `spring-boot-starter-validation`, `spring-boot-starter-actuator`, `spring-ai-starter-model-openai`, `caffeine`, `ta4j-core`, the two WebJars, and `spring-boot-starter-test`.
+Pin Spring Boot `3.5.16`, Spring AI BOM `1.1.8`, Java `21`, ta4j `0.18` (the latest line in this project that is bytecode-compatible with Java 21), ECharts WebJar `6.1.0`, and Lucide WebJar `1.16.0`. Add `spring-boot-starter-web`, `spring-boot-starter-validation`, `spring-boot-starter-actuator`, `spring-ai-starter-model-openai`, `caffeine`, `ta4j-core`, the two WebJars, and `spring-boot-starter-test`.
 
 Run: `./mvnw -Dmaven.repo.local=.m2/repository -Dtest=AStockAgentApplicationTest test`
 

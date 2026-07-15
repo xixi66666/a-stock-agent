@@ -1,0 +1,83 @@
+package com.astock.agent.technical;
+
+import com.astock.agent.marketdata.model.DailyBar;
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.temporal.WeekFields;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBarSeriesBuilder;
+
+public final class BarSeriesFactory {
+
+    private static final ZoneId CHINA = ZoneId.of("Asia/Shanghai");
+
+    public BarSeries toSeries(List<DailyBar> bars, String name) {
+        BarSeries series = new BaseBarSeriesBuilder().withName(name).build();
+        for (DailyBar bar : bars.stream().sorted(Comparator.comparing(DailyBar::date)).toList()) {
+            series.barBuilder()
+                    .timePeriod(Duration.ofDays(1))
+                    .endTime(bar.date().plusDays(1).atStartOfDay(CHINA).toInstant())
+                    .openPrice(bar.open().toPlainString())
+                    .highPrice(bar.high().toPlainString())
+                    .lowPrice(bar.low().toPlainString())
+                    .closePrice(bar.close().toPlainString())
+                    .volume(value(bar.volumeShares()).toPlainString())
+                    .amount(value(bar.amountYuan()).toPlainString())
+                    .add();
+        }
+        return series;
+    }
+
+    public List<DailyBar> aggregate(List<DailyBar> dailyBars, Timeframe timeframe) {
+        List<DailyBar> sorted = dailyBars.stream().sorted(Comparator.comparing(DailyBar::date)).toList();
+        if (timeframe == Timeframe.DAILY) {
+            return List.copyOf(sorted);
+        }
+        List<DailyBar> result = new ArrayList<>();
+        List<DailyBar> bucket = new ArrayList<>();
+        String currentKey = null;
+        for (DailyBar bar : sorted) {
+            String key = periodKey(bar, timeframe);
+            if (currentKey != null && !currentKey.equals(key)) {
+                result.add(merge(bucket));
+                bucket.clear();
+            }
+            bucket.add(bar);
+            currentKey = key;
+        }
+        if (!bucket.isEmpty()) {
+            result.add(merge(bucket));
+        }
+        return List.copyOf(result);
+    }
+
+    private static String periodKey(DailyBar bar, Timeframe timeframe) {
+        if (timeframe == Timeframe.MONTHLY) {
+            return YearMonth.from(bar.date()).toString();
+        }
+        WeekFields fields = WeekFields.of(Locale.CHINA);
+        return bar.date().get(fields.weekBasedYear()) + "-" + bar.date().get(fields.weekOfWeekBasedYear());
+    }
+
+    private static DailyBar merge(List<DailyBar> bars) {
+        DailyBar first = bars.getFirst();
+        DailyBar last = bars.getLast();
+        BigDecimal high = bars.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElse(first.high());
+        BigDecimal low = bars.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElse(first.low());
+        BigDecimal volume = bars.stream().map(DailyBar::volumeShares).filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal amount = bars.stream().map(DailyBar::amountYuan).filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new DailyBar(last.date(), first.open(), high, low, last.close(), volume, amount);
+    }
+
+    private static BigDecimal value(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+}
