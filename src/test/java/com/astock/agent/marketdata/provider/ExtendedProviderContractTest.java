@@ -47,6 +47,7 @@ class ExtendedProviderContractTest {
 
         assertThat(statements.reportPeriod()).isEqualTo(java.time.LocalDate.parse("2026-03-31"));
         assertThat(statements.metrics()).containsKey("营业总收入");
+        assertThat(statements.metrics()).doesNotContainKey("已赚保费");
         assertThat(sina.parseFundFlow(fixture("sina/fund-flow-600519.json")))
                 .singleElement()
                 .extracting("source")

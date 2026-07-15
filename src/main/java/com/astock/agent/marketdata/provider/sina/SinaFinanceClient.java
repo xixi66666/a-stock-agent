@@ -51,13 +51,14 @@ public final class SinaFinanceClient {
             Map<String, BigDecimal> yearOverYear = new LinkedHashMap<>();
             for (JsonNode item : reports.path(latest).path("data")) {
                 String title = item.path("item_title").asText();
-                if (title.isBlank() || item.path("item_value").asText().isBlank()) {
+                BigDecimal value = decimalOrNull(item.path("item_value"));
+                if (title.isBlank() || value == null) {
                     continue;
                 }
-                metrics.put(title, new BigDecimal(item.path("item_value").asText()));
-                String yoy = item.path("item_tongbi").asText();
-                if (!yoy.isBlank()) {
-                    yearOverYear.put(title, new BigDecimal(yoy));
+                metrics.put(title, value);
+                BigDecimal yoy = decimalOrNull(item.path("item_tongbi"));
+                if (yoy != null) {
+                    yearOverYear.put(title, yoy);
                 }
             }
             LocalDate period = LocalDate.of(
@@ -140,7 +141,17 @@ public final class SinaFinanceClient {
     }
 
     private static BigDecimal decimal(JsonNode item, String field) {
-        String value = item.path(field).asText();
-        return value.isBlank() ? null : new BigDecimal(value);
+        return decimalOrNull(item.path(field));
+    }
+
+    private static BigDecimal decimalOrNull(JsonNode value) {
+        if (value == null || value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        String text = value.asText().trim();
+        if (text.isEmpty() || "-".equals(text) || "--".equals(text) || "null".equalsIgnoreCase(text)) {
+            return null;
+        }
+        return new BigDecimal(text.replace(",", ""));
     }
 }
