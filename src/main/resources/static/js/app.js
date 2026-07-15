@@ -1,5 +1,6 @@
 import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
+import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -10,6 +11,7 @@ const state = {
   currentView: "technical",
   snapshot: null,
   searchTimer: null,
+  technicalController: null,
 };
 
 function refreshIcons() {
@@ -78,13 +80,44 @@ function renderCurrentView() {
   const content = $("#view-content");
   content.hidden = false;
   $("#workspace-state").hidden = true;
+  state.technicalController?.dispose();
+  state.technicalController = null;
   if (state.currentView === "technical") {
-    const technical = sectionPayload(state.snapshot.technical);
-    content.innerHTML = technical ? renderGenericView("sources", { quote: state.snapshot.technical }) : renderUnavailable("技术分析", state.snapshot.technical);
+    content.innerHTML = renderTechnicalView(state.snapshot.technical);
   } else {
     content.innerHTML = renderGenericView(state.currentView, state.snapshot);
   }
   refreshIcons();
+  if (state.currentView === "technical") state.technicalController = activateTechnicalView(state.snapshot.technical, content);
+  if (state.currentView === "agent") bindAgentAction();
+}
+
+function escapeText(value) {
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+function bindAgentAction() {
+  const button = $("#run-agent");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    const output = $("#agent-output");
+    button.disabled = true;
+    output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在综合</span><p>Agent 正在调用受限股票研究工具。</p>';
+    try {
+      const report = await stockApi.analyze(state.currentCode);
+      const evidence = [...(report.technicalEvidence || []), ...(report.capitalAndFundamentalEvidence || [])];
+      output.innerHTML = `<span class="source-status" data-status="HEALTHY"><span></span>报告完成</span>
+        <h3>${escapeText(report.factualSummary || "结构化研究摘要")}</h3>
+        <p>${escapeText(report.trendAndRegime || "")}</p>
+        ${evidence.length ? `<ul>${evidence.map((item) => `<li>${escapeText(item)}</li>`).join("")}</ul>` : ""}
+        <strong>${escapeText(report.conclusion || "")}</strong>
+        <small>${escapeText(report.disclaimer || "仅供学习研究，不构成投资建议")}</small>`;
+    } catch (error) {
+      output.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>Agent 不可用</span><p>${escapeText(error.message || "请检查本地模型配置")}</p>`;
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 async function loadStock(code) {

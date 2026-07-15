@@ -1,6 +1,10 @@
 .tools/
 .m2/
 target/
+node_modules/
+.npm-cache/
+test-results/
+playwright-report/
 config/application-local.yml
 .idea/
 *.iml
