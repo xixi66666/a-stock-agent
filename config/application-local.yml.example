@@ -1,0 +1,11 @@
+spring:
+  ai:
+    model:
+      chat: openai
+    openai:
+      api-key: "replace-me"
+      base-url: "https://your-openai-compatible-endpoint"
+      chat:
+        options:
+          model: "your-model-name"
+          temperature: 0.2

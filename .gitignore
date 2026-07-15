@@ -1,21 +1,7 @@
-# Local runtime and dependency caches
 .tools/
 .m2/
 target/
-
-# Local secrets and environment overrides
 config/application-local.yml
-.env
-.env.*
-!.env.example
-
-# Brainstorming previews and IDE files
-.superpowers/
 .idea/
-.vscode/
 *.iml
-.worktrees/
-
-# OS files
 .DS_Store
-Thumbs.db

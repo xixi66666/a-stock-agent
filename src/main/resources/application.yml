@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: a-stock-agent
+  config:
+    import: optional:file:./config/application-local.yml
+  ai:
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
