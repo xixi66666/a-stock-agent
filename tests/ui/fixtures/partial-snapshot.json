@@ -38,7 +38,7 @@
   "research": { "status": "HEALTHY", "payload": [], "provenance": { "provider": "Eastmoney", "sourceUrl": "https://reportapi.eastmoney.com", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:10Z", "cached": false, "fallbackProvider": null }, "issues": [] },
   "news": { "status": "HEALTHY", "payload": [], "provenance": { "provider": "Eastmoney", "sourceUrl": "https://search-api-web.eastmoney.com", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:11Z", "cached": false, "fallbackProvider": null }, "issues": [] },
   "announcements": { "status": "UNAVAILABLE", "payload": null, "provenance": null, "issues": ["巨潮资讯响应超时"] },
-  "quality": { "freshness": 25, "consistency": 25, "completeness": 12, "authority": 15, "total": 77, "notes": ["核心行情已交叉验证", "部分扩展数据不可用"] },
+  "quality": { "freshness": 30, "consistency": 30, "completeness": 17, "authority": 15, "total": 92, "notes": ["核心行情已交叉验证", "部分扩展数据不可用"] },
   "crossSourceConsistent": true,
   "coreCompleteness": true,
   "authoritativeSources": true,

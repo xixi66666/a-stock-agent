@@ -26,9 +26,9 @@ The score totals 100 points:
 
 | Component | Maximum | Evidence |
 |---|---:|---|
-| Freshness | 25 | Quote/source timestamps and age |
-| Consistency | 25 | Tencent and Baidu recent K-line agreement |
+| Freshness | 30 | Quote/source timestamps and age |
+| Consistency | 30 | Tencent and Baidu recent K-line agreement |
 | Completeness | 25 | Core and optional section availability |
-| Authority | 25 | Preferred or official source provenance |
+| Authority | 15 | Preferred or official source provenance |
 
 The score is an engineering data-quality signal, not a stock rating or investment recommendation.

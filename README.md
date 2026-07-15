@@ -54,7 +54,7 @@ spring:
     model:
       chat: openai
     openai:
-      api-key: "你的本地密钥"
+      api-key: <your-local-api-key>
       base-url: "https://兼容-openai-协议的地址"
       chat:
         options:

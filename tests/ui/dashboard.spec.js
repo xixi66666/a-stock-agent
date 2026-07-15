@@ -98,3 +98,12 @@ test("every research tab renders an owned state without raw JSON", async ({ page
     await expect(page.locator("#view-content pre")).toHaveCount(0);
   }
 });
+
+test("source quality uses the backend scoring weights", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "数据来源" }).click();
+  await expect(page.locator(".quality-components")).toContainText("30 / 30");
+  await expect(page.locator(".quality-components")).toContainText("17 / 25");
+  await expect(page.locator(".quality-components")).toContainText("15 / 15");
+});

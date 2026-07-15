@@ -320,7 +320,7 @@ The local file contains:
 spring:
   ai:
     openai:
-      api-key: "replace-me"
+      api-key: <your-local-api-key>
       base-url: "https://your-openai-compatible-endpoint"
       chat:
         options:
