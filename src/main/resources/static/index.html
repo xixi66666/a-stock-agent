@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="基于真实公开数据与 Spring AI 的 A 股研究工作台">
+  <title>A 股智能研究台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">跳到研究内容</a>
+  <header class="app-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="A 股智能研究台首页">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <span class="brand-copy"><strong>A 股智能研究台</strong><small>Spring AI Research</small></span>
+      </a>
+
+      <form id="stock-search" class="search-form" role="search" autocomplete="off">
+        <label class="sr-only" for="stock-query">股票代码或名称</label>
+        <i data-lucide="search" aria-hidden="true"></i>
+        <input id="stock-query" name="q" type="search" inputmode="search"
+               placeholder="股票代码 / 名称" maxlength="20" aria-autocomplete="list"
+               aria-controls="search-results" aria-expanded="false">
+        <button id="search-submit" class="primary-command" type="submit">
+          <span>研究</span><i data-lucide="arrow-right" aria-hidden="true"></i>
+        </button>
+        <div id="search-results" class="search-results" role="listbox" hidden></div>
+      </form>
+
+      <div class="header-status">
+        <span id="agent-status" class="status-chip" data-tone="muted"><span class="status-dot"></span>Agent 未配置</span>
+        <button id="refresh-data" class="icon-button" type="button" aria-label="刷新当前股票" title="刷新当前股票" disabled>
+          <i data-lucide="refresh-cw" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="workspace" class="workspace" tabindex="-1">
+    <section class="security-overview" aria-labelledby="security-name">
+      <div class="security-identity">
+        <div class="security-title-line">
+          <h1 id="security-name">等待选择股票</h1>
+          <span id="security-code" class="security-code">------</span>
+          <span id="market-badge" class="market-badge">A 股</span>
+        </div>
+        <p id="quote-time" class="quote-time">数据日期 --</p>
+      </div>
+      <div class="price-block" aria-label="最新行情">
+        <strong id="latest-price">--</strong>
+        <span id="price-change" class="price-change">-- / --</span>
+      </div>
+      <dl class="quote-strip">
+        <div><dt>今开</dt><dd id="quote-open">--</dd></div>
+        <div><dt>最高</dt><dd id="quote-high">--</dd></div>
+        <div><dt>最低</dt><dd id="quote-low">--</dd></div>
+        <div><dt>昨收</dt><dd id="quote-previous">--</dd></div>
+        <div><dt>换手率</dt><dd id="quote-turnover">--</dd></div>
+        <div><dt>成交额</dt><dd id="quote-amount">--</dd></div>
+        <div><dt>市盈率 TTM</dt><dd id="quote-pe">--</dd></div>
+        <div><dt>市净率</dt><dd id="quote-pb">--</dd></div>
+      </dl>
+      <div class="quality-summary">
+        <div class="quality-score" aria-label="数据质量评分">
+          <span id="quality-score">--</span><small>/ 100</small>
+        </div>
+        <div>
+          <strong>数据质量</strong>
+          <span id="quality-label">等待数据</span>
+        </div>
+      </div>
+    </section>
+
+    <nav class="view-tabs" aria-label="研究维度" role="tablist">
+      <button class="view-tab is-active" role="tab" aria-selected="true" data-view="technical"><i data-lucide="chart-no-axes-combined"></i><span>技术分析</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="capital"><i data-lucide="landmark"></i><span>资金筹码</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="fundamentals"><i data-lucide="building-2"></i><span>基本面</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="valuation"><i data-lucide="scale"></i><span>估值预期</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="events"><i data-lucide="newspaper"></i><span>事件资讯</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="sources"><i data-lucide="database"></i><span>数据来源</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="agent"><i data-lucide="sparkles"></i><span>Agent 分析</span></button>
+    </nav>
+
+    <section id="workspace-state" class="workspace-state" aria-live="polite">
+      <div class="empty-state">
+        <span class="empty-icon"><i data-lucide="line-chart" aria-hidden="true"></i></span>
+        <h2>选择一只股票开始研究</h2>
+        <div class="quick-symbols" aria-label="常用股票">
+          <button type="button" data-symbol="600519"><strong>贵州茅台</strong><span>600519</span></button>
+          <button type="button" data-symbol="000001"><strong>平安银行</strong><span>000001</span></button>
+          <button type="button" data-symbol="300750"><strong>宁德时代</strong><span>300750</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-content" class="view-content" aria-live="polite" hidden></section>
+  </main>
+
+  <footer class="app-footer">
+    <p>数据来自公开市场数据源，仅供学习与研究，不构成任何投资建议。</p>
+    <span id="global-status">系统就绪</span>
+  </footer>
+
+  <script src="/webjars/echarts/6.1.0/dist/echarts.min.js"></script>
+  <script src="/webjars/lucide/1.16.0/dist/umd/lucide.min.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
