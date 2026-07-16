@@ -32,6 +32,8 @@ class LocalModelConfigurationExampleTest {
 
         PropertySource<?> active = sources.getFirst();
         assertThat(active.getProperty("spring.ai.model.chat")).isEqualTo("openai");
+        assertThat(active.getProperty("spring.ai.model.audio.speech")).isEqualTo("none");
+        assertThat(active.getProperty("spring.ai.model.audio.transcription")).isEqualTo("none");
         assertThat(active.getProperty("spring.ai.openai.base-url")).isEqualTo("https://api.openai.com");
         assertThat(active.getProperty("spring.ai.openai.api-key"))
                 .isEqualTo("replace-with-openai-api-key");

@@ -32,7 +32,7 @@ chmod +x start.sh mvnw scripts/*.sh
 ./start.sh
 ```
 
-首次运行需要网络下载固定版本工具链和 Maven 依赖，脚本会校验 JDK SHA-256。启动后访问 [http://localhost:8080](http://localhost:8080)。
+首次运行需要网络下载固定版本工具链和 Maven 依赖，脚本会校验 JDK SHA-256。启动后访问 [http://localhost:10001](http://localhost:10001)。
 
 ## 本地模型配置
 
@@ -54,6 +54,12 @@ spring:
   ai:
     model:
       chat: openai
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
     openai:
       api-key: "replace-with-openai-api-key"
       base-url: "https://api.openai.com"
@@ -100,6 +106,10 @@ spring:
 | Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | `mimo-v2.5-pro` | `chat.completions-path: /chat/completions` |
 
 `config/application-local.yml` 已被 Git 忽略，可以在其中填写本机密钥。不要把真实密钥复制到 `application-local.yml.example`、README、日志、测试或提交历史中。修改供应商、密钥或模型后必须重启应用。
+
+如果启动时报 `OpenAI API key must be set` 且 Bean 名称为 `openAiAudioSpeechModel`，这是 Spring AI 默认启用了语音模型，不是聊天模型配置失效。确认本地文件包含 `spring.ai.model.audio.speech: none` 和 `spring.ai.model.audio.transcription: none`，并从项目根目录启动。IDEA 的 Run Configuration 工作目录应为项目根目录 `D:\Code\Java_Code\a-stock-agent`，否则 `./config/application-local.yml` 不会被导入。
+
+IDEA 的 Project SDK、模块 SDK、Maven Runner 和 Maven Importer 都应选择 JDK 21。项目 `pom.xml` 声明了 Java 21；如果日志出现 `javac 17`、`不支持发行版本 21` 或 Maven 使用 JDK 8/11，请先切换 JDK，再重新导入 Maven 项目并执行 Rebuild。
 
 ## 架构
 
