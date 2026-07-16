@@ -36,7 +36,7 @@ chmod +x start.sh mvnw scripts/*.sh
 
 ## 本地模型配置
 
-模型配置不是运行行情研究功能的前置条件。需要 Agent 综合报告时，基于示例创建本地文件：
+模型配置不是运行行情研究功能的前置条件。需要 Agent 综合报告时，先基于示例创建本地文件。如果文件已经存在，不要重复覆盖：
 
 ```powershell
 Copy-Item config/application-local.yml.example config/application-local.yml
@@ -46,23 +46,60 @@ Copy-Item config/application-local.yml.example config/application-local.yml
 cp config/application-local.yml.example config/application-local.yml
 ```
 
-编辑 `config/application-local.yml`：
+编辑 `config/application-local.yml`，任何时刻只保留一个完整的 `spring:` 配置块处于未注释状态。切换模型供应商时，先注释当前配置，再取消目标模板的整段注释，填写对应的 `api-key` 和账号实际可用的模型名称，最后重新运行 `.\start.ps1`。
 
 ```yaml
+# 当前启用：OpenAI。填写 API Key 和账号可用的模型名称后重启应用。
 spring:
   ai:
     model:
       chat: openai
     openai:
-      api-key: <your-local-api-key>
-      base-url: "https://兼容-openai-协议的地址"
+      api-key: "replace-with-openai-api-key"
+      base-url: "https://api.openai.com"
       chat:
         options:
-          model: "模型名称"
+          model: "replace-with-openai-model"
           temperature: 0.2
+
+# DeepSeek 模板：切换时注释上面的 OpenAI 配置，再取消下面整段注释。
+# spring:
+#   ai:
+#     model:
+#       chat: openai
+#     openai:
+#       api-key: "replace-with-deepseek-api-key"
+#       base-url: "https://api.deepseek.com"
+#       chat:
+#         options:
+#           model: "deepseek-chat"
+#           temperature: 0.2
+
+# Xiaomi MiMo 模板：Spring AI 默认追加 /v1/chat/completions，
+# 因此官方 /v1 Base URL 需要把 completions-path 改为 /chat/completions。
+# spring:
+#   ai:
+#     model:
+#       chat: openai
+#     openai:
+#       api-key: "replace-with-mimo-api-key"
+#       base-url: "https://api.xiaomimimo.com/v1"
+#       chat:
+#         completions-path: "/chat/completions"
+#         options:
+#           model: "mimo-v2.5-pro"
+#           temperature: 0.2
 ```
 
-支持 OpenAI Chat Completions 兼容端点。`config/application-local.yml` 已被 Git 忽略，不要把真实密钥写入示例、环境文档、测试或提交历史。
+三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK：
+
+| 供应商 | Base URL | 默认示例模型 | 额外配置 |
+| --- | --- | --- | --- |
+| OpenAI | `https://api.openai.com` | 按账号填写 | 无 |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | 无 |
+| Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | `mimo-v2.5-pro` | `chat.completions-path: /chat/completions` |
+
+`config/application-local.yml` 已被 Git 忽略，可以在其中填写本机密钥。不要把真实密钥复制到 `application-local.yml.example`、README、日志、测试或提交历史中。修改供应商、密钥或模型后必须重启应用。
 
 ## 架构
 
