@@ -11,6 +11,9 @@ import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.ObjectProvider;
+import com.astock.agent.agent.AgentStatusService;
 
 @Configuration
 @ConditionalOnProperty(prefix = "app.agent.learning", name = "enabled", havingValue = "true")
@@ -55,7 +58,15 @@ public class LearningAgentConfiguration {
             org.springframework.beans.factory.ObjectProvider<ConversationMemoryService> memory,
             ResearchKnowledgeIndexer indexer,
             ResearchRetriever retriever,
-            ResearchMcpToolProvider tools) {
-        return new LearningAgentFacade(properties, memory.getIfAvailable(), indexer, retriever, tools);
+            ResearchMcpToolProvider tools,
+            ObjectProvider<ChatClient.Builder> chatClientBuilders,
+            AgentStatusService status,
+            LearningAdvisorFactory advisors) {
+        ChatClient.Builder builder = chatClientBuilders.getIfAvailable();
+        ChatClient client = status.status() == com.astock.agent.agent.AgentAvailability.READY && builder != null
+                ? builder.build() : null;
+        return new LearningAgentFacade(
+                properties, memory.getIfAvailable(), indexer, retriever, tools,
+                client, status, advisors);
     }
 }

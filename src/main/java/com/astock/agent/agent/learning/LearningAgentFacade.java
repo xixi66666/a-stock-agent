@@ -2,6 +2,7 @@ package com.astock.agent.agent.learning;
 
 import com.astock.agent.agent.learning.mcp.McpToolExecution;
 import com.astock.agent.agent.learning.mcp.ResearchMcpToolProvider;
+import com.astock.agent.agent.learning.advisor.LearningAdvisorFactory;
 import com.astock.agent.agent.learning.memory.ConversationMemoryService;
 import com.astock.agent.agent.learning.rag.RagContext;
 import com.astock.agent.agent.learning.rag.ResearchKnowledgeIndexer;
@@ -9,12 +10,16 @@ import com.astock.agent.agent.learning.rag.ResearchRetriever;
 import com.astock.agent.agent.learning.vector.VectorSearchResult;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.SecurityId;
+import com.astock.agent.agent.AgentAvailability;
+import com.astock.agent.agent.AgentStatusService;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 
 public final class LearningAgentFacade {
 
@@ -23,6 +28,9 @@ public final class LearningAgentFacade {
     private final ResearchKnowledgeIndexer indexer;
     private final ResearchRetriever retriever;
     private final ResearchMcpToolProvider tools;
+    private final ChatClient chatClient;
+    private final AgentStatusService statusService;
+    private final LearningAdvisorFactory advisorFactory;
 
     public LearningAgentFacade(
             LearningAgentProperties properties,
@@ -30,18 +38,35 @@ public final class LearningAgentFacade {
             ResearchKnowledgeIndexer indexer,
             ResearchRetriever retriever,
             ResearchMcpToolProvider tools) {
+        this(properties, memory, indexer, retriever, tools, null, null, null);
+    }
+
+    public LearningAgentFacade(
+            LearningAgentProperties properties,
+            ConversationMemoryService memory,
+            ResearchKnowledgeIndexer indexer,
+            ResearchRetriever retriever,
+            ResearchMcpToolProvider tools,
+            ChatClient chatClient,
+            AgentStatusService statusService,
+            LearningAdvisorFactory advisorFactory) {
         this.properties = Objects.requireNonNull(properties, "properties");
         this.memory = memory;
         this.indexer = Objects.requireNonNull(indexer, "indexer");
         this.retriever = Objects.requireNonNull(retriever, "retriever");
         this.tools = Objects.requireNonNull(tools, "tools");
+        this.chatClient = chatClient;
+        this.statusService = statusService;
+        this.advisorFactory = advisorFactory;
     }
 
     public LearningAgentResponse chat(String code, String message, String conversationId) {
         SecurityId security = SecurityId.parse(code);
         String normalizedMessage = requireMessage(message);
         String normalizedConversation = requireConversationId(conversationId);
-        if (memory != null && properties.memoryEnabled()) {
+        boolean useModel = chatClient != null && statusService != null
+                && statusService.status() == AgentAvailability.READY;
+        if (!useModel && memory != null && properties.memoryEnabled()) {
             memory.addUserMessage(normalizedConversation, normalizedMessage);
         }
 
@@ -62,7 +87,24 @@ public final class LearningAgentFacade {
                 + (context.formattedPromptContext().isBlank()
                         ? "没有检索到匹配证据。"
                         : "检索证据：\n" + context.formattedPromptContext());
-        if (memory != null && properties.memoryEnabled()) {
+        String modelUsed = "offline-deterministic";
+        if (useModel && advisorFactory != null) {
+            try {
+                String generated = chatClient.prompt()
+                        .user(normalizedMessage)
+                        .advisors(advisorFactory.create(security.code()))
+                        .toolContext(Map.of(ChatMemory.CONVERSATION_ID, normalizedConversation))
+                        .call()
+                        .content();
+                if (generated != null && !generated.isBlank()) {
+                    answer = generated;
+                    modelUsed = "spring-ai-chatclient";
+                }
+            } catch (RuntimeException ignored) {
+                // 模型失败时保留已检索的离线证据摘要。
+            }
+        }
+        if (!useModel && memory != null && properties.memoryEnabled()) {
             memory.addAssistantMessage(normalizedConversation, answer);
         }
         int memoryMessages = memory == null || !properties.memoryEnabled()
@@ -70,7 +112,7 @@ public final class LearningAgentFacade {
         return new LearningAgentResponse(
                 normalizedConversation,
                 answer,
-                "offline-deterministic",
+                modelUsed,
                 List.of("TraceAdvisor", "MemoryAdvisor", "RagAdvisor"),
                 memoryMessages,
                 documents,
