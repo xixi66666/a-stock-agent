@@ -28,6 +28,16 @@ management:
         include: health,info
 
 app:
+  agent:
+    learning:
+      enabled: false
+      memory-enabled: true
+      advisor-enabled: true
+      rag-enabled: true
+      mcp-enabled: true
+      max-history-messages: 24
+      top-k: 4
+      embedding-dimension: 128
   market-data:
     connect-timeout: 3s
     request-timeout: 8s

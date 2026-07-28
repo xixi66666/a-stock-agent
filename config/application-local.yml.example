@@ -17,6 +17,19 @@ spring:
           model: "replace-with-openai-model"
           temperature: 0.2
 
+# Agent 学习闭环默认由 application.yml 关闭；学习接口不需要 API Key 即可运行离线实现。
+# app:
+#   agent:
+#     learning:
+#       enabled: true
+#       memory-enabled: true
+#       advisor-enabled: true
+#       rag-enabled: true
+#       mcp-enabled: true
+#       max-history-messages: 24
+#       top-k: 4
+#       embedding-dimension: 128
+
 # DeepSeek 模板：切换时注释上面的 OpenAI 配置，再取消下面整段注释。
 # spring:
 #   ai:
