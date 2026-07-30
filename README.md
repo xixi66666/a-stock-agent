@@ -155,6 +155,29 @@ flowchart LR
 | GET | `/api/system/providers` | 数据源健康状态 |
 | GET | `/actuator/health` | 应用健康检查 |
 
+### Agent 学习闭环
+
+项目提供一个默认关闭、无需 API Key 的离线学习入口，用于观察 Chat Memory、Advisor、Embedding、Vector Store、RAG 和受限 MCP 工具的完整链路。
+
+开启方式：在 `application-local.yml` 中增加 `app.agent.learning.enabled: true`，然后调用：
+
+```http
+POST /api/agent/learning/chat
+Content-Type: application/json
+```
+
+```json
+{
+  "code": "600519",
+  "message": "解释盈利和技术风险",
+  "conversationId": "demo-600519"
+}
+```
+
+没有模型配置时，响应中的 `modelUsed` 为 `offline-deterministic`，仍会返回会话消息数量、Advisor trace、检索文档、来源元数据和工具执行结果。配置 OpenAI 兼容模型后，Facade 会使用同一 Advisor 链调用 `ChatClient`。
+
+Embedding 和 Vector Store 当前是进程内确定性实现，仅用于学习和离线测试，不代表生产级语义检索方案。MCP WebMVC Server 默认关闭；需要协议传输时，在本地配置中显式设置 `spring.ai.mcp.server.enabled: true`，并继续使用项目的受限工具边界。
+
 错误响应使用 RFC 9457 Problem Details。
 
 ## 测试与验证

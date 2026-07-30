@@ -35,6 +35,10 @@ public final class ConversationMemoryService {
         memory.clear(requireId(conversationId));
     }
 
+    public ChatMemory chatMemory() {
+        return memory;
+    }
+
     private static String requireId(String value) {
         if (value == null || value.isBlank() || value.length() > 100) {
             throw new IllegalArgumentException("Conversation ID must contain 1 to 100 characters");

@@ -29,6 +29,13 @@ spring:
 #       max-history-messages: 24
 #       top-k: 4
 #       embedding-dimension: 128
+#
+# 如需打开 Spring AI MCP WebMVC Server，再显式增加：
+# spring:
+#   ai:
+#     mcp:
+#       server:
+#         enabled: true
 
 # DeepSeek 模板：切换时注释上面的 OpenAI 配置，再取消下面整段注释。
 # spring:

@@ -13,6 +13,10 @@ spring:
         speech: none
         transcription: none
 
+    mcp:
+      server:
+        enabled: false
+
   autoconfigure:
     exclude:
       - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration

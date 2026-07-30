@@ -42,6 +42,18 @@ sequenceDiagram
 
 `web` and `static` own API contracts and presentation. The UI displays section status and provenance without inventing missing values.
 
+## Offline Agent Learning Loop
+
+The optional `/api/agent/learning/chat` endpoint demonstrates the complete local pipeline without model credentials:
+
+```text
+request -> Chat Memory -> Trace/RAG Advisors -> deterministic Embedding
+         -> in-memory Vector Store -> bounded MCP tool provider
+         -> evidence-only response
+```
+
+When an OpenAI-compatible chat model is configured, the same advisors are passed to `ChatClient`; otherwise the deterministic evidence response is returned. The local vector index stores only normalized research evidence and preserves security code, section, provider, source URL, provider time and fetch time. MCP server transport is disabled by default and must be explicitly enabled in local configuration.
+
 ## Partial Success
 
 Each `DataSection<T>` is `HEALTHY`, `DEGRADED`, `STALE`, `UNVERIFIED`, or `UNAVAILABLE`. A usable payload always carries provenance. `UNAVAILABLE` carries issues but no payload. The aggregate request fails only when both quote and primary K-line sources are unavailable.

@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.ObjectProvider;
 import com.astock.agent.agent.AgentStatusService;
 
@@ -59,12 +60,12 @@ public class LearningAgentConfiguration {
             ResearchKnowledgeIndexer indexer,
             ResearchRetriever retriever,
             ResearchMcpToolProvider tools,
-            ObjectProvider<ChatClient.Builder> chatClientBuilders,
+            ObjectProvider<ChatModel> chatModels,
             AgentStatusService status,
             LearningAdvisorFactory advisors) {
-        ChatClient.Builder builder = chatClientBuilders.getIfAvailable();
-        ChatClient client = status.status() == com.astock.agent.agent.AgentAvailability.READY && builder != null
-                ? builder.build() : null;
+        ChatModel chatModel = chatModels.getIfAvailable();
+        ChatClient client = status.status() == com.astock.agent.agent.AgentAvailability.READY && chatModel != null
+                ? ChatClient.builder(chatModel).build() : null;
         return new LearningAgentFacade(
                 properties, memory.getIfAvailable(), indexer, retriever, tools,
                 client, status, advisors);
