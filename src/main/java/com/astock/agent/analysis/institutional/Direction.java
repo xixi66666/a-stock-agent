@@ -1,7 +1,5 @@
 package com.astock.agent.analysis.institutional;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum Direction {
     STRONGER("偏强"),
@@ -13,14 +11,5 @@ public enum Direction {
 
     Direction(String label) { this.label = label; }
 
-    @JsonValue
     public String label() { return label; }
-
-    @JsonCreator
-    public static Direction fromValue(String value) {
-        for (Direction direction : values()) {
-            if (direction.name().equalsIgnoreCase(value) || direction.label.equals(value)) return direction;
-        }
-        throw new IllegalArgumentException("Unknown direction: " + value);
-    }
 }

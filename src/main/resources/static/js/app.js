@@ -105,7 +105,7 @@ function renderAgentList(title, items) {
 }
 
 function renderInstitutionalReport(report) {
-  const direction = report.direction?.label || report.direction || "证据不足";
+  const direction = ({ STRONGER: "偏强", NEUTRAL: "中性", WEAKER: "偏弱", INSUFFICIENT: "证据不足" })[report.direction] || report.direction?.label || report.direction || "证据不足";
   const mode = report.generationMode || "DETERMINISTIC_FALLBACK";
   const technical = report.technicalAndFlow?.narrative || "技术与资金证据不可用";
   const fundamental = report.fundamentals?.narrative || "基本面与机构预期证据不可用";
