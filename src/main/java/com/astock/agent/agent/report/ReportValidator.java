@@ -23,7 +23,12 @@ public final class ReportValidator {
         if (text.isBlank()) issues.add("EMPTY_NARRATIVE");
         if (text.codePointCount(0, text.length()) > 12_000) issues.add("NARRATIVE_TOO_LONG");
         Matcher ids = EVIDENCE_ID.matcher(text);
-        while (ids.find()) if (!evidence.evidenceCatalog().containsKey(ids.group(1))) issues.add("UNKNOWN_EVIDENCE");
+        boolean hasReference = false;
+        while (ids.find()) {
+            hasReference = true;
+            if (!evidence.evidenceCatalog().containsKey(ids.group(1))) issues.add("UNKNOWN_EVIDENCE");
+        }
+        if (!hasReference && !evidence.evidenceCatalog().isEmpty()) issues.add("MISSING_EVIDENCE_REFERENCE");
         String evidenceText = evidence.evidenceCatalog().values().stream().map(this::evidenceText).reduce("", (a, b) -> a + " " + b);
         Matcher numbers = NUMBER.matcher(text);
         while (numbers.find()) {
