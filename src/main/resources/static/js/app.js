@@ -96,6 +96,37 @@ function escapeText(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
+function renderAgentList(title, items) {
+  if (!Array.isArray(items) || !items.length) return `<section class="report-block"><h4>${escapeText(title)}</h4><p class="muted">暂无可用证据</p></section>`;
+  return `<section class="report-block"><h4>${escapeText(title)}</h4><ul>${items.map((item) => {
+    const text = typeof item === "string" ? item : `${item.title || ""}：${item.interpretation || ""}`;
+    return `<li>${escapeText(text)}</li>`;
+  }).join("")}</ul></section>`;
+}
+
+function renderInstitutionalReport(report) {
+  const direction = report.direction?.label || report.direction || "证据不足";
+  const mode = report.generationMode || "DETERMINISTIC_FALLBACK";
+  const technical = report.technicalAndFlow?.narrative || "技术与资金证据不可用";
+  const fundamental = report.fundamentals?.narrative || "基本面与机构预期证据不可用";
+  const valuation = report.valuationAndIndustry?.narrative || "估值与行业证据不可用";
+  return `<span class="source-status" data-status="${escapeText(mode === "MODEL_ASSISTED" ? "HEALTHY" : "DEGRADED")}"><span></span>${escapeText(mode === "MODEL_ASSISTED" ? "模型叙述已校验" : "确定性规则回退")}</span>
+    <div class="report-header"><div><span class="section-kicker">${escapeText(report.horizon || "1-3个月")} · ${escapeText(report.evidenceStatus || "INSUFFICIENT")}</span><h3>${escapeText(direction)}</h3></div><small>${escapeText(report.ruleVersion || "")}</small></div>
+    <p class="report-summary">${escapeText(report.executiveSummary || "现有证据无法生成摘要")}</p>
+    <div class="report-grid">
+      ${renderAgentList("核心驱动", report.coreDrivers)}
+      <section class="report-block"><h4>技术与资金</h4><p>${escapeText(technical)}</p></section>
+      <section class="report-block"><h4>基本面与机构预期</h4><p>${escapeText(fundamental)}</p></section>
+      <section class="report-block"><h4>估值与行业</h4><p>${escapeText(valuation)}</p></section>
+      ${renderAgentList("催化剂", report.catalysts)}
+      ${renderAgentList("风险", report.risks)}
+      ${renderAgentList("证据冲突", report.conflicts)}
+      ${renderAgentList("缺失数据", report.missingData)}
+      ${renderAgentList("判断失效条件", report.invalidationConditions)}
+    </div>
+    <small>${escapeText(report.disclaimer || "仅供学习研究，不构成投资建议")}</small>`;
+}
+
 function bindAgentAction() {
   const button = $("#run-agent");
   if (!button) return;
@@ -105,6 +136,11 @@ function bindAgentAction() {
     output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在综合</span><p>Agent 正在调用受限股票研究工具。</p>';
     try {
       const report = await stockApi.analyze(state.currentCode);
+      if (report.direction || report.generationMode) {
+        output.innerHTML = renderInstitutionalReport(report);
+        refreshIcons();
+        return;
+      }
       const evidence = [...(report.technicalEvidence || []), ...(report.capitalAndFundamentalEvidence || [])];
       output.innerHTML = `<span class="source-status" data-status="HEALTHY"><span></span>报告完成</span>
         <h3>${escapeText(report.factualSummary || "结构化研究摘要")}</h3>
