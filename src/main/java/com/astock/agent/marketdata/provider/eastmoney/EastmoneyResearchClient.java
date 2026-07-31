@@ -3,6 +3,7 @@ package com.astock.agent.marketdata.provider.eastmoney;
 import com.astock.agent.marketdata.model.CapitalData;
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.FundFlow;
+import com.astock.agent.marketdata.model.IndustryPeerQuote;
 import com.astock.agent.marketdata.model.NewsItem;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.ResearchItem;
@@ -52,6 +53,19 @@ public final class EastmoneyResearchClient {
             return List.copyOf(result);
         } catch (Exception exception) {
             throw new IllegalArgumentException("Unable to parse Eastmoney sectors", exception);
+        }
+    }
+
+    public List<IndustryPeerQuote> parseIndustryPeers(String body) {
+        try {
+            JsonNode items = MAPPER.readTree(body).path("data").path("diff");
+            List<IndustryPeerQuote> result = new ArrayList<>();
+            iterable(items).forEach(item -> result.add(new IndustryPeerQuote(
+                    text(item, "f12"), text(item, "f14"), decimal(item, "f9"),
+                    decimal(item, "f23"), decimal(item, "f20"))));
+            return List.copyOf(result);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Unable to parse Eastmoney industry peers", exception);
         }
     }
 
@@ -175,6 +189,21 @@ public final class EastmoneyResearchClient {
         URI uri = URI.create("https://push2.eastmoney.com/api/qt/slist/get?fltt=2&invt=2&spt=3&pi=0&pz=200&po=1"
                 + "&fields=f12,f14,f3,f128&secid=" + security.eastmoneySecId());
         return parseSectorsSection(http.get(ProviderId.EASTMONEY, uri, "https://quote.eastmoney.com/").utf8Text(), security);
+    }
+
+    public DataSection<List<IndustryPeerQuote>> fetchIndustryPeers(Sector industry) {
+        ensureLiveClient();
+        URI uri = URI.create("https://push2.eastmoney.com/api/qt/clist/get"
+                + "?pn=1&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3"
+                + "&fs=b:" + URLEncoder.encode(industry.code(), StandardCharsets.UTF_8)
+                + "&fields=f12,f14,f9,f20,f23");
+        try {
+            List<IndustryPeerQuote> peers = parseIndustryPeers(
+                    http.get(ProviderId.EASTMONEY, uri, "https://quote.eastmoney.com/").utf8Text());
+            return DataSection.healthy(peers, provenance(uri));
+        } catch (Exception exception) {
+            return DataSection.unavailable("Eastmoney industry peers failed: " + exception.getMessage());
+        }
     }
 
     public DataSection<List<FundFlow>> fetchFundFlow(SecurityId security) {
