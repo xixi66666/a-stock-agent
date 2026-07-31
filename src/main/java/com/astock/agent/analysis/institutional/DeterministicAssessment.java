@@ -40,6 +40,9 @@ public final class DeterministicAssessment {
     public List<String> missingData() { return missingData; }
     public List<String> invalidationConditions() { return invalidationConditions; }
 
+    /** 按名称读取单个维度，供报告组装使用；不会暴露内部综合分。 */
+    public EvidenceScore evidenceScore(String name) { return dimensions.get(name); }
+
     // 仅供同包规则测试使用，避免内部综合分进入 API。
     int internalScore() { return internalScore; }
     EvidenceScore dimension(String name) { return dimensions.get(name); }
