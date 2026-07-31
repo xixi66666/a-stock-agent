@@ -44,7 +44,7 @@ public final class ResearchJudgementEngine {
         EvidenceScore flow = flow(snapshot, missing);
         EvidenceScore events = events(snapshot, missing);
         EvidenceScore fundamentals = fundamentals(snapshot, missing, risks);
-        EvidenceScore valuation = valuation(snapshot, missing, risks);
+        EvidenceScore valuation = valuation(snapshot, fundamentals, missing, risks);
         dimensions.put(technical.dimension(), technical);
         dimensions.put(flow.dimension(), flow);
         dimensions.put(events.dimension(), events);
@@ -111,36 +111,59 @@ public final class ResearchJudgementEngine {
     private EvidenceScore flow(StockResearchSnapshot snapshot, List<String> missing) {
         String name = "FUND_FLOW_CAPITAL";
         Object payload = snapshot.fundFlow().payload().orElse(null);
-        if (!usableSection(snapshot.fundFlow()) || !(payload instanceof List<?> values)
-                || values.stream().noneMatch(FundFlow.class::isInstance)) {
+        Object capitalPayload = snapshot.capital().payload().orElse(null);
+        boolean hasFlows = usableSection(snapshot.fundFlow()) && payload instanceof List<?> values
+                && values.stream().anyMatch(FundFlow.class::isInstance);
+        boolean hasCapital = usableSection(snapshot.capital()) && capitalPayload instanceof CapitalData;
+        if (!hasFlows && !hasCapital) {
             missing.add("资金流数据");
             return empty(name, WEIGHTS.get(name));
         }
-        List<FundFlow> flows = values.stream().filter(FundFlow.class::isInstance).map(FundFlow.class::cast).toList();
+        List<FundFlow> flows = hasFlows ? ((List<?>) payload).stream().filter(FundFlow.class::isInstance).map(FundFlow.class::cast).toList() : List.of();
         double sum5 = flows.stream().sorted(Comparator.comparing(FundFlow::date).reversed()).limit(5)
                 .map(FundFlow::mainNetYuan).filter(v -> v != null).mapToDouble(BigDecimal::doubleValue).sum();
         double sum20 = flows.stream().sorted(Comparator.comparing(FundFlow::date).reversed()).limit(20)
                 .map(FundFlow::mainNetYuan).filter(v -> v != null).mapToDouble(BigDecimal::doubleValue).sum();
-        int score = clamp((int) Math.signum(sum5) * 35 + (int) Math.signum(sum20) * 65);
-        return score(name, score, WEIGHTS.get(name), evidence("flow", "资金流", "5日与20日主力资金合计" + format(sum5) + "/" + format(sum20), snapshot.fundFlow()));
+        int score = hasFlows ? (int) Math.signum(sum5) * 35 + (int) Math.signum(sum20) * 65 : 0;
+        if (hasCapital) {
+            CapitalData capital = (CapitalData) capitalPayload;
+            double dragon = capital.dragonTigerRecords().stream().map(CapitalData.DragonTigerRecord::netBuyYuan)
+                    .filter(v -> v != null).mapToDouble(BigDecimal::doubleValue).sum();
+            double premium = capital.blockTrades().stream().map(CapitalData.BlockTrade::premiumPercent)
+                    .filter(v -> v != null).mapToDouble(BigDecimal::doubleValue).average().orElse(0);
+            score += (int) Math.signum(dragon) * 10 + (int) Math.signum(premium) * 5;
+        }
+        DataSection<?> source = hasFlows ? snapshot.fundFlow() : snapshot.capital();
+        return score(name, score, WEIGHTS.get(name), evidence("flow", "资金与筹码", "主力资金与结构化筹码共同判断", source));
     }
 
     private EvidenceScore events(StockResearchSnapshot snapshot, List<String> missing) {
         String name = "EVENT_CATALYST";
         Object payload = snapshot.announcements().payload().orElse(null);
-        if (!usableSection(snapshot.announcements()) || !(payload instanceof List<?> values)
-                || values.stream().noneMatch(Announcement.class::isInstance)) {
+        Object capitalPayload = snapshot.capital().payload().orElse(null);
+        boolean hasAnnouncements = usableSection(snapshot.announcements()) && payload instanceof List<?> values
+                && values.stream().anyMatch(Announcement.class::isInstance);
+        boolean hasCapital = usableSection(snapshot.capital()) && capitalPayload instanceof CapitalData
+                && hasStructuredCapital((CapitalData) capitalPayload);
+        if (!hasAnnouncements && !hasCapital) {
             missing.add("公告与结构化事件");
             return empty(name, WEIGHTS.get(name));
         }
-        List<Announcement> announcements = values.stream().filter(Announcement.class::isInstance).map(Announcement.class::cast).toList();
+        List<Announcement> announcements = hasAnnouncements ? ((List<?>) payload).stream().filter(Announcement.class::isInstance).map(Announcement.class::cast).toList() : List.of();
         int score = 0;
         for (Announcement item : announcements) {
             String type = item.type() == null ? "" : item.type();
             if (containsAny(type, "预增", "增持", "回购", "分红", "中标")) score += 25;
             if (containsAny(type, "预减", "减持", "解禁", "诉讼", "违规", "亏损")) score -= 25;
         }
-        return score(name, clamp(score), WEIGHTS.get(name), evidence("events", "公告事件", "结构化公告数量" + announcements.size(), snapshot.announcements()));
+        if (hasCapital) {
+            CapitalData capital = (CapitalData) capitalPayload;
+            score += capital.unlocks().stream().map(CapitalData.UnlockRecord::totalShareRatio).filter(v -> v != null)
+                    .mapToDouble(BigDecimal::doubleValue).anyMatch(v -> v > 5) ? -30 : 0;
+            score += capital.dividends().stream().anyMatch(item -> item.cashPerShareYuan() != null && item.cashPerShareYuan().signum() > 0) ? 20 : 0;
+        }
+        DataSection<?> source = hasAnnouncements ? snapshot.announcements() : snapshot.capital();
+        return score(name, clamp(score), WEIGHTS.get(name), evidence("events", "公告与结构化事件", "公告和资本事件共同判断", source));
     }
 
     private EvidenceScore fundamentals(StockResearchSnapshot snapshot, List<String> missing, List<String> risks) {
@@ -174,7 +197,8 @@ public final class ResearchJudgementEngine {
         return score(name, clamp(score), WEIGHTS.get(name), evidence("fundamentals", "基本面与预期", scoreText(score), hasFundamental ? snapshot.fundamentals() : snapshot.research()));
     }
 
-    private EvidenceScore valuation(StockResearchSnapshot snapshot, List<String> missing, List<String> risks) {
+    private EvidenceScore valuation(StockResearchSnapshot snapshot, EvidenceScore fundamentals,
+            List<String> missing, List<String> risks) {
         String name = "VALUATION_INDUSTRY";
         if (!usableSection(snapshot.industryValuation()) || !(snapshot.industryValuation().payload().orElse(null) instanceof IndustryValuationData data)
                 || !usableSection(snapshot.quote())) {
@@ -186,7 +210,16 @@ public final class ResearchJudgementEngine {
         if (quote.peTtm() != null && data.peMedian() != null) score += quote.peTtm().compareTo(data.peMedian()) <= 0 ? 50 : -50;
         if (quote.pb() != null && data.pbMedian() != null) score += quote.pb().compareTo(data.pbMedian()) <= 0 ? 30 : -30;
         if (data.pePercentile() != null && data.pePercentile().compareTo(BigDecimal.valueOf(75)) > 0) score -= 20;
+        if (fundamentals != null && fundamentals.usable() && fundamentals.rawScore() < -20 && score > 0) {
+            risks.add("盈利指标恶化时，低估值不单独形成正向判断");
+            score = 0;
+        }
         return score(name, clamp(score), WEIGHTS.get(name), evidence("valuation", "行业估值", "PE/PB与行业中位数比较", snapshot.industryValuation()));
+    }
+
+    private static boolean hasStructuredCapital(CapitalData data) {
+        return !data.marginHistory().isEmpty() || !data.blockTrades().isEmpty() || !data.shareholderChanges().isEmpty()
+                || !data.unlocks().isEmpty() || !data.dividends().isEmpty() || !data.dragonTigerRecords().isEmpty();
     }
 
     private static EvidenceScore empty(String dimension, int weight) { return new EvidenceScore(dimension, 0, weight, 0, false, List.of()); }

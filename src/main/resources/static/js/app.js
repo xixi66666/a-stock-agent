@@ -104,6 +104,11 @@ function renderAgentList(title, items) {
   }).join("")}</ul></section>`;
 }
 
+function renderReportSources(sources) {
+  if (!Array.isArray(sources) || !sources.length) return renderAgentList("来源", []);
+  return `<section class="report-block report-sources"><h4>来源</h4><ul>${sources.map((source) => `<li><strong>${escapeText(source.section || "数据")}</strong> · ${escapeText(source.provider || "未知来源")} · ${escapeText(source.status || "")}${source.url ? ` <a href="${escapeText(source.url)}" target="_blank" rel="noopener noreferrer">查看</a>` : ""}<small>${escapeText(source.fetchedAt || "")}</small></li>`).join("")}</ul></section>`;
+}
+
 function renderInstitutionalReport(report) {
   const direction = ({ STRONGER: "偏强", NEUTRAL: "中性", WEAKER: "偏弱", INSUFFICIENT: "证据不足" })[report.direction] || report.direction?.label || report.direction || "证据不足";
   const mode = report.generationMode || "DETERMINISTIC_FALLBACK";
@@ -123,6 +128,7 @@ function renderInstitutionalReport(report) {
       ${renderAgentList("证据冲突", report.conflicts)}
       ${renderAgentList("缺失数据", report.missingData)}
       ${renderAgentList("判断失效条件", report.invalidationConditions)}
+      ${renderReportSources(report.sources)}
     </div>
     <small>${escapeText(report.disclaimer || "仅供学习研究，不构成投资建议")}</small>`;
 }
