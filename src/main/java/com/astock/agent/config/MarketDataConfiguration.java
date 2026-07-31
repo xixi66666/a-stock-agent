@@ -5,7 +5,15 @@ import com.astock.agent.analysis.ProviderResearchGateway;
 import com.astock.agent.analysis.ResearchAggregationService;
 import com.astock.agent.analysis.ResearchGateway;
 import com.astock.agent.analysis.StockResearchSnapshot;
+import com.astock.agent.analysis.institutional.IndustryValuationCalculator;
+import com.astock.agent.analysis.institutional.IndustryValuationService;
+import com.astock.agent.marketdata.model.Announcement;
+import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.IndustryPeerQuote;
+import com.astock.agent.marketdata.model.NewsItem;
+import com.astock.agent.marketdata.model.ResearchItem;
 import com.astock.agent.marketdata.model.SecurityId;
+import com.astock.agent.marketdata.model.Sector;
 import com.astock.agent.marketdata.provider.ProviderHealthRegistry;
 import com.astock.agent.marketdata.provider.ProviderHttpClient;
 import com.astock.agent.marketdata.provider.ProviderThrottle;
@@ -19,6 +27,8 @@ import com.astock.agent.technical.BarSeriesFactory;
 import com.astock.agent.technical.TechnicalAnalysisService;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.time.Clock;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -54,6 +64,7 @@ public class MarketDataConfiguration {
         return new TechnicalAnalysisService(factory);
     }
     @Bean DataQualityScorer dataQualityScorer() { return new DataQualityScorer(); }
+    @Bean IndustryValuationCalculator industryValuationCalculator() { return new IndustryValuationCalculator(); }
 
     @Bean
     TencentMarketDataClient tencentMarketDataClient(
@@ -78,13 +89,35 @@ public class MarketDataConfiguration {
     }
 
     @Bean
+    IndustryValuationService industryValuationService(
+            EastmoneyResearchClient eastmoney,
+            IndustryValuationCalculator calculator,
+            @Qualifier("industryClassificationCache")
+            Cache<SecurityId, DataSection<List<Sector>>> classificationCache,
+            @Qualifier("industryPeerCache")
+            Cache<String, DataSection<List<IndustryPeerQuote>>> peerCache) {
+        return new IndustryValuationService(
+                eastmoney::fetchSectors, eastmoney::fetchIndustryPeers,
+                calculator, classificationCache, peerCache);
+    }
+
+    @Bean
     ResearchGateway researchGateway(
             TencentMarketDataClient tencent,
             BaiduKlineClient baidu,
             EastmoneyResearchClient eastmoney,
             SinaFinanceClient sina,
-            CninfoAnnouncementClient cninfo) {
-        return new ProviderResearchGateway(tencent, baidu, eastmoney, sina, cninfo);
+            CninfoAnnouncementClient cninfo,
+            IndustryValuationService industryValuation,
+            @Qualifier("researchReportCache")
+            Cache<SecurityId, DataSection<List<ResearchItem>>> researchCache,
+            @Qualifier("newsCache")
+            Cache<SecurityId, DataSection<List<NewsItem>>> newsCache,
+            @Qualifier("announcementCache")
+            Cache<SecurityId, DataSection<List<Announcement>>> announcementCache) {
+        return new ProviderResearchGateway(
+                tencent, baidu, eastmoney, sina, cninfo, industryValuation,
+                researchCache, newsCache, announcementCache);
     }
 
     @Bean

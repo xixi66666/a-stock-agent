@@ -2,6 +2,7 @@ package com.astock.agent.analysis;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.SectionStatus;
@@ -49,6 +50,8 @@ public final class ResearchAggregationService {
             Future<DataSection<List<DailyBar>>> barsFuture = executor.submit(() -> safeBars(security));
             Future<DataSection<List<DailyBar>>> crossFuture = executor.submit(() -> safeCrossBars(security));
             Future<DataSection<?>> sectorsFuture = submit(executor, () -> gateway.sectors(security));
+            Future<DataSection<IndustryValuationData>> industryValuationFuture =
+                    executor.submit(() -> safeIndustryValuation(security));
             Future<DataSection<?>> flowFuture = submit(executor, () -> gateway.fundFlow(security));
             Future<DataSection<?>> capitalFuture = submit(executor, () -> gateway.capital(security));
             Future<DataSection<?>> fundamentalsFuture = submit(executor, () -> gateway.fundamentals(security));
@@ -74,13 +77,13 @@ public final class ResearchAggregationService {
 
             StockResearchSnapshot snapshot = new StockResearchSnapshot(
                     security, quote, bars, technical,
-                    sectorsFuture.get(), flowFuture.get(), capitalFuture.get(), fundamentalsFuture.get(),
+                    sectorsFuture.get(), industryValuationFuture.get(), flowFuture.get(), capitalFuture.get(), fundamentalsFuture.get(),
                     researchFuture.get(), newsFuture.get(), announcementsFuture.get(), null,
                     consistent, complete, authoritative, Instant.now());
             DataQualityBreakdown quality = qualityScorer.score(snapshot);
             return new StockResearchSnapshot(
                     security, quote, bars, technical,
-                    snapshot.sectors(), snapshot.fundFlow(), snapshot.capital(), snapshot.fundamentals(),
+                    snapshot.sectors(), snapshot.industryValuation(), snapshot.fundFlow(), snapshot.capital(), snapshot.fundamentals(),
                     snapshot.research(), snapshot.news(), snapshot.announcements(), quality,
                     consistent, complete, authoritative, snapshot.fetchedAt());
         } catch (ResearchUnavailableException exception) {
@@ -115,6 +118,14 @@ public final class ResearchAggregationService {
     private DataSection<List<DailyBar>> safeCrossBars(SecurityId security) {
         try {
             return gateway.crossCheckBars(security);
+        } catch (Exception exception) {
+            return DataSection.unavailable(message(exception));
+        }
+    }
+
+    private DataSection<IndustryValuationData> safeIndustryValuation(SecurityId security) {
+        try {
+            return gateway.industryValuation(security);
         } catch (Exception exception) {
             return DataSection.unavailable(message(exception));
         }

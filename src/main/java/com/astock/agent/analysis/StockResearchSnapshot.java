@@ -2,6 +2,7 @@ package com.astock.agent.analysis;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.technical.TechnicalSnapshot;
@@ -14,6 +15,7 @@ public record StockResearchSnapshot(
         DataSection<List<DailyBar>> bars,
         DataSection<TechnicalSnapshot> technical,
         DataSection<?> sectors,
+        DataSection<IndustryValuationData> industryValuation,
         DataSection<?> fundFlow,
         DataSection<?> capital,
         DataSection<?> fundamentals,
@@ -29,6 +31,7 @@ public record StockResearchSnapshot(
     public static StockResearchSnapshot empty(SecurityId security) {
         return new StockResearchSnapshot(
                 security,
+                DataSection.unavailable("not loaded"),
                 DataSection.unavailable("not loaded"),
                 DataSection.unavailable("not loaded"),
                 DataSection.unavailable("not loaded"),
@@ -69,7 +72,7 @@ public record StockResearchSnapshot(
             boolean complete,
             boolean authoritative) {
         return new StockResearchSnapshot(
-                security, quoteValue, barsValue, technical, sectors, fundFlow, capital, fundamentals,
+                security, quoteValue, barsValue, technical, sectors, industryValuation, fundFlow, capital, fundamentals,
                 research, news, announcements, quality, consistent, complete, authoritative, fetchedAt);
     }
 }

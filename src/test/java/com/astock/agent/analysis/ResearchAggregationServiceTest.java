@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.SectionStatus;
@@ -38,7 +39,28 @@ class ResearchAggregationServiceTest {
         assertThat(result.news().issues()).contains("simulated provider block");
     }
 
-    private static final class StubGateway implements ResearchGateway {
+    @Test
+    void industryValuationFailureDoesNotDiscardQuoteOrTechnicalData() {
+        ResearchGateway gateway = new StubGateway() {
+            @Override
+            public DataSection<IndustryValuationData> industryValuation(SecurityId security) {
+                return DataSection.unavailable("peer batch unavailable");
+            }
+        };
+        ResearchAggregationService service = new ResearchAggregationService(
+                gateway,
+                new TechnicalAnalysisService(new BarSeriesFactory()),
+                new DataQualityScorer(),
+                Caffeine.newBuilder().maximumSize(10).build());
+
+        StockResearchSnapshot result = service.research(SecurityId.parse("600519"));
+
+        assertThat(result.quote().status()).isEqualTo(SectionStatus.HEALTHY);
+        assertThat(result.technical().status()).isEqualTo(SectionStatus.HEALTHY);
+        assertThat(result.industryValuation().status()).isEqualTo(SectionStatus.UNAVAILABLE);
+    }
+
+    private static class StubGateway implements ResearchGateway {
         private final SecurityId id = SecurityId.parse("600519");
         private final Provenance source = new Provenance("fixture", URI.create("https://example.com"), null,
                 Instant.parse("2026-07-15T08:00:00Z"), false, null);
@@ -60,6 +82,9 @@ class ResearchAggregationServiceTest {
 
         @Override public DataSection<List<DailyBar>> crossCheckBars(SecurityId security) { return bars(security); }
         @Override public DataSection<?> sectors(SecurityId security) { return DataSection.healthy(List.of(), source); }
+        @Override public DataSection<IndustryValuationData> industryValuation(SecurityId security) {
+            return DataSection.unavailable("not provided by fixture");
+        }
         @Override public DataSection<?> fundFlow(SecurityId security) { return DataSection.healthy(List.of(), source); }
         @Override public DataSection<?> capital(SecurityId security) { return DataSection.healthy(List.of(), source); }
         @Override public DataSection<?> fundamentals(SecurityId security) { return DataSection.healthy(List.of(), source); }
