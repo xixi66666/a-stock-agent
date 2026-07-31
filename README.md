@@ -220,3 +220,17 @@ Agent 显示“未配置”：这是默认状态。行情与指标仍正常工�
 ## 投资风险声明
 
 本项目仅用于软件工程、Spring AI 和 Agent 学习。公开数据可能延迟、缺失或因供应商接口调整而变化，技术指标基于历史数据，不能预测未来。本项目不提供买卖指令，不构成任何投资建议或收益承诺。
+## Institutional report flow
+
+`POST /api/agent/analyze` first aggregates a single timestamped snapshot, then
+runs the fixed-weight `ResearchJudgementEngine`. Its direction is one of
+`STRONGER`, `NEUTRAL`, `WEAKER` and `INSUFFICIENT`; the internal weighted score
+is never returned and `EvidenceStatus` is a data-availability state, not a
+confidence probability. Industry PE/PB percentiles and consensus EPS are
+optional, provenance-preserving evidence.
+
+`InstitutionalReportComposer` sends only a bounded evidence package to the
+optional chat model. Fixed report generation does not use dynamic tool calling.
+Invalid model output or a timeout returns `DETERMINISTIC_FALLBACK`; the report
+always retains conflicts, missing data, invalidation conditions, sources and
+`仅供学习研究，不构成投资建议`.

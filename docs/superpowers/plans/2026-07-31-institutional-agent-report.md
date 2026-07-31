@@ -765,3 +765,13 @@ git commit -m "docs: document institutional report evidence flow"
 - Frontend displays every report section and source without overflow.
 - Default test suite remains offline; external checks stay tagged `external`.
 - Full Maven tests, package, data verification, UI tests, diff check and secret audit pass.
+## Implementation Progress
+
+- Task 1: completed and committed (`663449d`).
+- Task 2: completed and committed (`d5b936c`).
+- Task 3: completed and committed (`9ea3eba`).
+- Task 4: completed and committed (`3a7f6b2`).
+- Task 5: completed and committed (`574fbc7`).
+- Task 6: validator, constrained model path and deterministic fallback completed (`bfb7dc4`).
+- Task 7: API and frontend report rendering completed (`4f5826d`, `ba7e17a`).
+- Task 8: documentation and verification record completed; live-data and Playwright checks remain environment-dependent.

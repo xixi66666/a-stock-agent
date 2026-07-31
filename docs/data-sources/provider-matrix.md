@@ -9,6 +9,7 @@
 | Margin, block trade, holders, unlock, dividend, dragon-tiger | Eastmoney | Section-local unavailable | Shared serialized throttle | `CapitalData` |
 | Financial statements | Sina Finance | Section-local unavailable | Bounded retry and timeout | `FundamentalData` |
 | Institution research | Eastmoney Report API | Empty successful list | Shared serialized throttle | `List<ResearchItem>` |
+| Industry peer valuation | Eastmoney `clist/get` batch | Section-local unavailable | Shared serialized throttle; 15 minute cache | `IndustryValuationData` (PE/PB median and percentile) |
 | Stock news | Eastmoney Search API | Empty successful list | Shared serialized throttle | `List<NewsItem>` |
 | Announcements | CNInfo official | Section-local unavailable | Dynamic organization ID lookup | `List<Announcement>` |
 
@@ -32,3 +33,9 @@ The score totals 100 points:
 | Authority | 15 | Preferred or official source provenance |
 
 The score is an engineering data-quality signal, not a stock rating or investment recommendation.
+
+Industry valuation keeps the target row separate from peer samples, excludes
+invalid/non-positive ratios, preserves sample counts and provenance, and does
+not fabricate a percentile when the peer sample is insufficient. Consensus EPS
+uses the newest report per institution and median values; fewer than two
+institutions do not create a directional EPS signal.

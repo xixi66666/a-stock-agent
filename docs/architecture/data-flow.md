@@ -52,6 +52,26 @@ request -> Chat Memory -> Trace/RAG Advisors -> deterministic Embedding
          -> evidence-only response
 ```
 
+## Institutional Report Path
+
+The fixed `POST /api/agent/analyze` flow is deliberately separate from interactive
+tool calling:
+
+```text
+ResearchAggregationService
+  -> ResearchJudgementEngine (fixed weights and thresholds)
+  -> InstitutionalReportComposer (bounded evidence package)
+  -> ChatClient narrative draft (optional, no .tools(...))
+  -> ReportValidator
+  -> InstitutionalResearchReport
+```
+
+`Direction` and `EvidenceStatus` are determined by Java. The internal weighted
+score is not serialized. Missing dimensions contribute zero and are reported as
+partial or insufficient evidence; they are never reweighted. Model timeout,
+invalid JSON, unsupported numbers, unknown evidence IDs or trade language return
+`DETERMINISTIC_FALLBACK`.
+
 When an OpenAI-compatible chat model is configured, the same advisors are passed to `ChatClient`; otherwise the deterministic evidence response is returned. The local vector index stores only normalized research evidence and preserves security code, section, provider, source URL, provider time and fetch time. MCP server transport is disabled by default and must be explicitly enabled in local configuration.
 
 ## Partial Success
