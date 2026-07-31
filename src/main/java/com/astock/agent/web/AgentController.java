@@ -1,8 +1,8 @@
 package com.astock.agent.web;
 
-import com.astock.agent.agent.AgentResearchReport;
 import com.astock.agent.agent.AgentStatusService;
 import com.astock.agent.agent.StockAnalysisAgent;
+import com.astock.agent.agent.report.InstitutionalResearchReport;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,17 +28,17 @@ public class AgentController {
     }
 
     @PostMapping("/analyze")
-    public AgentResearchReport analyze(@RequestBody AnalyzeRequest request) {
+    public InstitutionalResearchReport analyze(@RequestBody AnalyzeRequest request) {
         if (agent == null) {
             throw new IllegalStateException("Agent is unavailable");
         }
-        return agent.analyze(request.code());
+        return agent.analyzeInstitutional(request.code());
     }
 
     @PostMapping("/chat")
     public Map<String, Object> chat(@RequestBody ChatRequest request) {
         validateMessage(request.message());
-        AgentResearchReport report = analyze(new AnalyzeRequest(request.code()));
+        InstitutionalResearchReport report = analyze(new AnalyzeRequest(request.code()));
         return Map.of(
                 "question", request.message(),
                 "report", report,

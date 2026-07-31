@@ -1,6 +1,13 @@
 package com.astock.agent.agent;
 
 import com.astock.agent.analysis.StockResearchSnapshot;
+import com.astock.agent.analysis.institutional.DeterministicAssessment;
+import com.astock.agent.analysis.institutional.ResearchJudgementEngine;
+import com.astock.agent.agent.report.InstitutionalReportComposer;
+import com.astock.agent.agent.report.InstitutionalResearchReport;
+import com.astock.agent.agent.report.ReportEvidencePackage;
+import com.astock.agent.agent.report.ReportNarrativeDraft;
+import com.astock.agent.agent.report.ReportValidator;
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.Provenance;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,12 +28,59 @@ public final class StockAnalysisAgent {
     private final ChatClient chatClient;
     private final AgentStatusService statusService;
     private final StockAgentTools tools;
+    private final ResearchJudgementEngine judgementEngine;
+    private final InstitutionalReportComposer reportComposer;
+    private final ReportValidator reportValidator;
 
     public StockAnalysisAgent(ChatClient chatClient, AgentStatusService statusService, StockAgentTools tools) {
+        this(chatClient, statusService, tools, new ResearchJudgementEngine(),
+                new InstitutionalReportComposer(), new ReportValidator());
+    }
+
+    public StockAnalysisAgent(ChatClient chatClient, AgentStatusService statusService, StockAgentTools tools,
+            ResearchJudgementEngine judgementEngine, InstitutionalReportComposer reportComposer,
+            ReportValidator reportValidator) {
         this.chatClient = chatClient;
         this.statusService = statusService;
         this.tools = tools;
+        this.judgementEngine = judgementEngine;
+        this.reportComposer = reportComposer;
+        this.reportValidator = reportValidator;
     }
+
+    public InstitutionalResearchReport analyzeInstitutional(String code) {
+        return analyzeInstitutional(tools.getResearchSnapshot(code));
+    }
+
+    /** 固定报告流程：快照 -> 确定性判断 -> 有界证据 -> 受约束叙述 -> 校验/回退。 */
+    public InstitutionalResearchReport analyzeInstitutional(StockResearchSnapshot snapshot) {
+        DeterministicAssessment assessment = judgementEngine.assess(snapshot);
+        ReportEvidencePackage evidence = reportComposer.compose(snapshot, assessment);
+        InstitutionalResearchReport fallback = reportComposer.fallback(snapshot, assessment, null);
+        if (chatClient == null || statusService == null || statusService.status() != AgentAvailability.READY) {
+            return fallback;
+        }
+        try {
+            ReportNarrativeDraft draft = chatClient.prompt()
+                    .system(INSTITUTIONAL_SYSTEM_PROMPT)
+                    .user(MAPPER.writeValueAsString(evidence))
+                    .call()
+                    .entity(ReportNarrativeDraft.class);
+            ReportValidator.ValidationResult validation = reportValidator.validate(draft, evidence);
+            return validation.valid()
+                    ? reportComposer.assemble(snapshot, assessment, draft, "configured-chat-model")
+                    : reportComposer.fallback(snapshot, assessment, String.join(",", validation.issues()));
+        } catch (Exception exception) {
+            return reportComposer.fallback(snapshot, assessment, "model unavailable");
+        }
+    }
+
+    private static final String INSTITUTIONAL_SYSTEM_PROMPT = """
+            你是A股研究报告叙述助手。只能依据用户提供的有界证据包写中文叙述，不能改变方向和证据状态。
+            不得补充证据包之外的事实或数字；关键判断必须引用证据ID，例如[quote]。
+            必须保留证据冲突、缺失数据和失效条件；不得输出买卖、仓位、目标价、收益保证或个性化建议。
+            只返回ReportNarrativeDraft结构，不要返回方向、评分、来源或免责声明字段。
+            """;
 
     public AgentResearchReport analyze(String code) {
         return analyze(tools.getResearchSnapshot(code));
