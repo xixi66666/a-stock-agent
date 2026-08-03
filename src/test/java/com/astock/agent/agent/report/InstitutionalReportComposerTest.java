@@ -28,8 +28,11 @@ class InstitutionalReportComposerTest {
 
         assertThat(result.horizon()).isEqualTo("1-3个月");
         assertThat(result.evidenceCatalog()).isNotEmpty();
+        assertThat(result.moduleAnalyses()).isNotEmpty();
         assertThat(result.evidenceCatalog().keySet()).allMatch(id -> id.matches("[a-z0-9-]{3,80}"));
-        assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(result)).doesNotContain("internalScore");
+        assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(result))
+                .contains("methodology")
+                .doesNotContain("internalScore", "规则方向分", "该分区已提供可追溯数据");
     }
 
     @Test
@@ -42,6 +45,35 @@ class InstitutionalReportComposerTest {
         assertThat(report.conflicts()).containsExactlyElementsOf(assessment.conflicts());
         assertThat(report.missingData()).containsExactlyElementsOf(assessment.missingData());
         assertThat(report.disclaimer()).isEqualTo("仅供学习研究，不构成投资建议");
+
+        String json = writeJson(report);
+        assertThat(json).contains("\"facts\"").contains("最新价").contains("100");
+    }
+
+    @Test
+    void assemblesModelNarrativeWithWarningsWithoutReplacingIt() {
+        StockResearchSnapshot snapshot = snapshot();
+        DeterministicAssessment assessment = new ResearchJudgementEngine().assess(snapshot);
+        ReportNarrativeDraft draft = new ReportNarrativeDraft("模型摘要", "模型技术", "模型基本面", "模型估值", java.util.List.of(), java.util.List.of());
+        ReportValidator.ValidationResult validation = new ReportValidator().validate(draft, composer.compose(snapshot, assessment));
+
+        InstitutionalResearchReport report = composer.assembleValidated(snapshot, assessment, draft, validation,
+                "mimo-v2.5-pro", new ModelFailureClassifier().validationWarning(validation.warnings(), "mimo-v2.5-pro", 10, "trace-warning"));
+
+        assertThat(validation.valid()).isTrue();
+        assertThat(validation.warnings()).contains("MISSING_EVIDENCE_REFERENCE");
+        assertThat(report.generationMode()).isEqualTo(GenerationMode.MODEL_ASSISTED_WITH_WARNINGS);
+        assertThat(report.executiveSummary()).isEqualTo("模型摘要");
+        assertThat(report.technicalAndFlow().narrative()).isEqualTo("模型技术");
+        assertThat(report.modelDiagnostic().errorCode()).isEqualTo("MODEL_NARRATIVE_VALIDATION_WARNING");
+    }
+
+    private static String writeJson(Object value) {
+        try {
+            return new ObjectMapper().findAndRegisterModules().writeValueAsString(value);
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
     }
 
     private static StockResearchSnapshot snapshot() {

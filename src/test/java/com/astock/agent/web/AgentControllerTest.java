@@ -5,6 +5,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.astock.agent.agent.AgentStatusService;
+import com.astock.agent.agent.overall.OverallReportResponse;
+import com.astock.agent.agent.overall.OverallReportService;
+import com.astock.agent.agent.overall.OverallReportStatus;
+import com.astock.agent.agent.overall.OverallResearchReport;
 import com.astock.agent.agent.report.GenerationMode;
 import com.astock.agent.agent.report.InstitutionalResearchReport;
 import com.astock.agent.analysis.institutional.Direction;
@@ -55,5 +59,43 @@ class AgentControllerTest {
                 .andExpect(jsonPath("$.conflicts").isArray())
                 .andExpect(jsonPath("$.invalidationConditions").isArray())
                 .andExpect(jsonPath("$.disclaimer").value("仅供学习研究，不构成投资建议"));
+    }
+
+    @Test
+    void overallReportUsesIndependentEndpoint() throws Exception {
+        OverallReportService overall = mock(OverallReportService.class);
+        OverallResearchReport report = new OverallResearchReport(
+                "summary", "quality", "fundamentals", "technical", "valuation", "events",
+                List.of(), List.of(), List.of(), java.util.Map.of(), List.of(), List.of(),
+                "deepseek-chat", Instant.now(), Instant.now(), "overall-v1", "ignored");
+        when(overall.generate("600519")).thenReturn(new OverallReportResponse(
+                OverallReportStatus.MODEL_ASSISTED, report, null, "DeepSeek overall report generated"));
+
+        AgentController controller = new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, overall);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mvc.perform(post("/api/agent/overall-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"600519\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("MODEL_ASSISTED"))
+                .andExpect(jsonPath("$.report.modelName").value("deepseek-chat"));
+    }
+
+    @Test
+    void invalidOverallReportCodeUsesProblemDetails() throws Exception {
+        OverallReportService overall = mock(OverallReportService.class);
+        AgentController controller = new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, overall);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+
+        mvc.perform(post("/api/agent/overall-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"ABC\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SECURITY_CODE"));
     }
 }

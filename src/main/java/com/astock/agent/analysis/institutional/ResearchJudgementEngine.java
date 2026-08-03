@@ -71,13 +71,17 @@ public final class ResearchJudgementEngine {
         int score = dimensions.values().stream().mapToInt(EvidenceScore::weightedContribution).sum();
         Direction direction = evidenceStatus == EvidenceStatus.INSUFFICIENT ? Direction.INSUFFICIENT
                 : score >= 20 ? Direction.STRONGER : score <= -20 ? Direction.WEAKER : Direction.NEUTRAL;
-        List<ReportEvidence> drivers = dimensions.values().stream()
-                .filter(EvidenceScore::usable)
-                .sorted(Comparator.comparingInt(EvidenceScore::weightedContribution).reversed())
-                .flatMap(d -> d.evidence().stream().limit(2))
-                .limit(6).toList();
+        Map<AnalysisModule, ModuleAnalysis> moduleAnalyses = new ModuleAnalysisFactory().analyze(snapshot, dimensions);
+        List<CoreDriver> drivers = moduleAnalyses.values().stream()
+                .flatMap(module -> module.signals().stream().map(signal -> Map.entry(module, signal)))
+                .sorted(Comparator.comparingInt(entry -> -driverImpact(entry.getKey(), entry.getValue(), dimensions)))
+                .limit(6)
+                .map(entry -> new CoreDriver(entry.getValue().id(), entry.getKey().module(),
+                        entry.getValue().direction(), entry.getValue().conclusion(), entry.getValue().rationale(),
+                        entry.getValue().factIds(), entry.getValue().invalidation()))
+                .toList();
         if (drivers.isEmpty()) risks.add("当前没有足够的可引用证据支持方向判断");
-        return new DeterministicAssessment(direction, evidenceStatus, dimensions, drivers,
+        return new DeterministicAssessment(direction, evidenceStatus, dimensions, moduleAnalyses, drivers,
                 constraints, risks, conflicts, missing, invalidation, score);
     }
 
@@ -256,4 +260,11 @@ public final class ResearchJudgementEngine {
     private static String scoreText(int score) { return "规则方向分" + score; }
     private static boolean containsAny(String value, String... terms) { for (String t : terms) if (value.contains(t)) return true; return false; }
     private static String format(double value) { return String.format(Locale.ROOT, "%.0f", value); }
+
+    private static int driverImpact(ModuleAnalysis module, AnalysisSignal signal,
+            Map<String, EvidenceScore> dimensions) {
+        EvidenceScore score = dimensions.get(module.module().name());
+        int dimensionImpact = score == null ? 0 : Math.abs(score.weightedContribution());
+        return dimensionImpact * 100 + signal.impact();
+    }
 }

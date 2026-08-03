@@ -23,9 +23,52 @@ class ReportValidatorTest {
         assertThat(result.issues()).contains("UNKNOWN_EVIDENCE", "UNSUPPORTED_NUMBER", "TRADE_INSTRUCTION");
     }
 
+    @Test
+    void validatesFieldsIndependentlyAndTreatsMissingConflictAsWarning() {
+        ReportEvidencePackage evidence = evidencePackageWithConflict();
+        ReportNarrativeDraft draft = new ReportNarrativeDraft(
+                "摘要 [quote-price] 当前价格20元",
+                "建议买入 [unknown-id]",
+                "基本面 [quote-price]",
+                "估值 [quote-price]",
+                List.of(), List.of());
+
+        ReportValidator.ValidationResult result = new ReportValidator().validate(draft, evidence);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.blocksField(ReportValidator.FIELD_TECHNICAL_AND_FLOW)).isTrue();
+        assertThat(result.blocksField(ReportValidator.FIELD_EXECUTIVE_SUMMARY)).isFalse();
+        assertThat(result.blockingIssues()).contains("UNKNOWN_EVIDENCE", "TRADE_INSTRUCTION");
+        assertThat(result.warnings()).contains("MISSING_CONFLICT");
+    }
+
+    @Test
+    void keepsModelNarrativeValidWhenOnlyConflictWarningIsMissing() {
+        ReportEvidencePackage evidence = evidencePackageWithConflict();
+        ReportNarrativeDraft draft = new ReportNarrativeDraft(
+                "摘要 [quote-price] 当前价格20元",
+                "技术 [quote-price]",
+                "基本面 [quote-price]",
+                "估值 [quote-price]",
+                List.of(), List.of());
+
+        ReportValidator.ValidationResult result = new ReportValidator().validate(draft, evidence);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.blockingIssues()).isEmpty();
+        assertThat(result.warnings()).containsExactly("MISSING_CONFLICT");
+    }
+
     private static ReportEvidencePackage evidencePackage() {
         ReportEvidence item = new ReportEvidence("quote-price", "价格", "当前价格20元", "quote", "fixture", Instant.now());
         return new ReportEvidencePackage("600519", "贵州茅台", "1-3个月", Direction.NEUTRAL,
                 EvidenceStatus.PARTIAL, Map.of(item.id(), item), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), Instant.now(), "v1");
+    }
+
+    private static ReportEvidencePackage evidencePackageWithConflict() {
+        ReportEvidence item = new ReportEvidence("quote-price", "价格", "当前价格20元", "quote", "fixture", Instant.now());
+        return new ReportEvidencePackage("600519", "贵州茅台", "1-3个月", Direction.NEUTRAL,
+                EvidenceStatus.PARTIAL, Map.of(item.id(), item), List.of(), List.of(),
+                List.of("技术与资金方向冲突"), List.of(), List.of(), List.of(), List.of(), Instant.now(), "v1");
     }
 }

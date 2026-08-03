@@ -46,58 +46,51 @@ Copy-Item config/application-local.yml.example config/application-local.yml
 cp config/application-local.yml.example config/application-local.yml
 ```
 
-编辑 `config/application-local.yml`，任何时刻只保留一个完整的 `spring:` 配置块处于未注释状态。切换模型供应商时，先注释当前配置，再取消目标模板的整段注释，填写对应的 `api-key` 和账号实际可用的模型名称，最后重新运行 `.\start.ps1`。
+编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`institutional-report` 默认使用 `primary`，`overall-report` 默认使用 `deepseek`。修改模型、角色或密钥后请重启应用。
 
 ```yaml
-# 当前启用：OpenAI。填写 API Key 和账号可用的模型名称后重启应用。
 spring:
   ai:
+    # 关闭 Spring AI 的单模型自动配置，由 app.ai.models 管理多个命名模型。
     model:
-      chat: openai
+      chat: none
       embedding: none
       image: none
       moderation: none
       audio:
         speech: none
         transcription: none
-    openai:
-      api-key: "replace-with-openai-api-key"
-      base-url: "https://api.openai.com"
-      chat:
-        options:
-          model: "replace-with-openai-model"
-          temperature: 0.2
 
-# DeepSeek 模板：切换时注释上面的 OpenAI 配置，再取消下面整段注释。
-# spring:
-#   ai:
-#     model:
-#       chat: openai
-#     openai:
-#       api-key: "replace-with-deepseek-api-key"
-#       base-url: "https://api.deepseek.com"
-#       chat:
-#         options:
-#           model: "deepseek-chat"
-#           temperature: 0.2
-
-# Xiaomi MiMo 模板：Spring AI 默认追加 /v1/chat/completions，
-# 因此官方 /v1 Base URL 需要把 completions-path 改为 /chat/completions。
-# spring:
-#   ai:
-#     model:
-#       chat: openai
-#     openai:
-#       api-key: "replace-with-mimo-api-key"
-#       base-url: "https://api.xiaomimimo.com/v1"
-#       chat:
-#         completions-path: "/chat/completions"
-#         options:
-#           model: "mimo-v2.5-pro"
-#           temperature: 0.2
+app:
+  ai:
+    models:
+      primary:
+        enabled: true
+        base-url: "https://api.openai.com"
+        api-key: "replace-with-openai-api-key"
+        completions-path: "/v1/chat/completions"
+        model: "replace-with-openai-model"
+        temperature: 0.2
+      deepseek:
+        enabled: true
+        base-url: "https://api.deepseek.com"
+        api-key: "replace-with-deepseek-api-key"
+        completions-path: "/v1/chat/completions"
+        model: "deepseek-chat"
+        temperature: 0.1
+      mimo:
+        enabled: false
+        base-url: "https://api.xiaomimimo.com/v1"
+        api-key: "replace-with-mimo-api-key"
+        completions-path: "/chat/completions"
+        model: "mimo-v2.5-pro"
+        temperature: 0.2
+    roles:
+      institutional-report: primary
+      overall-report: deepseek
 ```
 
-三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK：
+三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK。DeepSeek 总体报告使用 `deepseek` 角色，向 `https://api.deepseek.com/v1/chat/completions` 发送完整的规范化股票研究快照；页面左侧的“生成总体报告 · DeepSeek”按钮和右侧原有“生成研究报告”按钮相互独立，任一模型不可用都不会覆盖另一份报告。
 
 | 供应商 | Base URL | 默认示例模型 | 额外配置 |
 | --- | --- | --- | --- |
@@ -105,7 +98,7 @@ spring:
 | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | 无 |
 | Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | `mimo-v2.5-pro` | `chat.completions-path: /chat/completions` |
 
-`config/application-local.yml` 已被 Git 忽略，可以在其中填写本机密钥。不要把真实密钥复制到 `application-local.yml.example`、README、日志、测试或提交历史中。修改供应商、密钥或模型后必须重启应用。
+`config/application-local.yml` 已被 Git 忽略，可以在其中填写本机密钥。不要把真实密钥复制到 `application-local.yml.example`、README、日志、测试或提交历史中。模型只接收应用内部生成的完整规范化快照，不具备任意 URL、文件系统或命令执行能力；报告输出会经过本地结构校验，并固定保留“仅供学习研究，不构成投资建议”。修改供应商、密钥或模型后必须重启应用。
 
 如果启动时报 `OpenAI API key must be set` 且 Bean 名称为 `openAiAudioSpeechModel`，这是 Spring AI 默认启用了语音模型，不是聊天模型配置失效。确认本地文件包含 `spring.ai.model.audio.speech: none` 和 `spring.ai.model.audio.transcription: none`，并从项目根目录启动。IDEA 的 Run Configuration 工作目录应为项目根目录 `D:\Code\Java_Code\a-stock-agent`，否则 `./config/application-local.yml` 不会被导入。
 
@@ -152,6 +145,7 @@ flowchart LR
 | GET | `/api/stocks/{code}/sources` | 来源与质量状态 |
 | GET | `/api/agent/status` | Agent 配置状态 |
 | POST | `/api/agent/analyze` | 生成结构化研究报告 |
+| POST | `/api/agent/overall-report` | 使用 DeepSeek 生成总体报告 |
 | GET | `/api/system/providers` | 数据源健康状态 |
 | GET | `/actuator/health` | 应用健康检查 |
 
@@ -211,7 +205,7 @@ npm.cmd run test:ui
 
 `403`、`429` 或东财数据暂不可用：应用不会高频重试，而是让该来源进入冷却并保留其他区块。等待冷却结束后刷新，不要并发批量请求或绕过 `ProviderThrottle`。
 
-Agent 显示“未配置”：这是默认状态。行情与指标仍正常工作；需要报告时检查本地 YAML 中的 `spring.ai.model.chat`、`api-key`、`base-url` 和模型名。
+Agent 显示“未配置”：这是默认状态。行情与指标仍正常工作；需要报告时检查 `config/application-local.yml` 中对应角色的 `enabled`、`api-key`、`base-url`、`completions-path` 和模型名，并确认角色映射仍指向已启用的命名模型。
 
 首次启动下载失败：确认可访问 GitHub Releases 和 Maven Central，删除未完成的 `.tools/downloads` 对应压缩包后重试。不要跳过脚本内的 SHA-256 校验。
 

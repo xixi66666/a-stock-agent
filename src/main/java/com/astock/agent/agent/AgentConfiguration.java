@@ -1,32 +1,54 @@
 package com.astock.agent.agent;
 
+import com.astock.agent.agent.model.NamedChatClientRegistry;
+import com.astock.agent.agent.overall.OverallReportGenerator;
+import com.astock.agent.agent.overall.OverallReportService;
+import com.astock.agent.agent.overall.OverallReportValidator;
+import com.astock.agent.agent.overall.SpringAiOverallReportGenerator;
+import com.astock.agent.agent.report.ModelFailureClassifier;
 import com.astock.agent.analysis.ResearchAggregationService;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
 
 @Configuration
 public class AgentConfiguration {
 
-    @Bean AgentStatusService agentStatusService(Environment environment) {
-        return new AgentStatusService(environment);
+    @Bean
+    AgentStatusService agentStatusService(NamedChatClientRegistry registry) {
+        return new AgentStatusService(registry);
     }
 
-    @Bean StockAgentTools stockAgentTools(ResearchAggregationService research) {
+    @Bean
+    StockAgentTools stockAgentTools(ResearchAggregationService research) {
         return new StockAgentTools(research);
     }
 
     @Bean
     StockAnalysisAgent stockAnalysisAgent(
-            ObjectProvider<ChatClient.Builder> builderProvider,
+            NamedChatClientRegistry registry,
             AgentStatusService status,
             StockAgentTools tools) {
-        ChatClient.Builder builder = status.status() == AgentAvailability.READY
-                ? builderProvider.getIfAvailable()
-                : null;
-        ChatClient client = builder == null ? null : builder.build();
-        return new StockAnalysisAgent(client, status, tools);
+        var named = registry.forRole("institutional-report");
+        if (named.isEmpty()) {
+            return new StockAnalysisAgent((ChatClient) null, status, tools);
+        }
+        var model = named.orElseThrow();
+        return new StockAnalysisAgent(model.client(), model.modelName(), status, tools);
+    }
+
+    @Bean
+    OverallReportService overallReportService(
+            NamedChatClientRegistry registry,
+            StockAgentTools tools) {
+        OverallReportGenerator generator = registry.forRole("overall-report")
+                .map(model -> (OverallReportGenerator)
+                        new SpringAiOverallReportGenerator(model.client(), model.modelName()))
+                .orElse(null);
+        return new OverallReportService(
+                generator,
+                tools,
+                new OverallReportValidator(),
+                new ModelFailureClassifier());
     }
 }

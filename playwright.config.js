@@ -5,8 +5,8 @@ module.exports = defineConfig({
   timeout: 30_000,
   fullyParallel: false,
   use: {
-    baseURL: process.env.UI_BASE_URL || "http://127.0.0.1:8080",
-    channel: "chrome",
+    baseURL: process.env.UI_BASE_URL || "http://127.0.0.1:10001",
+    channel: process.env.PLAYWRIGHT_CHANNEL || "chrome",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },

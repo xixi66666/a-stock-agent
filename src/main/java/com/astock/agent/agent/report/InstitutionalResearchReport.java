@@ -3,7 +3,7 @@ package com.astock.agent.agent.report;
 import com.astock.agent.agent.SourceCitation;
 import com.astock.agent.analysis.institutional.Direction;
 import com.astock.agent.analysis.institutional.EvidenceStatus;
-import com.astock.agent.analysis.institutional.ReportEvidence;
+import com.astock.agent.analysis.institutional.CoreDriver;
 import java.time.Instant;
 import java.util.List;
 
@@ -12,7 +12,7 @@ public record InstitutionalResearchReport(
         String horizon,
         EvidenceStatus evidenceStatus,
         String executiveSummary,
-        List<ReportEvidence> coreDrivers,
+        List<CoreDriver> coreDrivers,
         TechnicalAndFlowAnalysis technicalAndFlow,
         FundamentalExpectationAnalysis fundamentals,
         ValuationIndustryAnalysis valuationAndIndustry,
@@ -28,7 +28,20 @@ public record InstitutionalResearchReport(
         String modelName,
         Instant snapshotAt,
         Instant generatedAt,
-        String disclaimer) {
+        String disclaimer,
+        ModelDiagnostic modelDiagnostic) {
+    public InstitutionalResearchReport(Direction direction, String horizon, EvidenceStatus evidenceStatus,
+            String executiveSummary, List<CoreDriver> coreDrivers, TechnicalAndFlowAnalysis technicalAndFlow,
+            FundamentalExpectationAnalysis fundamentals, ValuationIndustryAnalysis valuationAndIndustry,
+            List<ReportEvent> catalysts, List<String> risks, List<String> conflicts, List<String> missingData,
+            List<String> invalidationConditions, List<SourceCitation> sources, GenerationMode generationMode,
+            String ruleVersion, String promptVersion, String modelName, Instant snapshotAt, Instant generatedAt,
+            String disclaimer) {
+        this(direction, horizon, evidenceStatus, executiveSummary, coreDrivers, technicalAndFlow, fundamentals,
+                valuationAndIndustry, catalysts, risks, conflicts, missingData, invalidationConditions, sources,
+                generationMode, ruleVersion, promptVersion, modelName, snapshotAt, generatedAt, disclaimer, null);
+    }
+
     public InstitutionalResearchReport {
         horizon = horizon == null ? "1-3个月" : horizon;
         executiveSummary = executiveSummary == null ? "" : executiveSummary;

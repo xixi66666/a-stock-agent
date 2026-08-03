@@ -107,3 +107,147 @@ test("source quality uses the backend scoring weights", async ({ page }) => {
   await expect(page.locator(".quality-components")).toContainText("17 / 25");
   await expect(page.locator(".quality-components")).toContainText("15 / 15");
 });
+
+test("agent renders the structured report even when direction metadata is absent", async ({ page }) => {
+  await page.route("**/api/agent/analyze", (route) => route.fulfill({
+    json: {
+      direction: null,
+      generationMode: null,
+      executiveSummary: "结构化判断内容",
+      technicalAndFlow: { narrative: "技术与资金分析内容", facts: [{ label: "最新价", value: "100" }], evidence: [] },
+      fundamentals: { narrative: "基本面分析内容", facts: [{ label: "收入同比", value: "12%" }], evidence: [] },
+      valuationAndIndustry: { narrative: "估值与行业分析内容", facts: [{ label: "个股PE", value: "20" }], evidence: [] },
+      coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
+      disclaimer: "仅供学习研究，不构成投资建议",
+    },
+  }));
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("button", { name: "生成研究报告" }).click();
+  await expect(page.locator("#agent-output")).toContainText("结构化判断内容");
+  await expect(page.locator("#agent-output")).toContainText("技术与资金分析内容");
+  await expect(page.locator("#agent-output")).toContainText("最新价");
+});
+
+test("agent renders evidence-backed report diagnostics", async ({ page }) => {
+  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+    direction: "STRONGER", generationMode: "DETERMINISTIC_FALLBACK", evidenceStatus: "SUFFICIENT",
+    executiveSummary: "确定性报告完整保留",
+    coreDrivers: [{ conclusion: "SMA20高于SMA60", rationale: "趋势与动量互相确认", invalidation: "均线反向交叉" }],
+    technicalAndFlow: {
+      narrative: "技术结论", facts: [{ label: "SMA20", value: "100" }],
+      signals: [{ conclusion: "20日收益为正" }], methodology: ["趋势跟随与动量确认"],
+      counterEvidence: ["量能未同步放大"], limitations: ["历史指标不代表未来收益"],
+    },
+    fundamentals: { narrative: "基本面结论", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
+    valuationAndIndustry: { narrative: "估值结论", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
+    catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
+    modelDiagnostic: {
+      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_FAILED",
+      exceptionType: "ReportValidationException", message: "包含证据包未支持的数字",
+      validationIssues: ["UNSUPPORTED_NUMBER"], modelName: "gpt-test", durationMs: 80,
+      occurredAt: "2026-08-03T02:00:00Z", traceId: "trace-test-1",
+    }, disclaimer: "仅供学习研究，不构成投资建议",
+  } }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("button", { name: "生成研究报告" }).click();
+
+  await expect(page.locator("#agent-output")).toContainText("SMA20高于SMA60");
+  await expect(page.locator("#agent-output")).toContainText("趋势跟随与动量确认");
+  await expect(page.locator("#agent-output")).toContainText("反证与限制");
+  await expect(page.locator("#agent-output")).toContainText("MODEL_NARRATIVE_VALIDATION_FAILED");
+  await page.locator(".model-diagnostic summary").click();
+  await expect(page.locator("#agent-output")).toContainText("trace-test-1");
+});
+
+test("agent keeps valid model narrative when only one field falls back", async ({ page }) => {
+  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+    direction: "NEUTRAL", generationMode: "MODEL_ASSISTED_PARTIAL", evidenceStatus: "PARTIAL",
+    executiveSummary: "模型主摘要", coreDrivers: [],
+    technicalAndFlow: { narrative: "确定性技术参考", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
+    fundamentals: { narrative: "模型基本面叙述", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
+    valuationAndIndustry: { narrative: "模型估值叙述", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
+    catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
+    modelDiagnostic: {
+      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_FAILED",
+      exceptionType: "ReportValidationException", message: "技术模块存在阻断问题",
+      validationIssues: ["TRADE_INSTRUCTION"], modelName: "mimo-v2.5-pro", durationMs: 120,
+      occurredAt: "2026-08-03T06:00:00Z", traceId: "trace-partial-1",
+    }, disclaimer: "仅供学习研究，不构成投资建议",
+  } }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("button", { name: "生成研究报告" }).click();
+
+  await expect(page.locator("#agent-output")).toContainText("模型叙述已生成（部分字段回退）");
+  await expect(page.locator("#agent-output")).toContainText("模型基本面叙述");
+  await expect(page.locator("#agent-output")).toContainText("确定性技术参考");
+  await expect(page.locator("#agent-output")).toContainText("trace-partial-1");
+});
+
+test("DeepSeek overall report is independent and appears before the existing research report", async ({ page }) => {
+  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
+    status: "MODEL_ASSISTED",
+    report: {
+      overallConclusion: "总体判断内容",
+      dataQualitySummary: "数据质量良好，仍需关注缺失项",
+      companyAndFundamentals: "公司与基本面分析",
+      technicalAndCapital: "技术面与资金面分析",
+      valuationAndIndustry: "估值与行业分析",
+      eventsAndSentiment: "事件与情绪分析",
+      bullishEvidence: ["盈利能力保持稳定"], bearishEvidence: ["短期波动仍然存在"],
+      riskFactors: ["数据时效性风险"], scenarios: { base: "基准情景" },
+      conflictsAndMissingData: ["暂无重大冲突"],
+      sourceReferences: [{ section: "quote", provider: "Tencent", fetchedAt: "2026-08-03T02:00:00Z" }],
+      modelName: "deepseek-chat", generatedAt: "2026-08-03T02:01:00Z",
+      disclaimer: "仅供学习研究，不构成投资建议",
+    },
+  } }));
+  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+    direction: "NEUTRAL", generationMode: "DETERMINISTIC_FALLBACK", executiveSummary: "现有研究报告内容",
+    technicalAndFlow: { narrative: "技术与资金" }, fundamentals: { narrative: "基本面" }, valuationAndIndustry: { narrative: "估值" },
+    coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
+    disclaimer: "仅供学习研究，不构成投资建议",
+  } }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await expect(page.getByRole("button", { name: "生成总体报告 DeepSeek" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "生成研究报告" })).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const controls = document.querySelector(".agent-controls").getBoundingClientRect();
+    const overall = document.querySelector("#overall-report-output").getBoundingClientRect();
+    const existing = document.querySelector("#agent-output").getBoundingClientRect();
+    return { overallBelowControls: overall.top >= controls.bottom, overallLeftOfExisting: overall.right <= existing.left + 1 };
+  });
+  expect(layout.overallBelowControls).toBe(true);
+  expect(layout.overallLeftOfExisting).toBe(true);
+
+  await page.getByRole("button", { name: "生成总体报告 DeepSeek" }).click();
+  await expect(page.locator("#overall-report-output")).toContainText("总体判断内容");
+  await expect(page.locator("#agent-output")).toContainText("等待生成");
+  await page.getByRole("button", { name: "生成研究报告" }).click();
+  await expect(page.locator("#agent-output")).toContainText("现有研究报告内容");
+
+  // 切换股票后，两份报告都回到独立的等待状态。
+  await page.locator('[data-symbol="600519"]').click();
+  await expect(page.locator("#overall-report-output")).toContainText("等待生成");
+  await expect(page.locator("#agent-output")).toContainText("等待生成");
+});
+
+test("DeepSeek overall report shows a local configuration error without affecting the existing report", async ({ page }) => {
+  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ detail: "DeepSeek 未配置" }) }));
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("button", { name: "生成总体报告 DeepSeek" }).click();
+  await expect(page.locator("#overall-report-output")).toContainText("DeepSeek 未配置");
+  await expect(page.locator("#agent-output")).toContainText("等待生成");
+});

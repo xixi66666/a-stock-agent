@@ -2,13 +2,17 @@ package com.astock.agent.web;
 
 import com.astock.agent.agent.AgentStatusService;
 import com.astock.agent.agent.StockAnalysisAgent;
+import com.astock.agent.agent.overall.OverallReportResponse;
+import com.astock.agent.agent.overall.OverallReportService;
 import com.astock.agent.agent.report.InstitutionalResearchReport;
+import com.astock.agent.marketdata.model.SecurityId;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/api/agent")
@@ -16,15 +20,27 @@ public class AgentController {
 
     private final AgentStatusService statusService;
     private final StockAnalysisAgent agent;
+    private final OverallReportService overallReports;
 
     public AgentController(AgentStatusService statusService, StockAnalysisAgent agent) {
+        this(statusService, agent, null);
+    }
+
+    @Autowired
+    public AgentController(AgentStatusService statusService, StockAnalysisAgent agent,
+            OverallReportService overallReports) {
         this.statusService = statusService;
         this.agent = agent;
+        this.overallReports = overallReports;
     }
 
     @GetMapping("/status")
     public Map<String, String> status() {
-        return Map.of("status", statusService.status().name(), "details", statusService.details());
+        return Map.of(
+                "status", statusService.status().name(),
+                "details", statusService.details(),
+                "institutionalReport", statusService.status("institutional-report").name(),
+                "overallReport", statusService.status("overall-report").name());
     }
 
     @PostMapping("/analyze")
@@ -33,6 +49,15 @@ public class AgentController {
             throw new IllegalStateException("Agent is unavailable");
         }
         return agent.analyzeInstitutional(request.code());
+    }
+
+    @PostMapping("/overall-report")
+    public OverallReportResponse overallReport(@RequestBody AnalyzeRequest request) {
+        SecurityId.parse(request.code());
+        if (overallReports == null) {
+            throw new IllegalStateException("Overall report service is unavailable");
+        }
+        return overallReports.generate(request.code());
     }
 
     @PostMapping("/chat")

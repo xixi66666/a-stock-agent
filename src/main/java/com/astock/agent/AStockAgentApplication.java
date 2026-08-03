@@ -3,8 +3,13 @@ package com.astock.agent;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration;
+import org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+        OpenAiAudioSpeechAutoConfiguration.class,
+        OpenAiAudioTranscriptionAutoConfiguration.class
+})
 @ConfigurationPropertiesScan
 public class AStockAgentApplication {
 

@@ -8,6 +8,10 @@ import com.astock.agent.agent.report.InstitutionalResearchReport;
 import com.astock.agent.agent.report.ReportEvidencePackage;
 import com.astock.agent.agent.report.ReportNarrativeDraft;
 import com.astock.agent.agent.report.ReportValidator;
+import com.astock.agent.agent.report.ModelDiagnostic;
+import com.astock.agent.agent.report.ModelFailureClassifier;
+import com.astock.agent.agent.report.NarrativeGenerator;
+import com.astock.agent.agent.report.SpringAiNarrativeGenerator;
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.Provenance;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,9 +20,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.ai.chat.client.ChatClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class StockAnalysisAgent {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(StockAnalysisAgent.class);
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
     private static final String SYSTEM_PROMPT = """
             你是一个用于学习研究的 A 股分析 Agent。只能依据工具返回的规范化数据和来源元数据回答。
@@ -26,26 +33,51 @@ public final class StockAnalysisAgent {
             不提供直接买入卖出指令。结尾必须写：仅供学习研究，不构成投资建议。
             """;
     private final ChatClient chatClient;
+    private final NarrativeGenerator narrativeGenerator;
     private final AgentStatusService statusService;
     private final StockAgentTools tools;
     private final ResearchJudgementEngine judgementEngine;
     private final InstitutionalReportComposer reportComposer;
     private final ReportValidator reportValidator;
+    private final ModelFailureClassifier failureClassifier;
 
     public StockAnalysisAgent(ChatClient chatClient, AgentStatusService statusService, StockAgentTools tools) {
-        this(chatClient, statusService, tools, new ResearchJudgementEngine(),
-                new InstitutionalReportComposer(), new ReportValidator());
+        this(chatClient, chatClient == null ? null : new SpringAiNarrativeGenerator(chatClient, "configured-chat-model"),
+                statusService, tools, new ResearchJudgementEngine(), new InstitutionalReportComposer(),
+                new ReportValidator(), new ModelFailureClassifier());
+    }
+
+    public StockAnalysisAgent(ChatClient chatClient, String modelName,
+            AgentStatusService statusService, StockAgentTools tools) {
+        this(chatClient, chatClient == null ? null : new SpringAiNarrativeGenerator(chatClient, modelName),
+                statusService, tools, new ResearchJudgementEngine(), new InstitutionalReportComposer(),
+                new ReportValidator(), new ModelFailureClassifier());
+    }
+
+    public StockAnalysisAgent(NarrativeGenerator narrativeGenerator, AgentStatusService statusService, StockAgentTools tools) {
+        this(null, narrativeGenerator, statusService, tools, new ResearchJudgementEngine(),
+                new InstitutionalReportComposer(), new ReportValidator(), new ModelFailureClassifier());
     }
 
     public StockAnalysisAgent(ChatClient chatClient, AgentStatusService statusService, StockAgentTools tools,
             ResearchJudgementEngine judgementEngine, InstitutionalReportComposer reportComposer,
             ReportValidator reportValidator) {
+        this(chatClient, chatClient == null ? null : new SpringAiNarrativeGenerator(chatClient, "configured-chat-model"),
+                statusService, tools, judgementEngine, reportComposer, reportValidator, new ModelFailureClassifier());
+    }
+
+    private StockAnalysisAgent(ChatClient chatClient, NarrativeGenerator narrativeGenerator,
+            AgentStatusService statusService, StockAgentTools tools, ResearchJudgementEngine judgementEngine,
+            InstitutionalReportComposer reportComposer, ReportValidator reportValidator,
+            ModelFailureClassifier failureClassifier) {
         this.chatClient = chatClient;
+        this.narrativeGenerator = narrativeGenerator;
         this.statusService = statusService;
         this.tools = tools;
         this.judgementEngine = judgementEngine;
         this.reportComposer = reportComposer;
         this.reportValidator = reportValidator;
+        this.failureClassifier = failureClassifier;
     }
 
     public InstitutionalResearchReport analyzeInstitutional(String code) {
@@ -57,30 +89,60 @@ public final class StockAnalysisAgent {
         DeterministicAssessment assessment = judgementEngine.assess(snapshot);
         ReportEvidencePackage evidence = reportComposer.compose(snapshot, assessment);
         InstitutionalResearchReport fallback = reportComposer.fallback(snapshot, assessment, null);
-        if (chatClient == null || statusService == null || statusService.status() != AgentAvailability.READY) {
+        if (narrativeGenerator == null || statusService == null || statusService.status() != AgentAvailability.READY) {
             return fallback;
         }
+        long started = System.nanoTime();
+        String traceId = "agent-" + java.util.UUID.randomUUID();
         try {
-            ReportNarrativeDraft draft = chatClient.prompt()
-                    .system(INSTITUTIONAL_SYSTEM_PROMPT)
-                    .user(MAPPER.writeValueAsString(evidence))
-                    .call()
-                    .entity(ReportNarrativeDraft.class);
+            ReportNarrativeDraft draft = narrativeGenerator.generate(evidence);
             ReportValidator.ValidationResult validation = reportValidator.validate(draft, evidence);
-            return validation.valid()
-                    ? reportComposer.assemble(snapshot, assessment, draft, "configured-chat-model")
-                    : reportComposer.fallback(snapshot, assessment, String.join(",", validation.issues()));
+            if (!validation.blockingIssues().isEmpty()) {
+                try {
+                    ReportNarrativeDraft repaired = narrativeGenerator.repair(evidence, draft, validation.blockingIssues());
+                    ReportValidator.ValidationResult repairedValidation = reportValidator.validate(repaired, evidence);
+                    draft = repaired;
+                    validation = repairedValidation;
+                } catch (Exception repairFailure) {
+                    LOGGER.warn("模型叙述修复失败 traceId={} issues={} type={}", traceId,
+                            validation.blockingIssues(), repairFailure.getClass().getSimpleName());
+                }
+            }
+            ModelDiagnostic diagnostic = null;
+            if (!validation.blockingIssues().isEmpty()) {
+                diagnostic = failureClassifier.validation(validation.blockingIssues(), narrativeGenerator.modelName(),
+                        elapsedMillis(started), traceId);
+            } else if (validation.hasWarnings()) {
+                diagnostic = failureClassifier.validationWarning(validation.warnings(), narrativeGenerator.modelName(),
+                        elapsedMillis(started), traceId);
+            }
+            return reportComposer.assembleValidated(snapshot, assessment, draft, validation,
+                    narrativeGenerator.modelName(), diagnostic);
         } catch (Exception exception) {
-            return reportComposer.fallback(snapshot, assessment, "model unavailable");
+            ModelDiagnostic diagnostic = failureClassifier.classify(exception, narrativeGenerator.modelName(),
+                    elapsedMillis(started), traceId);
+            LOGGER.error("模型叙述失败 traceId={} stage={} code={} type={} stack={}", traceId,
+                    diagnostic.failureStage(), diagnostic.errorCode(), diagnostic.exceptionType(), safeStack(exception));
+            return reportComposer.fallbackWithDiagnostic(snapshot, assessment, diagnostic);
         }
     }
 
-    private static final String INSTITUTIONAL_SYSTEM_PROMPT = """
-            你是A股研究报告叙述助手。只能依据用户提供的有界证据包写中文叙述，不能改变方向和证据状态。
-            不得补充证据包之外的事实或数字；关键判断必须引用证据ID，例如[quote]。
-            必须保留证据冲突、缺失数据和失效条件；不得输出买卖、仓位、目标价、收益保证或个性化建议。
-            只返回ReportNarrativeDraft结构，不要返回方向、评分、来源或免责声明字段。
-            """;
+    private static long elapsedMillis(long started) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+    }
+
+    private String safeStack(Throwable failure) {
+        StringBuilder result = new StringBuilder();
+        Throwable current = failure;
+        while (current != null) {
+            if (!result.isEmpty()) result.append(" <- ");
+            result.append(current.getClass().getName()).append(": ")
+                    .append(failureClassifier.sanitize(current.getMessage()));
+            for (StackTraceElement frame : current.getStackTrace()) result.append("\n at ").append(frame);
+            current = current.getCause();
+        }
+        return result.toString();
+    }
 
     public AgentResearchReport analyze(String code) {
         return analyze(tools.getResearchSnapshot(code));

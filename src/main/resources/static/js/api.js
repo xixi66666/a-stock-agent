@@ -46,6 +46,13 @@ export const stockApi = {
       body: JSON.stringify({ code }),
     });
   },
+  overallReport(code) {
+    return request("/api/agent/overall-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  },
 };
 
 export function sectionPayload(section, fallback = null) {

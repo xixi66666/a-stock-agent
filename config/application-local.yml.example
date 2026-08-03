@@ -1,23 +1,44 @@
-# 当前启用：OpenAI。填写 API Key 和账号可用的模型名称后重启应用。
 spring:
   ai:
+    # 关闭 Spring AI 的单模型自动配置，由 app.ai.models 管理多个命名模型。
     model:
-      chat: openai
+      chat: none
       embedding: none
       image: none
       moderation: none
       audio:
         speech: none
         transcription: none
-    openai:
-      api-key: "replace-with-openai-api-key"
-      base-url: "https://api.openai.com"
-      chat:
-        options:
-          model: "replace-with-openai-model"
-          temperature: 0.2
 
-# Agent 学习闭环默认由 application.yml 关闭；学习接口不需要 API Key 即可运行离线实现。
+app:
+  ai:
+    models:
+      primary:
+        enabled: true
+        base-url: "https://nimabo.io"
+        api-key: "sk-dab29d9b791342846b8bda06fa9fb77a233cfd32c36e178062b3e90bb6e68ce1"
+        completions-path: "/v1/chat/completions"
+        model: "replace-with-openai-model"
+        temperature: 0.2
+      deepseek:
+        enabled: true
+        base-url: "https://api.deepseek.com"
+        api-key: "replace-with-deepseek-api-key"
+        completions-path: "/v1/chat/completions"
+        model: "deepseek-chat"
+        temperature: 0.1
+      mimo:
+        enabled: false
+        base-url: "https://api.xiaomimimo.com/v1"
+        api-key: "replace-with-mimo-api-key"
+        completions-path: "/chat/completions"
+        model: "mimo-v2.5-pro"
+        temperature: 0.2
+    roles:
+      institutional-report: primary
+      overall-report: deepseek
+
+# Agent 学习闭环默认由 application.yml 关闭；离线运行无需 API Key。
 # app:
 #   agent:
 #     learning:
@@ -29,38 +50,3 @@ spring:
 #       max-history-messages: 24
 #       top-k: 4
 #       embedding-dimension: 128
-#
-# 如需打开 Spring AI MCP WebMVC Server，再显式增加：
-# spring:
-#   ai:
-#     mcp:
-#       server:
-#         enabled: true
-
-# DeepSeek 模板：切换时注释上面的 OpenAI 配置，再取消下面整段注释。
-# spring:
-#   ai:
-#     model:
-#       chat: openai
-#     openai:
-#       api-key: "replace-with-deepseek-api-key"
-#       base-url: "https://api.deepseek.com"
-#       chat:
-#         options:
-#           model: "deepseek-chat"
-#           temperature: 0.2
-
-# Xiaomi MiMo 模板：Spring AI 默认追加 /v1/chat/completions，
-# 因此官方 /v1 Base URL 需要把 completions-path 改为 /chat/completions。
-# spring:
-#   ai:
-#     model:
-#       chat: openai
-#     openai:
-#       api-key: "replace-with-mimo-api-key"
-#       base-url: "https://api.xiaomimimo.com/v1"
-#       chat:
-#         completions-path: "/chat/completions"
-#         options:
-#           model: "mimo-v2.5-pro"
-#           temperature: 0.2

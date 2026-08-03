@@ -32,6 +32,12 @@ management:
         include: health,info
 
 app:
+  ai:
+    # 生产环境中的命名模型由 config/application-local.yml 提供；默认保持离线可启动。
+    models: {}
+    roles:
+      institutional-report: primary
+      overall-report: deepseek
   agent:
     learning:
       enabled: false

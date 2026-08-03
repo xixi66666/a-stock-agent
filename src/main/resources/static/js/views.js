@@ -1,8 +1,12 @@
 import { sectionIssues, sectionPayload } from "./api.js";
 
-const escapeHtml = (value) => String(value ?? "")
-  .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-  .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+const escapeHtml = (value) => {
+  const raw = String(value ?? "");
+  const scheme = raw.match(/^\s*([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
+  if (scheme && scheme !== "http" && scheme !== "https") return "";
+  return raw.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+};
 
 const format = (value, digits = 2) => {
   const number = Number(value);
@@ -87,7 +91,21 @@ function renderSources(snapshot) {
 }
 
 function renderAgent(snapshot) {
-  return `<section>${heading("SPRING AI · BOUNDED TOOLS", "Agent 研究", null)}<div class="agent-layout"><div><h3>结构化研究报告</h3><p>Agent 仅能调用当前项目定义的股票数据工具，并保留来源与缺失项。</p><button id="run-agent" class="primary-command agent-command" type="button"><i data-lucide="sparkles"></i><span>生成研究报告</span></button></div><div id="agent-output" class="agent-output"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>模型配置保存在本地配置文件中，不随仓库提交。</p></div></div></section>`;
+  return `<section>${heading("SPRING AI · EVIDENCE BOUNDED", "Agent 研究", null)}
+    <div class="agent-layout">
+      <aside class="agent-sidebar" aria-label="报告生成与总体报告">
+        <div class="agent-controls">
+          <span class="section-kicker">INSTITUTIONAL + DEEPSEEK</span>
+          <h3>研究报告</h3>
+          <p>两份报告独立生成，并保留数据来源、缺失项与风险边界。</p>
+          <button id="run-agent" class="primary-command agent-command" type="button"><i data-lucide="sparkles" aria-hidden="true"></i><span>生成研究报告</span></button>
+          <button id="run-overall-report" class="secondary-command agent-command" type="button"><i data-lucide="file-chart-column" aria-hidden="true"></i><span>生成总体报告</span><small>DeepSeek</small></button>
+        </div>
+        <div id="overall-report-output" class="overall-report-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>DeepSeek 将读取当前股票的完整规范化快照。</p></div>
+      </aside>
+      <div id="agent-output" class="agent-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>现有结构化研究报告将在这里显示。</p></div>
+    </div>
+  </section>`;
 }
 
 export function renderGenericView(view, snapshot) {

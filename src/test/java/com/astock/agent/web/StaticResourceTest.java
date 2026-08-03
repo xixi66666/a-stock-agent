@@ -35,4 +35,45 @@ class StaticResourceTest {
                 .contains("A 股智能研究台")
                 .contains("data-view=\"technical\"");
     }
+
+    @Test
+    void servesResearchWorkbenchModuleScript() throws Exception {
+        String script = mvc.perform(get("/js/app.js"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("stockApi.snapshot")
+                .contains("data-symbol");
+    }
+
+    @Test
+    void servesIndependentOverallReportApiModule() throws Exception {
+        String script = mvc.perform(get("/js/api.js"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("overallReport(code)")
+                .contains("/api/agent/overall-report");
+    }
+
+    @Test
+    void servesIndependentOverallReportViewTemplate() throws Exception {
+        String script = mvc.perform(get("/js/views.js"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("run-overall-report")
+                .contains("overall-report-output")
+                .contains("run-agent")
+                .contains("agent-output");
+    }
 }

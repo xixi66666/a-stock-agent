@@ -3,6 +3,7 @@ package com.astock.agent.analysis.institutional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.astock.agent.analysis.StockResearchSnapshot;
+import com.astock.agent.agent.report.ReportFact;
 import com.astock.agent.marketdata.model.CapitalData;
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
@@ -17,6 +18,7 @@ import com.astock.agent.technical.IndicatorCard;
 import com.astock.agent.technical.IndicatorState;
 import com.astock.agent.technical.TechnicalSnapshot;
 import com.astock.agent.technical.Timeframe;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Instant;
@@ -55,6 +57,54 @@ class ResearchJudgementEngineTest {
         assertThat(missing.evidenceStatus()).isEqualTo(EvidenceStatus.PARTIAL);
     }
 
+    @Test
+    void explainsTechnicalTrendWithFactsMethodAndCounterEvidence() {
+        ModuleAnalysis result = engine.assess(snapshotWithStrongTrendAndOutflow())
+                .moduleAnalysis(AnalysisModule.TECHNICAL_PRICE_VOLUME);
+
+        assertThat(result.conclusion()).contains("SMA20").contains("SMA60");
+        assertThat(result.facts()).extracting(ReportFact::label)
+                .contains("SMA20", "SMA60", "20日收益", "20日量比");
+        assertThat(result.methodology())
+                .anyMatch(value -> value.contains("趋势") && value.contains("动量"));
+        assertThat(result.sourceIds()).contains("technical");
+    }
+
+    @Test
+    void explainsValuationPremiumAndComparabilityLimit() {
+        ModuleAnalysis result = engine.assess(completeSnapshot(true))
+                .moduleAnalysis(AnalysisModule.VALUATION_INDUSTRY);
+
+        assertThat(result.facts()).extracting(ReportFact::label)
+                .contains("个股PE(TTM)", "行业PE中位数", "PE相对溢价");
+        assertThat(result.methodology()).anyMatch(value -> value.contains("相对估值"));
+        assertThat(result.limitations()).anyMatch(value -> value.contains("可比"));
+    }
+
+    @Test
+    void doesNotTreatCapitalRecordCountsAsDirectionalEvidence() {
+        ModuleAnalysis result = engine.assess(snapshotWithCapitalCountsOnly())
+                .moduleAnalysis(AnalysisModule.FUND_FLOW_CAPITAL);
+
+        assertThat(result.direction()).isEqualTo(Direction.INSUFFICIENT);
+        assertThat(result.limitations())
+                .anyMatch(value -> value.contains("规模") || value.contains("变化"));
+    }
+
+    @Test
+    void coreDriversAreConcreteSignalsWithoutInternalScoresOrPlaceholders() throws Exception {
+        DeterministicAssessment result = engine.assess(completeSnapshot(true));
+
+        assertThat(result.coreDrivers()).isNotEmpty();
+        assertThat(result.coreDrivers()).allSatisfy(driver -> {
+            assertThat(driver.conclusion()).isNotBlank();
+            assertThat(driver.rationale()).isNotBlank();
+            assertThat(driver.factIds()).isNotEmpty();
+        });
+        assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(result.coreDrivers()))
+                .doesNotContain("规则方向分", "共同判断", "internalScore");
+    }
+
     private static StockResearchSnapshot snapshotWithOnlyQuoteAndBars() {
         return base(DataSection.unavailable("technical missing"), DataSection.unavailable("flow missing"),
                 DataSection.unavailable("events missing"), DataSection.unavailable("fundamentals missing"),
@@ -73,6 +123,19 @@ class ResearchJudgementEngineTest {
                 DataSection.healthy(List.of(new com.astock.agent.marketdata.model.Announcement("业绩预增", "业绩预告", LocalDate.of(2026, 7, 20), "https://example.com/a")), SOURCE),
                 DataSection.unavailable("fundamentals missing"), DataSection.unavailable("valuation missing"),
                 DataSection.unavailable("research missing"));
+    }
+
+    private static StockResearchSnapshot snapshotWithCapitalCountsOnly() {
+        StockResearchSnapshot base = snapshotWithOnlyQuoteAndBars();
+        CapitalData capital = new CapitalData(
+                List.of(new CapitalData.MarginRecord(LocalDate.of(2026, 7, 30), null, null, null, null)),
+                List.of(new CapitalData.BlockTrade(LocalDate.of(2026, 7, 30), null, null,
+                        null, null, null, "", "")),
+                List.of(), List.of(), List.of(), List.of());
+        return new StockResearchSnapshot(base.security(), base.quote(), base.bars(), base.technical(),
+                base.sectors(), base.industryValuation(), base.fundFlow(), DataSection.healthy(capital, SOURCE),
+                base.fundamentals(), base.research(), base.news(), base.announcements(), base.quality(),
+                base.crossSourceConsistent(), base.coreCompleteness(), base.authoritativeSources(), base.fetchedAt());
     }
 
     private static StockResearchSnapshot completeSnapshot(boolean valuationAvailable) {

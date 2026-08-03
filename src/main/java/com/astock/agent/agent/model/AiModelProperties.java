@@ -1,0 +1,72 @@
+package com.astock.agent.agent.model;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/** 本地并存的 OpenAI 兼容模型配置及业务角色映射。 */
+@ConfigurationProperties("app.ai")
+public record AiModelProperties(Map<String, Model> models, Map<String, String> roles) {
+
+    public AiModelProperties {
+        models = immutableCopy(models);
+        roles = immutableCopy(roles);
+    }
+
+    /** 根据业务角色返回模型名称和配置。角色或模型不存在时返回空。 */
+    public Optional<Map.Entry<String, Model>> modelForRole(String role) {
+        if (role == null || role.isBlank()) {
+            return Optional.empty();
+        }
+        String modelId = roles.get(role);
+        if (modelId == null || modelId.isBlank()) {
+            return Optional.empty();
+        }
+        Model model = models.get(modelId);
+        return model == null ? Optional.empty() : Optional.of(Map.entry(modelId, model));
+    }
+
+    private static <K, V> Map<K, V> immutableCopy(Map<K, V> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(source));
+    }
+
+    /** 单个模型的 OpenAI 兼容连接参数。 */
+    public record Model(
+            boolean enabled,
+            String baseUrl,
+            String apiKey,
+            String completionsPath,
+            String model,
+            double temperature) {
+
+        public Model {
+            baseUrl = normalize(baseUrl);
+            apiKey = normalize(apiKey);
+            completionsPath = normalize(completionsPath);
+            if (completionsPath.isBlank()) {
+                completionsPath = "/v1/chat/completions";
+            }
+            model = normalize(model);
+            temperature = Math.max(0.0, Math.min(temperature, 1.0));
+        }
+
+        /** 配置已启用且具备真实连接参数时才可调用模型。 */
+        public boolean configured() {
+            return enabled
+                    && !baseUrl.isBlank()
+                    && !model.isBlank()
+                    && !apiKey.isBlank()
+                    && !apiKey.toLowerCase(Locale.ROOT).startsWith("replace-with-");
+        }
+
+        private static String normalize(String value) {
+            return value == null ? "" : value.trim();
+        }
+    }
+}

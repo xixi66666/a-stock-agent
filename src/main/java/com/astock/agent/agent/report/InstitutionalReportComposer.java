@@ -2,17 +2,31 @@ package com.astock.agent.agent.report;
 
 import com.astock.agent.agent.SourceCitation;
 import com.astock.agent.analysis.StockResearchSnapshot;
+import com.astock.agent.analysis.institutional.ConsensusForecast;
+import com.astock.agent.analysis.institutional.AnalysisModule;
+import com.astock.agent.analysis.institutional.AnalysisSignal;
 import com.astock.agent.analysis.institutional.DeterministicAssessment;
 import com.astock.agent.analysis.institutional.Direction;
 import com.astock.agent.analysis.institutional.EvidenceScore;
 import com.astock.agent.analysis.institutional.ReportEvidence;
+import com.astock.agent.analysis.institutional.ModuleAnalysis;
 import com.astock.agent.marketdata.model.Announcement;
+import com.astock.agent.marketdata.model.CapitalData;
 import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.FundFlow;
+import com.astock.agent.marketdata.model.FundamentalData;
+import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.NewsItem;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.SectionStatus;
+import com.astock.agent.marketdata.model.Quote;
+import com.astock.agent.marketdata.model.ResearchItem;
+import com.astock.agent.technical.IndicatorCard;
+import com.astock.agent.technical.TechnicalSnapshot;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,30 +40,38 @@ public final class InstitutionalReportComposer {
     public ReportEvidencePackage compose(StockResearchSnapshot snapshot, DeterministicAssessment assessment) {
         if (snapshot == null || assessment == null) throw new IllegalArgumentException("snapshot and assessment are required");
         Map<String, ReportEvidence> catalog = new LinkedHashMap<>();
-        assessment.coreDrivers().forEach(e -> catalog.putIfAbsent(e.id(), e));
-        addSectionEvidence(catalog, "quote", "行情", snapshot.quote());
-        addSectionEvidence(catalog, "bars", "K线", snapshot.bars());
-        addSectionEvidence(catalog, "technical", "技术", snapshot.technical());
-        addSectionEvidence(catalog, "flow", "资金", snapshot.fundFlow());
-        addSectionEvidence(catalog, "fundamentals", "基本面", snapshot.fundamentals());
-        addSectionEvidence(catalog, "valuation", "行业估值", snapshot.industryValuation());
+        addMarketEvidence(catalog, snapshot);
+        assessment.moduleAnalyses().values().forEach(module -> addModuleEvidence(catalog, module));
         List<ReportEvidence> news = boundedNews(snapshot, catalog);
         List<ReportEvidence> announcements = boundedAnnouncements(snapshot, catalog);
         String name = snapshot.quote().payload().map(q -> q.name()).orElse("");
         String code = snapshot.security().code();
         return new ReportEvidencePackage(code, name, HORIZON, assessment.direction(), assessment.evidenceStatus(), catalog,
                 assessment.constraints(), assessment.risks(), assessment.conflicts(), assessment.missingData(),
-                assessment.invalidationConditions(), news, announcements, snapshot.fetchedAt(), RULE_VERSION);
+                assessment.invalidationConditions(), news, announcements, snapshot.fetchedAt(), RULE_VERSION,
+                assessment.moduleAnalyses(), assessment.coreDrivers());
     }
 
     public InstitutionalResearchReport fallback(StockResearchSnapshot snapshot, DeterministicAssessment assessment, String reason) {
+        return fallbackWithDiagnostic(snapshot, assessment, null, reason);
+    }
+
+    public InstitutionalResearchReport fallbackWithDiagnostic(StockResearchSnapshot snapshot,
+            DeterministicAssessment assessment, ModelDiagnostic diagnostic) {
+        String reason = diagnostic == null ? null : diagnostic.errorCode() + "：" + diagnostic.message();
+        return fallbackWithDiagnostic(snapshot, assessment, diagnostic, reason);
+    }
+
+    private InstitutionalResearchReport fallbackWithDiagnostic(StockResearchSnapshot snapshot,
+            DeterministicAssessment assessment, ModelDiagnostic diagnostic, String reason) {
         ReportEvidencePackage evidence = compose(snapshot, assessment);
         boolean coreAvailable = usable(snapshot.quote()) && usable(snapshot.bars());
         GenerationMode mode = coreAvailable ? GenerationMode.DETERMINISTIC_FALLBACK : GenerationMode.REPORT_UNAVAILABLE;
         String summary = deterministicSummary(snapshot, assessment, reason);
         return report(snapshot, assessment, summary,
                 technicalNarrative(assessment), fundamentalNarrative(assessment), valuationNarrative(assessment),
-                events(snapshot, evidence), mode, null);
+                technicalFacts(snapshot), fundamentalFacts(snapshot), valuationFacts(snapshot),
+                events(snapshot, evidence), mode, null, diagnostic);
     }
 
     public InstitutionalResearchReport assemble(StockResearchSnapshot snapshot, DeterministicAssessment assessment,
@@ -61,18 +83,187 @@ public final class InstitutionalReportComposer {
                 nonBlank(draft.technicalAndFlowNarrative(), technicalNarrative(assessment)),
                 nonBlank(draft.fundamentalNarrative(), fundamentalNarrative(assessment)),
                 nonBlank(draft.valuationAndIndustryNarrative(), valuationNarrative(assessment)),
-                events(snapshot, evidence), GenerationMode.MODEL_ASSISTED, modelName);
+                technicalFacts(snapshot), fundamentalFacts(snapshot), valuationFacts(snapshot),
+                events(snapshot, evidence), GenerationMode.MODEL_ASSISTED, modelName, null);
+    }
+
+    public InstitutionalResearchReport assembleValidated(StockResearchSnapshot snapshot,
+            DeterministicAssessment assessment, ReportNarrativeDraft draft,
+            ReportValidator.ValidationResult validation, String modelName, ModelDiagnostic diagnostic) {
+        if (draft == null) return fallbackWithDiagnostic(snapshot, assessment, diagnostic);
+        ReportEvidencePackage evidence = compose(snapshot, assessment);
+        boolean partial = validation != null && !validation.blockingIssues().isEmpty();
+        boolean warning = validation != null && validation.hasWarnings();
+        GenerationMode mode = partial ? GenerationMode.MODEL_ASSISTED_PARTIAL
+                : warning ? GenerationMode.MODEL_ASSISTED_WITH_WARNINGS : GenerationMode.MODEL_ASSISTED;
+        String summaryFallback = deterministicSummary(snapshot, assessment, null);
+        String technicalFallback = technicalNarrative(assessment);
+        String fundamentalFallback = fundamentalNarrative(assessment);
+        String valuationFallback = valuationNarrative(assessment);
+        return report(snapshot, assessment,
+                narrative(draft.executiveSummary(), summaryFallback, blocks(validation, ReportValidator.FIELD_EXECUTIVE_SUMMARY)),
+                narrative(draft.technicalAndFlowNarrative(), technicalFallback, blocks(validation, ReportValidator.FIELD_TECHNICAL_AND_FLOW)),
+                narrative(draft.fundamentalNarrative(), fundamentalFallback, blocks(validation, ReportValidator.FIELD_FUNDAMENTALS)),
+                narrative(draft.valuationAndIndustryNarrative(), valuationFallback, blocks(validation, ReportValidator.FIELD_VALUATION_AND_INDUSTRY)),
+                technicalFacts(snapshot), fundamentalFacts(snapshot), valuationFacts(snapshot),
+                events(snapshot, evidence), mode, modelName, diagnostic);
+    }
+
+    private static String narrative(String modelText, String fallback, boolean blocked) {
+        return blocked ? fallback : nonBlank(modelText, fallback);
+    }
+
+    private static boolean blocks(ReportValidator.ValidationResult validation, String field) {
+        return validation != null && validation.blocksField(field);
     }
 
     private InstitutionalResearchReport report(StockResearchSnapshot snapshot, DeterministicAssessment assessment,
-            String summary, String technical, String fundamental, String valuation, List<ReportEvent> events,
-            GenerationMode mode, String modelName) {
+            String summary, String technical, String fundamental, String valuation,
+            List<ReportFact> technicalFacts, List<ReportFact> fundamentalFacts, List<ReportFact> valuationFacts,
+            List<ReportEvent> events, GenerationMode mode, String modelName, ModelDiagnostic diagnostic) {
+        ModuleAnalysis technicalModule = assessment.moduleAnalysis(AnalysisModule.TECHNICAL_PRICE_VOLUME);
+        ModuleAnalysis flowModule = assessment.moduleAnalysis(AnalysisModule.FUND_FLOW_CAPITAL);
+        ModuleAnalysis fundamentalModule = assessment.moduleAnalysis(AnalysisModule.FUNDAMENTAL_EXPECTATION);
+        ModuleAnalysis valuationModule = assessment.moduleAnalysis(AnalysisModule.VALUATION_INDUSTRY);
         return new InstitutionalResearchReport(assessment.direction(), HORIZON, assessment.evidenceStatus(), summary,
-                assessment.coreDrivers(), new TechnicalAndFlowAnalysis(technical, List.of()),
-                new FundamentalExpectationAnalysis(fundamental, List.of()),
-                new ValuationIndustryAnalysis(valuation, List.of()), events, assessment.risks(), assessment.conflicts(),
+                assessment.coreDrivers(), new TechnicalAndFlowAnalysis(technical, List.of(),
+                        mergeFacts(technicalFacts, facts(technicalModule), facts(flowModule)),
+                        mergeSignals(technicalModule, flowModule), mergeText(technicalModule, flowModule, ModuleAnalysis::methodology),
+                        mergeText(technicalModule, flowModule, ModuleAnalysis::counterEvidence),
+                        mergeText(technicalModule, flowModule, ModuleAnalysis::limitations)),
+                new FundamentalExpectationAnalysis(fundamental, List.of(), mergeFacts(fundamentalFacts, facts(fundamentalModule)),
+                        signals(fundamentalModule), text(fundamentalModule, ModuleAnalysis::methodology),
+                        text(fundamentalModule, ModuleAnalysis::counterEvidence), text(fundamentalModule, ModuleAnalysis::limitations)),
+                new ValuationIndustryAnalysis(valuation, List.of(), mergeFacts(valuationFacts, facts(valuationModule)),
+                        signals(valuationModule), text(valuationModule, ModuleAnalysis::methodology),
+                        text(valuationModule, ModuleAnalysis::counterEvidence), text(valuationModule, ModuleAnalysis::limitations)),
+                events, assessment.risks(), assessment.conflicts(),
                 assessment.missingData(), assessment.invalidationConditions(), citations(snapshot), mode,
-                RULE_VERSION, PROMPT_VERSION, modelName, snapshot.fetchedAt(), Instant.now(), "");
+                RULE_VERSION, PROMPT_VERSION, modelName, snapshot.fetchedAt(), Instant.now(), "", diagnostic);
+    }
+
+    @SafeVarargs
+    private static List<ReportFact> mergeFacts(List<ReportFact>... groups) {
+        Map<String, ReportFact> result = new LinkedHashMap<>();
+        for (List<ReportFact> group : groups) if (group != null) group.forEach(fact -> result.putIfAbsent(fact.id(), fact));
+        return List.copyOf(result.values());
+    }
+
+    private static List<ReportFact> facts(ModuleAnalysis module) { return module == null ? List.of() : module.facts(); }
+    private static List<AnalysisSignal> signals(ModuleAnalysis module) { return module == null ? List.of() : module.signals(); }
+    private static List<AnalysisSignal> mergeSignals(ModuleAnalysis... modules) {
+        return java.util.Arrays.stream(modules).filter(java.util.Objects::nonNull)
+                .flatMap(module -> module.signals().stream()).toList();
+    }
+    private static List<String> text(ModuleAnalysis module,
+            java.util.function.Function<ModuleAnalysis, List<String>> getter) {
+        return module == null ? List.of() : getter.apply(module);
+    }
+    private static List<String> mergeText(ModuleAnalysis left, ModuleAnalysis right,
+            java.util.function.Function<ModuleAnalysis, List<String>> getter) {
+        return java.util.stream.Stream.of(left, right).filter(java.util.Objects::nonNull)
+                .flatMap(module -> getter.apply(module).stream()).distinct().toList();
+    }
+
+    private static List<ReportFact> technicalFacts(StockResearchSnapshot snapshot) {
+        List<ReportFact> facts = new ArrayList<>();
+        snapshot.quote().payload().ifPresent(quote -> {
+            add(facts, "最新价", quote.price(), "quote");
+            add(facts, "涨跌幅", quote.changePercent(), "%", "quote");
+            add(facts, "换手率", quote.turnoverPercent(), "%", "quote");
+        });
+        snapshot.bars().payload().ifPresent(bars -> {
+            if (!bars.isEmpty()) {
+                add(facts, "K线样本", bars.size() + " 根", "bars");
+                add(facts, "最新收盘", bars.getLast().close(), "bars");
+            }
+        });
+        Object payload = snapshot.technical().payload().orElse(null);
+        if (payload instanceof TechnicalSnapshot technical) {
+            Map<String, IndicatorCard> cards = technical.cards().stream()
+                    .collect(java.util.stream.Collectors.toMap(IndicatorCard::id, card -> card, (a, b) -> a));
+            for (String id : List.of("SMA_20", "SMA_60", "MACD_12_26_9", "RSI_6", "VOLUME_RATIO_20", "RETURN_20")) {
+                IndicatorCard card = cards.get(id);
+                if (card != null && card.value() != null) add(facts, card.name(), card.value(), card.unit(), "technical");
+            }
+        }
+        addFlowFacts(facts, snapshot);
+        addCapitalFacts(facts, snapshot);
+        return List.copyOf(facts);
+    }
+
+    private static List<ReportFact> fundamentalFacts(StockResearchSnapshot snapshot) {
+        List<ReportFact> facts = new ArrayList<>();
+        Object payload = snapshot.fundamentals().payload().orElse(null);
+        if (payload instanceof FundamentalData data) {
+            data.yearOverYearPercent().entrySet().stream().limit(6)
+                    .forEach(entry -> add(facts, entry.getKey() + "同比", entry.getValue(), "%", "fundamentals"));
+            data.metrics().entrySet().stream().limit(4)
+                    .forEach(entry -> add(facts, entry.getKey(), entry.getValue(), "fundamentals"));
+            add(facts, "报告期", data.reportPeriod(), "fundamentals");
+        }
+        Object research = snapshot.research().payload().orElse(null);
+        if (research instanceof List<?> values) {
+            List<ResearchItem> reports = values.stream().filter(ResearchItem.class::isInstance)
+                    .map(ResearchItem.class::cast).toList();
+            ConsensusForecast forecast = new com.astock.agent.analysis.institutional.ConsensusForecastCalculator().calculate(reports);
+            add(facts, "机构覆盖数", forecast.coverage() + " 家", "research");
+            add(facts, "当年EPS中位数", forecast.currentYearEpsMedian(), "research");
+            add(facts, "次年EPS中位数", forecast.nextYearEpsMedian(), "research");
+        }
+        return List.copyOf(facts);
+    }
+
+    private static List<ReportFact> valuationFacts(StockResearchSnapshot snapshot) {
+        List<ReportFact> facts = new ArrayList<>();
+        snapshot.quote().payload().ifPresent(quote -> {
+            add(facts, "个股PE(TTM)", quote.peTtm(), "quote");
+            add(facts, "个股PB", quote.pb(), "quote");
+        });
+        Object payload = snapshot.industryValuation().payload().orElse(null);
+        if (payload instanceof IndustryValuationData data) {
+            add(facts, "行业名称", data.industryName(), "industryValuation");
+            add(facts, "行业PE中位数", data.peMedian(), "industryValuation");
+            add(facts, "行业PE分位数", data.pePercentile(), "%", "industryValuation");
+            add(facts, "行业PB中位数", data.pbMedian(), "industryValuation");
+            add(facts, "估值样本数", data.totalSamples() + " 家", "industryValuation");
+        }
+        return List.copyOf(facts);
+    }
+
+    private static void addFlowFacts(List<ReportFact> facts, StockResearchSnapshot snapshot) {
+        Object payload = snapshot.fundFlow().payload().orElse(null);
+        if (!(payload instanceof List<?> values)) return;
+        List<FundFlow> flows = values.stream().filter(FundFlow.class::isInstance).map(FundFlow.class::cast)
+                .sorted(Comparator.comparing(FundFlow::date).reversed()).toList();
+        if (flows.isEmpty()) return;
+        BigDecimal sum5 = flows.stream().limit(5).map(FundFlow::mainNetYuan).filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal sum20 = flows.stream().limit(20).map(FundFlow::mainNetYuan).filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        add(facts, "近5日主力净流入", sum5, "元", "flow");
+        add(facts, "近20日主力净流入", sum20, "元", "flow");
+    }
+
+    private static void addCapitalFacts(List<ReportFact> facts, StockResearchSnapshot snapshot) {
+        Object payload = snapshot.capital().payload().orElse(null);
+        if (payload instanceof CapitalData data) {
+            add(facts, "融资记录数", data.marginHistory().size() + " 条", "capital");
+            add(facts, "大宗交易数", data.blockTrades().size() + " 条", "capital");
+            add(facts, "解禁记录数", data.unlocks().size() + " 条", "capital");
+            add(facts, "分红记录数", data.dividends().size() + " 条", "capital");
+        }
+    }
+
+    private static void add(List<ReportFact> facts, String label, Object value, String sourceId) {
+        add(facts, label, value, "", sourceId);
+    }
+
+    private static void add(List<ReportFact> facts, String label, Object value, String unit, String sourceId) {
+        if (value == null) return;
+        String text = value instanceof BigDecimal decimal ? decimal.stripTrailingZeros().toPlainString() : String.valueOf(value);
+        if (unit != null && !unit.isBlank() && !text.endsWith(unit)) text += unit;
+        if (!text.isBlank()) facts.add(new ReportFact(label, text, sourceId));
     }
 
     private static String deterministicSummary(StockResearchSnapshot snapshot, DeterministicAssessment assessment, String reason) {
@@ -84,6 +275,12 @@ public final class InstitutionalReportComposer {
     }
 
     private static String technicalNarrative(DeterministicAssessment assessment) {
+        ModuleAnalysis technical = assessment.moduleAnalysis(AnalysisModule.TECHNICAL_PRICE_VOLUME);
+        ModuleAnalysis flow = assessment.moduleAnalysis(AnalysisModule.FUND_FLOW_CAPITAL);
+        if (technical != null) {
+            String flowText = flow == null ? "" : "；" + flow.conclusion();
+            return technical.conclusion() + flowText + "。方法依据：" + String.join("；", technical.methodology());
+        }
         EvidenceScore t = score(assessment, "TECHNICAL_PRICE_VOLUME");
         EvidenceScore f = score(assessment, "FUND_FLOW_CAPITAL");
         if (t == null || !t.usable()) return "技术证据不可用，现有数据无法判断趋势与量价关系。";
@@ -94,12 +291,16 @@ public final class InstitutionalReportComposer {
     }
 
     private static String fundamentalNarrative(DeterministicAssessment assessment) {
+        ModuleAnalysis module = assessment.moduleAnalysis(AnalysisModule.FUNDAMENTAL_EXPECTATION);
+        if (module != null) return module.conclusion() + "。方法依据：" + String.join("；", module.methodology());
         EvidenceScore score = score(assessment, "FUNDAMENTAL_EXPECTATION");
         return score == null || !score.usable() ? "基本面与机构预期证据不足，无法判断盈利趋势。"
                 : "基本面与机构预期" + (score.rawScore() > 20 ? "改善" : score.rawScore() < -20 ? "承压" : "分化") + "，机构覆盖不足时不放大EPS信号。";
     }
 
     private static String valuationNarrative(DeterministicAssessment assessment) {
+        ModuleAnalysis module = assessment.moduleAnalysis(AnalysisModule.VALUATION_INDUSTRY);
+        if (module != null) return module.conclusion() + "。方法依据：" + String.join("；", module.methodology());
         EvidenceScore score = score(assessment, "VALUATION_INDUSTRY");
         return score == null || !score.usable() ? "行业估值证据不可用，无法判断个股相对行业的位置。"
                 : "个股PE/PB与行业样本比较后显示估值" + (score.rawScore() > 20 ? "相对有利" : score.rawScore() < -20 ? "相对偏高" : "处于中性区间") + "；估值结论需结合盈利变化理解。";
@@ -135,9 +336,24 @@ public final class InstitutionalReportComposer {
         return List.copyOf(result);
     }
 
-    private static void addSectionEvidence(Map<String, ReportEvidence> catalog, String id, String title, DataSection<?> section) {
-        if (usable(section) && section.provenance().isPresent()) {
-            catalog.putIfAbsent(id, itemEvidence(id, title, "该分区已提供可追溯数据。", id, section));
+    private static void addMarketEvidence(Map<String, ReportEvidence> catalog, StockResearchSnapshot snapshot) {
+        snapshot.quote().payload().ifPresent(quote -> catalog.put("quote-price",
+                itemEvidence("quote-price", "最新价", quote.price().stripTrailingZeros().toPlainString(), "quote", snapshot.quote())));
+        snapshot.bars().payload().ifPresent(bars -> {
+            if (!bars.isEmpty()) catalog.put("bars-history", itemEvidence("bars-history", "K线历史",
+                    "样本" + bars.size() + "根，最新收盘" + bars.getLast().close().stripTrailingZeros().toPlainString(),
+                    "bars", snapshot.bars()));
+        });
+    }
+
+    private static void addModuleEvidence(Map<String, ReportEvidence> catalog, ModuleAnalysis module) {
+        for (ReportFact fact : module.facts()) {
+            catalog.putIfAbsent(fact.id(), new ReportEvidence(fact.id(), fact.label(), fact.value(),
+                    fact.sourceId(), fact.sourceId(), fact.observedAt()));
+        }
+        for (AnalysisSignal signal : module.signals()) {
+            catalog.putIfAbsent(signal.id(), new ReportEvidence(signal.id(), signal.conclusion(), signal.rationale(),
+                    module.module().name(), String.join(",", module.sourceIds()), null));
         }
     }
 
