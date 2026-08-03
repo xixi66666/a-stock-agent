@@ -32,7 +32,8 @@ class SpringAiOverallReportGeneratorTest {
                 "\"quality\"", "\"fetchedAt\"");
         assertThat(system.get()).contains(
                 "唯一事实边界", "HEALTHY", "UNAVAILABLE", "正反证据",
-                "不得输出买入", "只返回 OverallReportDraft 对应的 JSON");
+                "不得输出买入", "只返回 OverallReportDraft 对应的 JSON",
+                "不要输出快照之外的数字", "不要使用阿拉伯数字编号");
         assertThat(generator.modelName()).isEqualTo("deepseek-chat");
     }
 
@@ -50,7 +51,7 @@ class SpringAiOverallReportGeneratorTest {
         generator.repair(snapshot, expected, List.of("TRADE_INSTRUCTION", "UNSUPPORTED_NUMBER"));
 
         assertThat(user.get()).contains("上一次草稿", "TRADE_INSTRUCTION", "UNSUPPORTED_NUMBER",
-                "\"quote\"", "\"fetchedAt\"");
+                "\"quote\"", "\"fetchedAt\"", "删除所有未经快照原样出现的数字");
     }
 
     private static OverallReportDraft validDraft() {

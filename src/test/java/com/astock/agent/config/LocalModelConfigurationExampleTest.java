@@ -11,7 +11,7 @@ import org.springframework.core.io.FileSystemResource;
 
 class LocalModelConfigurationExampleTest {
 
-    private static final Path EXAMPLE = Path.of("config", "application-local.yml.example");
+    private static final Path EXAMPLE = Path.of("config", "application-local.yml");
 
     @Test
     void providesThreeNamedModelTemplatesWithoutRealSecrets() throws Exception {

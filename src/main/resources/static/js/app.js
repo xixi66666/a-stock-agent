@@ -145,13 +145,13 @@ function renderModuleAnalysis(title, section = {}, fallback) {
   return `<section class="report-block report-analysis"><h4>${escapeText(title)}</h4>${renderReportFacts(section.facts)}<p>${escapeText(section.narrative || fallback)}</p>${renderAnalysisList("关键判断", section.signals)}${renderAnalysisList("方法依据", section.methodology)}${renderAnalysisList("反证与限制", constraints)}</section>`;
 }
 
-function renderModelDiagnostic(diagnostic) {
+function renderModelDiagnostic(diagnostic, titleOverride = null) {
   if (!diagnostic) return "";
-  const issueLabels = { MISSING_EVIDENCE_REFERENCE: "缺少证据引用", UNKNOWN_EVIDENCE: "引用未知证据", UNSUPPORTED_NUMBER: "包含证据包未支持的数字", TRADE_INSTRUCTION: "包含禁止的交易指令", MISSING_CONFLICT: "缺少冲突说明", EMPTY_NARRATIVE: "叙述字段为空", NARRATIVE_TOO_LONG: "叙述过长" };
+  const issueLabels = { MISSING_EVIDENCE_REFERENCE: "缺少证据引用", UNKNOWN_EVIDENCE: "引用未知证据", UNSUPPORTED_NUMBER: "包含证据包未支持的数字", TRADE_INSTRUCTION: "包含禁止的交易指令", MISSING_CONFLICT: "缺少冲突说明", EMPTY_NARRATIVE: "叙述字段为空", NARRATIVE_TOO_LONG: "叙述过长", EMPTY_REQUIRED_SECTION: "必填章节为空", INVALID_DISCLAIMER: "免责声明不正确", UNKNOWN_SOURCE_REFERENCE: "引用未知来源", MISSING_CORE_DATA_LIMITATION: "缺少核心数据限制说明" };
   const issues = Array.isArray(diagnostic.validationIssues) && diagnostic.validationIssues.length
-    ? `<dt>校验问题</dt><dd>${diagnostic.validationIssues.map((value) => escapeText(issueLabels[value] || value)).join("；")}</dd>` : "";
-  const title = diagnostic.errorCode === "MODEL_NARRATIVE_VALIDATION_WARNING" ? "模型叙述校验提示"
-    : diagnostic.errorCode === "MODEL_NARRATIVE_VALIDATION_FAILED" ? "模型叙述部分回退" : "模型叙述回退";
+    ? `<dt>校验问题</dt><dd>${diagnostic.validationIssues.map((value) => escapeText(issueLabels[value] ? `${value}（${issueLabels[value]}）` : value)).join("；")}</dd>` : "";
+  const title = titleOverride || (diagnostic.errorCode === "MODEL_NARRATIVE_VALIDATION_WARNING" ? "模型叙述校验提示"
+    : diagnostic.errorCode === "MODEL_NARRATIVE_VALIDATION_FAILED" ? "模型叙述部分回退" : "模型叙述回退");
   return `<details class="model-diagnostic"><summary>${title} · ${escapeText(diagnostic.errorCode || "MODEL_FAILURE")}</summary><dl><dt>阶段</dt><dd>${escapeText(diagnostic.failureStage || "--")}</dd><dt>原因</dt><dd>${escapeText(diagnostic.message || "--")}</dd><dt>异常</dt><dd>${escapeText(diagnostic.exceptionType || "--")}</dd><dt>模型</dt><dd>${escapeText(diagnostic.modelName || "--")}</dd><dt>耗时</dt><dd>${escapeText(diagnostic.durationMs == null ? "--" : `${diagnostic.durationMs} ms`)}</dd><dt>时间</dt><dd>${escapeText(diagnostic.occurredAt || "--")}</dd>${issues}<dt>追踪 ID</dt><dd>${escapeText(diagnostic.traceId || "--")}</dd></dl></details>`;
 }
 
@@ -243,7 +243,8 @@ function renderOverallSources(sources) {
 
 function renderOverallFailure(response = {}) {
   const diagnostic = response.diagnostic || {};
-  return `<div class="overall-report-failure"><span class="source-status" data-status="UNAVAILABLE"><span></span>${escapeText(response.status || "MODEL_FAILED")}</span><p>${escapeText(response.message || "总体报告暂不可用")}</p>${diagnostic.traceId ? `<small>追踪 ID：${escapeText(diagnostic.traceId)}</small>` : ""}</div>`;
+  const diagnosticMarkup = Object.keys(diagnostic).length ? renderModelDiagnostic(diagnostic, "总体报告校验诊断") : "";
+  return `<div class="overall-report-failure"><span class="source-status" data-status="UNAVAILABLE"><span></span>${escapeText(response.status || "MODEL_FAILED")}</span><p>${escapeText(response.message || "总体报告暂不可用")}</p>${diagnostic.traceId ? `<small>追踪 ID：${escapeText(diagnostic.traceId)}</small>` : ""}${diagnosticMarkup}</div>`;
 }
 
 function renderOverallReportResponse(response = {}) {

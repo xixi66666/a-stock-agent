@@ -3,6 +3,7 @@ package com.astock.agent.agent.overall;
 import com.astock.agent.analysis.StockResearchSnapshot;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.ai.chat.client.ChatClient;
@@ -16,7 +17,7 @@ import org.springframework.ai.chat.client.ChatClient;
 public final class SpringAiOverallReportGenerator implements OverallReportGenerator {
 
     /** 提示词版本会写入最终报告，修改约束时应同步递增。 */
-    public static final String PROMPT_VERSION = "overall-v1";
+    public static final String PROMPT_VERSION = "overall-v2";
 
     /** 给模型的系统约束：事实边界、质量状态、分析结构、安全边界和 JSON 格式。 */
     public static final String SYSTEM_PROMPT = """
@@ -38,6 +39,8 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
             不得输出买入、卖出、加仓、减仓、仓位、止盈、止损、目标价、保证收益、收益保证、稳赚等交易指令或个性化投资建议；
             严禁输出直接交易指令或个性化投资建议，包括但不限于：买入、卖出、加仓、减仓、仓位、止盈、止损、
             目标价、保证收益、收益保证、稳赚，以及任何确定性收益或目标价格。不要把风险提示改写成交易动作。
+            不要输出快照之外的数字、百分比、日期或年份；快照中的数字只能原样复制。不要使用阿拉伯数字编号，使用短句或中文序号。
+            即使说明限制，也不要复述交易动作词，统一写成“仅作研究，不提供操作建议”。
             只返回 OverallReportDraft 对应的 JSON，且必须是可解析的 JSON 对象，只包含 OverallReportDraft 的字段：
             overallConclusion、dataQualitySummary、companyAndFundamentals、technicalAndCapital、
             valuationAndIndustry、eventsAndSentiment、bullishEvidence、bearishEvidence、riskFactors、
@@ -96,13 +99,25 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
                 + MAPPER.writeValueAsString(draft)
                 + "\n\n确定性校验发现的问题列表：\n"
                 + MAPPER.writeValueAsString(safeIssues)
-                + "\n\n请只修复上述问题，返回完整且可解析的 OverallReportDraft JSON。";
+                + "\n\n请只修复上述问题，返回完整且可解析的 OverallReportDraft JSON。"
+                + repairGuidance(safeIssues);
         return invoker.invoke(REPAIR_SYSTEM_PROMPT, userPrompt);
     }
 
     @Override
     public String modelName() {
         return modelName;
+    }
+
+    private static String repairGuidance(List<String> issues) {
+        List<String> guidance = new ArrayList<>();
+        if (issues.contains("UNSUPPORTED_NUMBER")) {
+            guidance.add("删除所有未经快照原样出现的数字、百分比、日期和年份；不要新增数字或阿拉伯数字编号。");
+        }
+        if (issues.contains("TRADE_INSTRUCTION")) {
+            guidance.add("删除交易动作和目标价格措辞；限制说明统一写成仅作研究、不提供操作建议。");
+        }
+        return guidance.isEmpty() ? "" : "\n\n针对校验问题的修复要求：\n- " + String.join("\n- ", guidance);
     }
 
     private static String generationPrompt(StockResearchSnapshot snapshot)

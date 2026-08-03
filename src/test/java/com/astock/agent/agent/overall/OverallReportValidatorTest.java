@@ -33,6 +33,42 @@ class OverallReportValidatorTest {
     }
 
     @Test
+    void allowsTradeTermsWhenTheyOnlyDescribeReportBoundaries() {
+        StockResearchSnapshot snapshot = StockResearchSnapshot.empty(SecurityId.parse("600519"));
+        OverallReportDraft draft = validDraft(
+                "本报告不构成买入或卖出建议，不提供目标价、仓位和止损判断",
+                List.of(), "仅供学习研究，不构成投资建议");
+
+        OverallReportValidator.Validation result = new OverallReportValidator().validate(draft, snapshot);
+
+        assertThat(result.issues()).doesNotContain("TRADE_INSTRUCTION");
+    }
+
+    @Test
+    void ignoresStructuralListNumbersButStillChecksFactNumbers() {
+        StockResearchSnapshot snapshot = StockResearchSnapshot.empty(SecurityId.parse("600519"));
+        OverallReportDraft draft = validDraft(
+                "1. 核心行情不可用\n2. 结论保持谨慎",
+                List.of(), "仅供学习研究，不构成投资建议");
+
+        OverallReportValidator.Validation result = new OverallReportValidator().validate(draft, snapshot);
+
+        assertThat(result.issues()).doesNotContain("UNSUPPORTED_NUMBER");
+    }
+
+    @Test
+    void ignoresChineseStructuralListNumbers() {
+        StockResearchSnapshot snapshot = StockResearchSnapshot.empty(SecurityId.parse("600519"));
+        OverallReportDraft draft = validDraft(
+                "1、核心行情不可用\n（2）结论保持谨慎",
+                List.of(), "仅供学习研究，不构成投资建议");
+
+        OverallReportValidator.Validation result = new OverallReportValidator().validate(draft, snapshot);
+
+        assertThat(result.issues()).doesNotContain("UNSUPPORTED_NUMBER");
+    }
+
+    @Test
     void acceptsEvidenceBoundDraftAndPreservesUnavailableSections() {
         StockResearchSnapshot snapshot = StockResearchSnapshot.empty(SecurityId.parse("600519"));
         OverallReportDraft draft = validDraft(

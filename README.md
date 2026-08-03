@@ -43,7 +43,7 @@ Copy-Item config/application-local.yml.example config/application-local.yml
 ```
 
 ```bash
-cp config/application-local.yml.example config/application-local.yml
+cp config/application-local.yml config/application-local.yml
 ```
 
 编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`institutional-report` 默认使用 `primary`，`overall-report` 默认使用 `deepseek`。修改模型、角色或密钥后请重启应用。
