@@ -2,6 +2,7 @@ package com.astock.agent.analysis;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.FundFlowSummary;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.SecurityId;
@@ -17,6 +18,7 @@ public record StockResearchSnapshot(
         DataSection<?> sectors,
         DataSection<IndustryValuationData> industryValuation,
         DataSection<?> fundFlow,
+        DataSection<FundFlowSummary> fundFlowSummary,
         DataSection<?> capital,
         DataSection<?> fundamentals,
         DataSection<?> research,
@@ -28,9 +30,34 @@ public record StockResearchSnapshot(
         boolean authoritativeSources,
         Instant fetchedAt) {
 
+    public StockResearchSnapshot(
+            SecurityId security,
+            DataSection<Quote> quote,
+            DataSection<List<DailyBar>> bars,
+            DataSection<TechnicalSnapshot> technical,
+            DataSection<?> sectors,
+            DataSection<IndustryValuationData> industryValuation,
+            DataSection<?> fundFlow,
+            DataSection<?> capital,
+            DataSection<?> fundamentals,
+            DataSection<?> research,
+            DataSection<?> news,
+            DataSection<?> announcements,
+            DataQualityBreakdown quality,
+            boolean crossSourceConsistent,
+            boolean coreCompleteness,
+            boolean authoritativeSources,
+            Instant fetchedAt) {
+        this(security, quote, bars, technical, sectors, industryValuation, fundFlow,
+                DataSection.unavailable("fund flow summary not provided"), capital, fundamentals,
+                research, news, announcements, quality, crossSourceConsistent, coreCompleteness,
+                authoritativeSources, fetchedAt);
+    }
+
     public static StockResearchSnapshot empty(SecurityId security) {
         return new StockResearchSnapshot(
                 security,
+                DataSection.unavailable("not loaded"),
                 DataSection.unavailable("not loaded"),
                 DataSection.unavailable("not loaded"),
                 DataSection.unavailable("not loaded"),
@@ -72,7 +99,8 @@ public record StockResearchSnapshot(
             boolean complete,
             boolean authoritative) {
         return new StockResearchSnapshot(
-                security, quoteValue, barsValue, technical, sectors, industryValuation, fundFlow, capital, fundamentals,
+                security, quoteValue, barsValue, technical, sectors, industryValuation, fundFlow, fundFlowSummary,
+                capital, fundamentals,
                 research, news, announcements, quality, consistent, complete, authoritative, fetchedAt);
     }
 }

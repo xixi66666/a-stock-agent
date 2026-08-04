@@ -1,6 +1,7 @@
 package com.astock.agent.config;
 
 import com.astock.agent.analysis.DataQualityScorer;
+import com.astock.agent.analysis.FundFlowSummaryCalculator;
 import com.astock.agent.analysis.ProviderResearchGateway;
 import com.astock.agent.analysis.ResearchAggregationService;
 import com.astock.agent.analysis.ResearchGateway;
@@ -64,6 +65,7 @@ public class MarketDataConfiguration {
         return new TechnicalAnalysisService(factory);
     }
     @Bean DataQualityScorer dataQualityScorer() { return new DataQualityScorer(); }
+    @Bean FundFlowSummaryCalculator fundFlowSummaryCalculator() { return new FundFlowSummaryCalculator(); }
     @Bean IndustryValuationCalculator industryValuationCalculator() { return new IndustryValuationCalculator(); }
 
     @Bean
@@ -125,7 +127,8 @@ public class MarketDataConfiguration {
             ResearchGateway gateway,
             TechnicalAnalysisService technical,
             DataQualityScorer scorer,
+            FundFlowSummaryCalculator fundFlowSummaryCalculator,
             Cache<SecurityId, StockResearchSnapshot> cache) {
-        return new ResearchAggregationService(gateway, technical, scorer, cache);
+        return new ResearchAggregationService(gateway, technical, scorer, fundFlowSummaryCalculator, cache);
     }
 }

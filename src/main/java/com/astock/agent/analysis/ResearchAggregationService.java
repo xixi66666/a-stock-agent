@@ -2,6 +2,8 @@ package com.astock.agent.analysis;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.FundFlow;
+import com.astock.agent.marketdata.model.FundFlowSummary;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.Quote;
@@ -12,6 +14,7 @@ import com.astock.agent.technical.TechnicalSnapshot;
 import com.astock.agent.technical.Timeframe;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -22,16 +25,19 @@ public final class ResearchAggregationService {
     private final ResearchGateway gateway;
     private final TechnicalAnalysisService technicalService;
     private final DataQualityScorer qualityScorer;
+    private final FundFlowSummaryCalculator fundFlowSummaryCalculator;
     private final Cache<SecurityId, StockResearchSnapshot> cache;
 
     public ResearchAggregationService(
             ResearchGateway gateway,
             TechnicalAnalysisService technicalService,
             DataQualityScorer qualityScorer,
+            FundFlowSummaryCalculator fundFlowSummaryCalculator,
             Cache<SecurityId, StockResearchSnapshot> cache) {
         this.gateway = gateway;
         this.technicalService = technicalService;
         this.qualityScorer = qualityScorer;
+        this.fundFlowSummaryCalculator = fundFlowSummaryCalculator;
         this.cache = cache;
     }
 
@@ -43,7 +49,6 @@ public final class ResearchAggregationService {
         cache.invalidate(security);
     }
 
-    @SuppressWarnings("unchecked")
     private StockResearchSnapshot load(SecurityId security) {
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<DataSection<Quote>> quoteFuture = executor.submit(() -> safeQuote(security));
@@ -74,16 +79,20 @@ public final class ResearchAggregationService {
                     .map(Provenance::provider)
                     .map(name -> name.contains("Tencent"))
                     .orElse(false);
+            DataSection<?> fundFlow = flowFuture.get();
+            DataSection<FundFlowSummary> fundFlowSummary = summarizeFlow(fundFlow);
 
             StockResearchSnapshot snapshot = new StockResearchSnapshot(
                     security, quote, bars, technical,
-                    sectorsFuture.get(), industryValuationFuture.get(), flowFuture.get(), capitalFuture.get(), fundamentalsFuture.get(),
+                    sectorsFuture.get(), industryValuationFuture.get(), fundFlow, fundFlowSummary,
+                    capitalFuture.get(), fundamentalsFuture.get(),
                     researchFuture.get(), newsFuture.get(), announcementsFuture.get(), null,
                     consistent, complete, authoritative, Instant.now());
             DataQualityBreakdown quality = qualityScorer.score(snapshot);
             return new StockResearchSnapshot(
                     security, quote, bars, technical,
-                    snapshot.sectors(), snapshot.industryValuation(), snapshot.fundFlow(), snapshot.capital(), snapshot.fundamentals(),
+                    snapshot.sectors(), snapshot.industryValuation(), snapshot.fundFlow(), snapshot.fundFlowSummary(),
+                    snapshot.capital(), snapshot.fundamentals(),
                     snapshot.research(), snapshot.news(), snapshot.announcements(), quality,
                     consistent, complete, authoritative, snapshot.fetchedAt());
         } catch (ResearchUnavailableException exception) {
@@ -137,6 +146,41 @@ public final class ResearchAggregationService {
         } catch (Exception exception) {
             return DataSection.unavailable(message(exception));
         }
+    }
+
+    private DataSection<FundFlowSummary> summarizeFlow(DataSection<?> source) {
+        if (source.payload().isEmpty()) {
+            return DataSection.unavailable(source.issues().isEmpty()
+                    ? "Fund-flow data is unavailable"
+                    : source.issues().getFirst());
+        }
+        Object payload = source.payload().orElseThrow();
+        if (!(payload instanceof List<?> values)) {
+            return DataSection.unavailable("Fund-flow payload has an invalid type");
+        }
+        List<FundFlow> flows = values.stream()
+                .filter(FundFlow.class::isInstance)
+                .map(FundFlow.class::cast)
+                .toList();
+        FundFlowSummary summary = fundFlowSummaryCalculator.calculate(flows);
+        Provenance provenance = source.provenance().orElse(null);
+        if (provenance == null) {
+            return DataSection.unavailable("Fund-flow provenance is unavailable");
+        }
+        if (flows.isEmpty()) {
+            List<String> issues = new ArrayList<>(source.issues());
+            issues.add("Fund-flow provider returned an empty history");
+            return DataSection.degraded(summary, provenance, issues);
+        }
+        return switch (source.status()) {
+            case HEALTHY -> DataSection.healthy(summary, provenance);
+            case DEGRADED -> DataSection.degraded(summary, provenance, source.issues());
+            case STALE -> DataSection.stale(summary, provenance, source.issues());
+            case UNVERIFIED -> DataSection.unverified(summary, provenance, source.issues());
+            case UNAVAILABLE -> DataSection.unavailable(source.issues().isEmpty()
+                    ? "Fund-flow data is unavailable"
+                    : source.issues().getFirst());
+        };
     }
 
     private DataSection<TechnicalSnapshot> technical(DataSection<List<DailyBar>> bars) {

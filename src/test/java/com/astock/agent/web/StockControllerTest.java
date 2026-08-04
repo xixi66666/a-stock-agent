@@ -47,6 +47,14 @@ class StockControllerTest {
                 .andExpect(jsonPath("$.code").value("INVALID_SECURITY_CODE"));
     }
 
+    @Test
+    void sourcesExposeDerivedValuationAndFundFlowSections() throws Exception {
+        mvc.perform(get("/api/stocks/600519/sources"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.industryValuation.status").value("UNAVAILABLE"))
+                .andExpect(jsonPath("$.fundFlowSummary.status").value("UNAVAILABLE"));
+    }
+
     private static StockResearchSnapshot snapshot(SecurityId security) {
         Provenance source = new Provenance("fixture", URI.create("https://example.com"), null, Instant.now(), false, null);
         Quote quote = new Quote(security, "贵州茅台", bd(100), bd(99), bd(99), bd(101), bd(98), bd(1), bd(1),

@@ -92,7 +92,9 @@ public class StockController {
         result.put("bars", snapshot.bars());
         result.put("technical", snapshot.technical());
         result.put("sectors", snapshot.sectors());
+        result.put("industryValuation", snapshot.industryValuation());
         result.put("fundFlow", snapshot.fundFlow());
+        result.put("fundFlowSummary", snapshot.fundFlowSummary());
         result.put("capital", snapshot.capital());
         result.put("fundamentals", snapshot.fundamentals());
         result.put("research", snapshot.research());

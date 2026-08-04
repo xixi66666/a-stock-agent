@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.FundFlow;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.Quote;
@@ -25,11 +26,7 @@ class ResearchAggregationServiceTest {
     @Test
     void newsFailureDoesNotDiscardQuoteOrTechnicalData() {
         ResearchGateway gateway = new StubGateway();
-        ResearchAggregationService service = new ResearchAggregationService(
-                gateway,
-                new TechnicalAnalysisService(new BarSeriesFactory()),
-                new DataQualityScorer(),
-                Caffeine.newBuilder().maximumSize(10).build());
+        ResearchAggregationService service = service(gateway);
 
         StockResearchSnapshot result = service.research(SecurityId.parse("600519"));
 
@@ -47,17 +44,65 @@ class ResearchAggregationServiceTest {
                 return DataSection.unavailable("peer batch unavailable");
             }
         };
-        ResearchAggregationService service = new ResearchAggregationService(
-                gateway,
-                new TechnicalAnalysisService(new BarSeriesFactory()),
-                new DataQualityScorer(),
-                Caffeine.newBuilder().maximumSize(10).build());
 
-        StockResearchSnapshot result = service.research(SecurityId.parse("600519"));
+        StockResearchSnapshot result = service(gateway).research(SecurityId.parse("600519"));
 
         assertThat(result.quote().status()).isEqualTo(SectionStatus.HEALTHY);
         assertThat(result.technical().status()).isEqualTo(SectionStatus.HEALTHY);
         assertThat(result.industryValuation().status()).isEqualTo(SectionStatus.UNAVAILABLE);
+    }
+
+    @Test
+    void fundFlowSummaryPreservesFallbackStatusAndProvenance() {
+        ResearchGateway gateway = new StubGateway() {
+            @Override
+            public DataSection<?> fundFlow(SecurityId security) {
+                Provenance fallback = new Provenance(
+                        "Sina", URI.create("https://example.com/fund-flow"), null,
+                        Instant.parse("2026-07-15T08:00:00Z"), false, "Eastmoney");
+                return DataSection.degraded(List.of(
+                        new FundFlow(LocalDate.of(2026, 7, 15), bd(10), bd(1), bd(2), bd(3), bd(4), "Sina")),
+                        fallback, List.of("Eastmoney unavailable; using Sina daily fund-flow fallback"));
+            }
+        };
+
+        StockResearchSnapshot result = service(gateway).research(SecurityId.parse("600519"));
+
+        assertThat(result.fundFlowSummary().status()).isEqualTo(SectionStatus.DEGRADED);
+        assertThat(result.fundFlowSummary().payload().orElseThrow().latestDay().mainNetYuan())
+                .isEqualByComparingTo("10");
+        assertThat(result.fundFlowSummary().provenance().orElseThrow().fallbackProvider())
+                .isEqualTo("Eastmoney");
+    }
+
+    @Test
+    void emptySuccessAndProviderFailureRemainDifferentStates() {
+        StockResearchSnapshot emptyResult = service(new StubGateway())
+                .research(SecurityId.parse("600519"));
+        StockResearchSnapshot failedResult = service(new StubGateway() {
+            @Override
+            public DataSection<?> fundFlow(SecurityId security) {
+                return DataSection.unavailable("provider failed");
+            }
+        }).research(SecurityId.parse("600519"));
+
+        assertThat(emptyResult.fundFlowSummary().status()).isEqualTo(SectionStatus.DEGRADED);
+        assertThat(emptyResult.fundFlowSummary().payload().orElseThrow().latestDay().sampleDays()).isZero();
+        assertThat(emptyResult.fundFlowSummary().issues())
+                .contains("Fund-flow provider returned an empty history");
+
+        assertThat(failedResult.fundFlowSummary().status()).isEqualTo(SectionStatus.UNAVAILABLE);
+        assertThat(failedResult.fundFlowSummary().payload()).isEmpty();
+        assertThat(failedResult.fundFlowSummary().issues()).contains("provider failed");
+    }
+
+    private static ResearchAggregationService service(ResearchGateway gateway) {
+        return new ResearchAggregationService(
+                gateway,
+                new TechnicalAnalysisService(new BarSeriesFactory()),
+                new DataQualityScorer(),
+                new FundFlowSummaryCalculator(),
+                Caffeine.newBuilder().maximumSize(10).build());
     }
 
     private static class StubGateway implements ResearchGateway {
@@ -92,6 +137,6 @@ class ResearchAggregationServiceTest {
         @Override public DataSection<?> news(SecurityId security) { return DataSection.unavailable("simulated provider block"); }
         @Override public DataSection<?> announcements(SecurityId security) { return DataSection.healthy(List.of(), source); }
 
-        private static BigDecimal bd(double value) { return BigDecimal.valueOf(value); }
+        protected static BigDecimal bd(double value) { return BigDecimal.valueOf(value); }
     }
 }
