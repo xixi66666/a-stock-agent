@@ -13,6 +13,9 @@ const state = {
   searchTimer: null,
   technicalController: null,
   overallReportPhase: "idle",
+  overallModelsPhase: "idle",
+  overallModels: [],
+  selectedOverallModelId: null,
   institutionalReportPhase: "idle",
   institutionalReport: null,
   overallReportResponse: null,
@@ -95,6 +98,7 @@ function renderCurrentView() {
   refreshIcons();
   if (state.currentView === "technical") state.technicalController = activateTechnicalView(state.snapshot.technical, content);
   if (state.currentView === "agent") {
+    bindOverallModelControls();
     bindOverallReportAction();
     bindAgentAction();
     if (state.overallReportResponse) $("#overall-report-output").innerHTML = renderOverallReportResponse(state.overallReportResponse);
@@ -254,7 +258,7 @@ function renderOverallReportResponse(response = {}) {
     ? renderModelDiagnostic(response.diagnostic, "总体报告校验提示")
     : "";
   return `<article class="overall-report">
-    <header class="overall-report-header"><span class="source-status" data-status="HEALTHY"><span></span>DeepSeek 总体报告</span><h3>总体结论</h3><p>${escapeText(report.overallConclusion || "暂无总体结论")}</p><dl><dt>模型</dt><dd>${escapeText(report.modelName || "deepseek-chat")}</dd><dt>快照</dt><dd>${escapeText(report.snapshotAt || "--")}</dd></dl></header>
+    <header class="overall-report-header"><span class="source-status" data-status="HEALTHY"><span></span>总体报告</span><h3>总体结论</h3><p>${escapeText(report.overallConclusion || "暂无总体结论")}</p><dl><dt>模型</dt><dd>${escapeText(report.modelName || "未知模型")}</dd><dt>快照</dt><dd>${escapeText(report.snapshotAt || "--")}</dd></dl></header>
     ${renderOverallSection("数据质量", report.dataQualitySummary, true)}
     ${renderOverallSection("公司与基本面", report.companyAndFundamentals)}
     ${renderOverallSection("技术与资金", report.technicalAndCapital)}
@@ -300,6 +304,66 @@ function bindAgentAction() {
   });
 }
 
+function syncOverallModelControls() {
+  const select = $("#overall-model-select");
+  const button = $("#run-overall-report");
+  const help = $("#overall-model-help");
+  const modelName = $("#overall-model-name");
+  if (!select || !button || !help || !modelName) return;
+
+  const models = state.overallModels;
+  const selected = models.find((model) => model.id === state.selectedOverallModelId);
+  select.innerHTML = models.length
+    ? models.map((model) => `<option value="${escapeText(model.id)}">${escapeText(model.id)} · ${escapeText(model.modelName)}</option>`).join("")
+    : `<option value="">${state.overallModelsPhase === "loading" ? "正在加载可用模型" : "没有可用模型"}</option>`;
+  select.value = selected?.id || "";
+  select.disabled = !models.length || state.overallReportPhase === "loading";
+  button.disabled = !selected || state.overallReportPhase === "loading";
+  modelName.textContent = selected?.modelName || "未选择";
+  help.textContent = state.overallModelsPhase === "failed"
+    ? "模型目录加载失败，请稍后重试"
+    : models.length
+      ? "请选择生成本次总体报告的模型"
+      : state.overallModelsPhase === "loading"
+        ? "正在读取本地模型配置"
+        : "没有可用模型，请检查本地配置";
+}
+
+async function loadOverallModels() {
+  if (state.overallModelsPhase === "loading" || state.overallModelsPhase === "ready") {
+    syncOverallModelControls();
+    return;
+  }
+  state.overallModelsPhase = "loading";
+  syncOverallModelControls();
+  try {
+    const response = await stockApi.overallModels();
+    state.overallModels = Array.isArray(response?.models) ? response.models : [];
+    const stillSelected = state.overallModels.some((model) => model.id === state.selectedOverallModelId);
+    if (!stillSelected) {
+      state.selectedOverallModelId = state.overallModels.find((model) => model.defaultModel)?.id
+        || state.overallModels[0]?.id
+        || null;
+    }
+    state.overallModelsPhase = "ready";
+  } catch {
+    state.overallModels = [];
+    state.selectedOverallModelId = null;
+    state.overallModelsPhase = "failed";
+  }
+  syncOverallModelControls();
+}
+
+function bindOverallModelControls() {
+  const select = $("#overall-model-select");
+  if (!select) return;
+  select.addEventListener("change", () => {
+    state.selectedOverallModelId = select.value || null;
+    syncOverallModelControls();
+  });
+  loadOverallModels();
+}
+
 function bindOverallReportAction() {
   const button = $("#run-overall-report");
   if (!button) return;
@@ -307,20 +371,22 @@ function bindOverallReportAction() {
     const output = $("#overall-report-output");
     const reportCode = state.currentCode;
     const generation = state.loadGeneration;
+    const selectedModelId = state.selectedOverallModelId;
+    if (!selectedModelId) return;
     state.overallReportPhase = "loading";
-    button.disabled = true;
-    output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在生成总体报告</span><p>DeepSeek 正在读取当前股票的完整数据快照。</p>';
+    syncOverallModelControls();
+    output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在生成总体报告</span><p>所选模型正在读取当前股票的完整数据快照。</p>';
     try {
-      const payload = await stockApi.overallReport(reportCode);
+      const payload = await stockApi.overallReport(reportCode, selectedModelId);
       if (state.currentCode !== reportCode || state.loadGeneration !== generation) return;
       state.overallReportResponse = payload;
       output.innerHTML = renderOverallReportResponse(payload);
       refreshIcons();
     } catch (error) {
-      output.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>总体报告不可用</span><p>${escapeText(error.message || "请检查本地 DeepSeek 配置")}</p>`;
+      output.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>总体报告不可用</span><p>${escapeText(error.message || "请检查所选模型的本地配置")}</p>`;
     } finally {
       state.overallReportPhase = "idle";
-      button.disabled = false;
+      syncOverallModelControls();
     }
   });
 }

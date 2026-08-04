@@ -39,12 +39,67 @@ function snapshot() {
 
 async function mockApis(page) {
   await page.route("**/api/agent/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
+  await page.route("**/api/agent/models?capability=overall-report", (route) => route.fulfill({ json: {
+    models: [
+      { id: "deepseek", modelName: "deepseek-chat", defaultModel: true },
+      { id: "mimo", modelName: "mimo-v2.5-pro", defaultModel: false },
+      { id: "primary", modelName: "gpt-5", defaultModel: false },
+    ],
+  } }));
   await page.route("**/api/stocks/600519/snapshot", (route) => route.fulfill({ json: snapshot() }));
   await page.route("**/api/stocks/search**", (route) => route.fulfill({ json: [{ code: "600519", name: "贵州茅台", exchange: "SHANGHAI" }] }));
 }
 
 test.beforeEach(async ({ page }) => {
   await mockApis(page);
+});
+
+test("overall report model can be selected per request", async ({ page }) => {
+  let requestBody = null;
+  await page.route("**/api/agent/overall-report", async (route) => {
+    requestBody = route.request().postDataJSON();
+    await route.fulfill({ json: {
+      status: "MODEL_ASSISTED",
+      report: {
+        overallConclusion: "总体判断内容",
+        dataQualitySummary: "数据质量摘要",
+        companyAndFundamentals: "基本面",
+        technicalAndCapital: "技术与资金",
+        valuationAndIndustry: "估值与行业",
+        eventsAndSentiment: "事件与情绪",
+        bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
+        conflictsAndMissingData: [], sourceReferences: [],
+        modelName: "mimo-v2.5-pro", disclaimer: "仅供学习研究，不构成投资建议",
+      },
+    } });
+  });
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  const selector = page.getByLabel("总体报告模型");
+  await expect(selector).toHaveValue("deepseek");
+  await selector.selectOption("mimo");
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
+
+  expect(requestBody).toEqual({ code: "600519", modelId: "mimo" });
+  await expect(page.locator("#overall-report-output")).toContainText("mimo-v2.5-pro");
+  await expect(page.locator("#overall-report-output")).not.toContainText("DeepSeek 总体报告");
+});
+
+test("overall report generation is disabled when no model is available", async ({ page }) => {
+  await page.unroute("**/api/agent/models?capability=overall-report");
+  await page.route("**/api/agent/models?capability=overall-report", (route) =>
+    route.fulfill({ json: { models: [] } }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+
+  await expect(page.getByLabel("总体报告模型")).toBeDisabled();
+  await expect(page.getByRole("button", { name: /生成总体报告/ })).toBeDisabled();
+  await expect(page.locator("#overall-model-help")).toContainText("没有可用模型");
+  await expect(page.getByRole("button", { name: "生成研究报告" })).toBeEnabled();
 });
 
 for (const viewport of [
@@ -191,7 +246,7 @@ test("agent keeps valid model narrative when only one field falls back", async (
   await expect(page.locator("#agent-output")).toContainText("trace-partial-1");
 });
 
-test("DeepSeek overall report is independent and appears before the existing research report", async ({ page }) => {
+test("overall report is independent and appears before the existing research report", async ({ page }) => {
   await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
     status: "MODEL_ASSISTED",
     report: {
@@ -219,7 +274,7 @@ test("DeepSeek overall report is independent and appears before the existing res
   await page.goto("/");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await expect(page.getByRole("button", { name: "生成总体报告 DeepSeek" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /生成总体报告/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "生成研究报告" })).toBeVisible();
   const layout = await page.evaluate(() => {
     const controls = document.querySelector(".agent-controls").getBoundingClientRect();
@@ -230,29 +285,29 @@ test("DeepSeek overall report is independent and appears before the existing res
   expect(layout.overallBelowControls).toBe(true);
   expect(layout.overallLeftOfExisting).toBe(true);
 
-  await page.getByRole("button", { name: "生成总体报告 DeepSeek" }).click();
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
   await expect(page.locator("#overall-report-output")).toContainText("总体判断内容");
   await expect(page.locator("#agent-output")).toContainText("等待生成");
   await page.getByRole("button", { name: "生成研究报告" }).click();
   await expect(page.locator("#agent-output")).toContainText("现有研究报告内容");
 
-  // 切换股票后，两份报告都回到独立的等待状态。
-  await page.locator('[data-symbol="600519"]').click();
+  // 重新加载当前股票后，两份报告都回到独立的等待状态。
+  await page.getByRole("button", { name: "刷新当前股票" }).click();
   await expect(page.locator("#overall-report-output")).toContainText("等待生成");
   await expect(page.locator("#agent-output")).toContainText("等待生成");
 });
 
-test("DeepSeek overall report shows a local configuration error without affecting the existing report", async ({ page }) => {
-  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ detail: "DeepSeek 未配置" }) }));
+test("selected overall report model shows a local configuration error without affecting the existing report", async ({ page }) => {
+  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ detail: "所选模型未配置" }) }));
   await page.goto("/");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: "生成总体报告 DeepSeek" }).click();
-  await expect(page.locator("#overall-report-output")).toContainText("DeepSeek 未配置");
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
+  await expect(page.locator("#overall-report-output")).toContainText("所选模型未配置");
   await expect(page.locator("#agent-output")).toContainText("等待生成");
 });
 
-test("DeepSeek overall report remains visible with validation warnings", async ({ page }) => {
+test("overall report remains visible with validation warnings", async ({ page }) => {
   await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
     status: "MODEL_ASSISTED",
     message: "总体报告已生成，存在校验警告",
@@ -278,7 +333,7 @@ test("DeepSeek overall report remains visible with validation warnings", async (
   await page.goto("/");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: "生成总体报告 DeepSeek" }).click();
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
 
   await expect(page.locator("#overall-report-output")).toContainText("模型原始总体结论");
   await page.locator("#overall-report-output details.model-diagnostic").click();

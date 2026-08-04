@@ -95,13 +95,20 @@ function renderAgent(snapshot) {
     <div class="agent-layout">
       <aside class="agent-sidebar" aria-label="报告生成与总体报告">
         <div class="agent-controls">
-          <span class="section-kicker">INSTITUTIONAL + DEEPSEEK</span>
+          <span class="section-kicker">INSTITUTIONAL + OVERALL</span>
           <h3>研究报告</h3>
           <p>两份报告独立生成，并保留数据来源、缺失项与风险边界。</p>
           <button id="run-agent" class="primary-command agent-command" type="button"><i data-lucide="sparkles" aria-hidden="true"></i><span>生成研究报告</span></button>
-          <button id="run-overall-report" class="secondary-command agent-command" type="button"><i data-lucide="file-chart-column" aria-hidden="true"></i><span>生成总体报告</span><small>DeepSeek</small></button>
+          <label class="overall-model-field" for="overall-model-select">
+            <span>总体报告模型</span>
+            <select id="overall-model-select" disabled>
+              <option value="">正在加载可用模型</option>
+            </select>
+          </label>
+          <small id="overall-model-help" class="overall-model-help">正在读取本地模型配置</small>
+          <button id="run-overall-report" class="secondary-command agent-command" type="button" disabled><i data-lucide="file-chart-column" aria-hidden="true"></i><span>生成总体报告</span><small id="overall-model-name">未选择</small></button>
         </div>
-        <div id="overall-report-output" class="overall-report-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>DeepSeek 将读取当前股票的完整规范化快照。</p></div>
+        <div id="overall-report-output" class="overall-report-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>所选模型将读取当前股票的完整规范化快照。</p></div>
       </aside>
       <div id="agent-output" class="agent-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>现有结构化研究报告将在这里显示。</p></div>
     </div>

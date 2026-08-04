@@ -46,7 +46,8 @@ class StaticResourceTest {
 
         assertThat(script)
                 .contains("stockApi.snapshot")
-                .contains("data-symbol");
+                .contains("data-symbol")
+                .contains("selectedModelId");
     }
 
     @Test
@@ -58,7 +59,9 @@ class StaticResourceTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(script)
-                .contains("overallReport(code)")
+                .contains("overallModels()")
+                .contains("overallReport(code, modelId)")
+                .contains("/api/agent/models?capability=overall-report")
                 .contains("/api/agent/overall-report");
     }
 
@@ -72,8 +75,10 @@ class StaticResourceTest {
 
         assertThat(script)
                 .contains("run-overall-report")
+                .contains("overall-model-select")
                 .contains("overall-report-output")
                 .contains("run-agent")
-                .contains("agent-output");
+                .contains("agent-output")
+                .doesNotContain("DeepSeek 总体报告");
     }
 }

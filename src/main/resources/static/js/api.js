@@ -46,11 +46,14 @@ export const stockApi = {
       body: JSON.stringify({ code }),
     });
   },
-  overallReport(code) {
+  overallModels() {
+    return request("/api/agent/models?capability=overall-report");
+  },
+  overallReport(code, modelId) {
     return request("/api/agent/overall-report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, modelId }),
     });
   },
 };
