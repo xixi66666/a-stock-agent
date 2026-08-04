@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.IndustryPeerQuote;
+import com.astock.agent.marketdata.model.IndustryPeerComparison;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Provenance;
+import com.astock.agent.marketdata.model.SectionStatus;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.marketdata.model.Sector;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -33,7 +35,8 @@ class IndustryValuationServiceTest {
                 ignored -> {
                     peerCalls.incrementAndGet();
                     return DataSection.healthy(List.of(
-                            peer("600519", "30", "3"), peer("000858", "20", "2")), source);
+                            peer("600519", "30", "3", "1000000"),
+                            peer("000858", "20", "2", "900000")), source);
                 },
                 new IndustryValuationCalculator(), Caffeine.newBuilder().build(), Caffeine.newBuilder().build());
 
@@ -65,9 +68,34 @@ class IndustryValuationServiceTest {
         assertThat(peerCalls).hasValue(2);
     }
 
-    private static IndustryPeerQuote peer(String code, String pe, String pb) {
+    @Test
+    void missingTargetMarketValueReturnsLeadersAsDegradedData() {
+        SecurityId security = SecurityId.parse("600519");
+        Sector sector = new Sector("白酒", "BK0477", BigDecimal.ONE, "600519");
+        Provenance source = source("https://example.test/industry-peers");
+        IndustryValuationService service = new IndustryValuationService(
+                ignored -> DataSection.healthy(List.of(sector), source("https://example.test/sectors")),
+                ignored -> DataSection.healthy(List.of(
+                        peer("600519", "30", "3", null),
+                        peer("000858", "20", "2", "900"),
+                        peer("000568", "21", "2.1", "800")), source),
+                new IndustryValuationCalculator(), Caffeine.newBuilder().build(), Caffeine.newBuilder().build());
+
+        DataSection<IndustryValuationData> result = service.compare(security);
+
+        assertThat(result.status()).isEqualTo(SectionStatus.DEGRADED);
+        assertThat(result.payload().orElseThrow().selectedPeers())
+                .extracting(IndustryPeerComparison::code)
+                .containsExactly("000858", "000568");
+        assertThat(result.issues()).contains("Target market value is unavailable; nearby peers were omitted");
+    }
+
+    private static IndustryPeerQuote peer(String code, String pe, String pb, String marketValue) {
         return new IndustryPeerQuote(
-                code, code, new BigDecimal(pe), new BigDecimal(pb), new BigDecimal("1000000"));
+                code, code,
+                pe == null ? null : new BigDecimal(pe),
+                pb == null ? null : new BigDecimal(pb),
+                marketValue == null ? null : new BigDecimal(marketValue));
     }
 
     private static Provenance source(String url) {

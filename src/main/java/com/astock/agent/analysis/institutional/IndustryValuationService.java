@@ -7,6 +7,7 @@ import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.marketdata.model.Sector;
 import com.github.benmanes.caffeine.cache.Cache;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -48,9 +49,9 @@ public final class IndustryValuationService {
         if (peers.payload().isEmpty() || peers.payload().orElseThrow().isEmpty()) {
             return DataSection.unavailable(issue(peers, "Industry peer batch is unavailable"));
         }
-        IndustryValuationData result = calculator.calculate(
+        IndustryValuationCalculation calculation = calculator.calculate(
                 industry.code(), industry.name(), security.code(), peers.payload().orElseThrow());
-        return sectionLike(peers, result);
+        return sectionLike(peers, calculation.data(), calculation.issues());
     }
 
     private DataSection<List<Sector>> cachedClassification(SecurityId security) {
@@ -86,13 +87,18 @@ public final class IndustryValuationService {
         return section.issues().isEmpty() ? fallback : section.issues().getFirst();
     }
 
-    private static <T> DataSection<T> sectionLike(DataSection<?> source, T payload) {
+    private static <T> DataSection<T> sectionLike(
+            DataSection<?> source, T payload, List<String> additionalIssues) {
         Provenance provenance = source.provenance().orElseThrow();
+        List<String> issues = new ArrayList<>(source.issues());
+        issues.addAll(additionalIssues);
         return switch (source.status()) {
-            case HEALTHY -> DataSection.healthy(payload, provenance);
-            case DEGRADED -> DataSection.degraded(payload, provenance, source.issues());
-            case STALE -> DataSection.stale(payload, provenance, source.issues());
-            case UNVERIFIED -> DataSection.unverified(payload, provenance, source.issues());
+            case HEALTHY -> issues.isEmpty()
+                    ? DataSection.healthy(payload, provenance)
+                    : DataSection.degraded(payload, provenance, issues);
+            case DEGRADED -> DataSection.degraded(payload, provenance, issues);
+            case STALE -> DataSection.stale(payload, provenance, issues);
+            case UNVERIFIED -> DataSection.unverified(payload, provenance, issues);
             case UNAVAILABLE -> throw new IllegalArgumentException("Unavailable source has no payload");
         };
     }
