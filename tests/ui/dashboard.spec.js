@@ -141,6 +141,23 @@ for (const viewport of [
     expect(layout.headerOverlap).toBe(false);
     expect(layout.overflowingButtons).toEqual([]);
     await page.screenshot({ path: `target/ui-screenshots/dashboard-${viewport.width}x${viewport.height}.png`, fullPage: true });
+
+    await page.getByRole("tab", { name: "Agent 分析" }).click();
+    await expect(page.getByLabel("总体报告模型")).toBeVisible();
+    const agentLayout = await page.evaluate(() => {
+      const button = document.querySelector("#run-overall-report");
+      const selector = document.querySelector("#overall-model-select");
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: document.documentElement.clientWidth,
+        buttonFits: button.scrollWidth <= button.clientWidth + 1 && button.scrollHeight <= button.clientHeight + 1,
+        selectorFits: selector.scrollWidth <= selector.clientWidth + 1,
+      };
+    });
+    expect(agentLayout.scrollWidth).toBeLessThanOrEqual(agentLayout.viewportWidth);
+    expect(agentLayout.buttonFits).toBe(true);
+    expect(agentLayout.selectorFits).toBe(true);
+    await page.screenshot({ path: `target/ui-screenshots/agent-${viewport.width}x${viewport.height}.png`, fullPage: true });
   });
 }
 
