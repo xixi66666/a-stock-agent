@@ -34,7 +34,6 @@ public record OverallResearchReport(
         scenarios = scenarios == null ? Map.of() : Map.copyOf(scenarios);
         conflictsAndMissingData = safeList(conflictsAndMissingData);
         sourceReferences = safeList(sourceReferences);
-        disclaimer = REQUIRED_DISCLAIMER;
     }
 
     public static OverallResearchReport from(OverallReportDraft draft, String modelName,

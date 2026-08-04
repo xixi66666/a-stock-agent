@@ -165,14 +165,14 @@ class OverallReportValidatorTest {
     }
 
     @Test
-    void reportForcesFixedDisclaimerAndCollectionsAreImmutable() {
+    void reportPreservesDisclaimerAndCollectionsAreImmutable() {
         OverallReportDraft draft = validDraft("无外部数字的结论", List.of(), "任意免责声明");
         assertThat(draft.bullishEvidence()).isUnmodifiable();
         assertThat(draft.scenarios()).isUnmodifiable();
 
         OverallResearchReport report = OverallResearchReport.from(
                 draft, "test-model", null, null, "prompt-v1");
-        assertThat(report.disclaimer()).isEqualTo("仅供学习研究，不构成投资建议");
+        assertThat(report.disclaimer()).isEqualTo("任意免责声明");
         assertThat(report.riskFactors()).isUnmodifiable();
     }
 
