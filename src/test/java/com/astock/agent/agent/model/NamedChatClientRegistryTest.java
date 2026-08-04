@@ -35,6 +35,39 @@ class NamedChatClientRegistryTest {
     }
 
     @Test
+    void exposesSafeCatalogAndMarksRoleDefault() {
+        ChatClient primary = mock(ChatClient.class);
+        ChatClient mimo = mock(ChatClient.class);
+        NamedChatClientRegistry registry = new NamedChatClientRegistry(
+                Map.of(
+                        "primary", new NamedChatClientRegistry.NamedModel(primary, "gpt-5"),
+                        "mimo", new NamedChatClientRegistry.NamedModel(mimo, "mimo-v2.5-pro")),
+                Map.of("overall-report", "mimo"));
+
+        assertThat(registry.availableModels("overall-report"))
+                .extracting(
+                        NamedChatClientRegistry.ModelReference::id,
+                        NamedChatClientRegistry.ModelReference::modelName,
+                        NamedChatClientRegistry.ModelReference::defaultModel)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("mimo", "mimo-v2.5-pro", true),
+                        org.assertj.core.groups.Tuple.tuple("primary", "gpt-5", false));
+        assertThat(registry.modelIdForRole("overall-report")).contains("mimo");
+    }
+
+    @Test
+    void resolvesOnlyRegisteredModelsById() {
+        ChatClient client = mock(ChatClient.class);
+        NamedChatClientRegistry registry = new NamedChatClientRegistry(
+                Map.of("primary", new NamedChatClientRegistry.NamedModel(client, "gpt-5")),
+                Map.of());
+
+        assertThat(registry.byId(" primary ").orElseThrow().client()).isSameAs(client);
+        assertThat(registry.byId("missing")).isEmpty();
+        assertThat(registry.byId(" ")).isEmpty();
+    }
+
+    @Test
     void namedModelRejectsNullOrBlankModelName() {
         ChatClient client = mock(ChatClient.class);
         org.assertj.core.api.Assertions.assertThatIllegalArgumentException()

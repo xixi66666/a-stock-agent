@@ -1,6 +1,8 @@
 package com.astock.agent.agent.model;
 
 import com.astock.agent.agent.AgentAvailability;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.ai.chat.client.ChatClient;
@@ -23,6 +25,32 @@ public final class NamedChatClientRegistry {
         return Optional.ofNullable(roles.get(role)).map(models::get);
     }
 
+    public Optional<NamedModel> byId(String modelId) {
+        if (modelId == null || modelId.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(models.get(modelId.trim()));
+    }
+
+    public Optional<String> modelIdForRole(String role) {
+        if (role == null || role.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(roles.get(role))
+                .filter(models::containsKey);
+    }
+
+    public List<ModelReference> availableModels(String defaultRole) {
+        String defaultId = modelIdForRole(defaultRole).orElse(null);
+        return models.entrySet().stream()
+                .map(entry -> new ModelReference(
+                        entry.getKey(),
+                        entry.getValue().modelName(),
+                        entry.getKey().equals(defaultId)))
+                .sorted(Comparator.comparing(ModelReference::id))
+                .toList();
+    }
+
     public AgentAvailability availability(String role) {
         return forRole(role).isPresent()
                 ? AgentAvailability.READY
@@ -39,5 +67,8 @@ public final class NamedChatClientRegistry {
             }
             modelName = modelName.trim();
         }
+    }
+
+    public record ModelReference(String id, String modelName, boolean defaultModel) {
     }
 }
