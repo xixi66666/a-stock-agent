@@ -250,6 +250,9 @@ function renderOverallFailure(response = {}) {
 function renderOverallReportResponse(response = {}) {
   if (response?.status !== "MODEL_ASSISTED" || !response.report) return renderOverallFailure(response);
   const report = response.report;
+  const diagnosticMarkup = response.diagnostic
+    ? renderModelDiagnostic(response.diagnostic, "总体报告校验提示")
+    : "";
   return `<article class="overall-report">
     <header class="overall-report-header"><span class="source-status" data-status="HEALTHY"><span></span>DeepSeek 总体报告</span><h3>总体结论</h3><p>${escapeText(report.overallConclusion || "暂无总体结论")}</p><dl><dt>模型</dt><dd>${escapeText(report.modelName || "deepseek-chat")}</dd><dt>快照</dt><dd>${escapeText(report.snapshotAt || "--")}</dd></dl></header>
     ${renderOverallSection("数据质量", report.dataQualitySummary, true)}
@@ -263,7 +266,8 @@ function renderOverallReportResponse(response = {}) {
     ${renderOverallScenarios(report.scenarios)}
     ${renderOverallList("冲突与缺失", report.conflictsAndMissingData)}
     ${renderOverallSources(report.sourceReferences)}
-    <small class="report-disclaimer">${escapeText(report.disclaimer || "仅供学习研究，不构成投资建议")}</small>
+    ${report.disclaimer ? `<small class="report-disclaimer">${escapeText(report.disclaimer)}</small>` : ""}
+    ${diagnosticMarkup}
   </article>`;
 }
 

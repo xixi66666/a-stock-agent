@@ -252,13 +252,24 @@ test("DeepSeek overall report shows a local configuration error without affectin
   await expect(page.locator("#agent-output")).toContainText("等待生成");
 });
 
-test("DeepSeek overall validation failure exposes its diagnostic issues", async ({ page }) => {
+test("DeepSeek overall report remains visible with validation warnings", async ({ page }) => {
   await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
-    status: "VALIDATION_FAILED",
-    message: "DeepSeek 总体报告未通过证据校验",
+    status: "MODEL_ASSISTED",
+    message: "总体报告已生成，存在校验警告",
+    report: {
+      overallConclusion: "模型原始总体结论",
+      dataQualitySummary: "数据质量说明",
+      companyAndFundamentals: "公司与基本面",
+      technicalAndCapital: "技术与资金",
+      valuationAndIndustry: "估值与行业",
+      eventsAndSentiment: "事件与情绪",
+      bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
+      conflictsAndMissingData: [], sourceReferences: [], modelName: "deepseek-chat",
+      snapshotAt: "2026-08-03T02:00:00Z", disclaimer: "模型自定义说明",
+    },
     diagnostic: {
-      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_FAILED",
-      exceptionType: "ReportValidationException", message: "模型叙述包含证据包未支持的数字",
+      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_WARNING",
+      exceptionType: "ReportValidationWarning", message: "模型叙述存在校验警告",
       validationIssues: ["UNSUPPORTED_NUMBER", "UNKNOWN_SOURCE_REFERENCE"], modelName: "deepseek-chat",
       durationMs: 120, occurredAt: "2026-08-03T02:00:00Z", traceId: "overall-trace-test-1",
     },
@@ -269,8 +280,9 @@ test("DeepSeek overall validation failure exposes its diagnostic issues", async 
   await page.getByRole("tab", { name: "Agent 分析" }).click();
   await page.getByRole("button", { name: "生成总体报告 DeepSeek" }).click();
 
-  await expect(page.locator("#overall-report-output")).toContainText("MODEL_NARRATIVE_VALIDATION_FAILED");
+  await expect(page.locator("#overall-report-output")).toContainText("模型原始总体结论");
+  await page.locator("#overall-report-output details.model-diagnostic").click();
+  await expect(page.locator("#overall-report-output")).toContainText("MODEL_NARRATIVE_VALIDATION_WARNING");
   await expect(page.locator("#overall-report-output")).toContainText("UNSUPPORTED_NUMBER");
-  await expect(page.locator("#overall-report-output")).toContainText("UNKNOWN_SOURCE_REFERENCE");
-  await expect(page.locator("#overall-report-output")).toContainText("deepseek-chat");
+  await expect(page.locator("#overall-report-output")).toContainText("模型自定义说明");
 });
