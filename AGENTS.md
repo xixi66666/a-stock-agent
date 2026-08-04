@@ -26,8 +26,6 @@ This repository is an evidence-first A-share research application. Preserve the 
 - Spring AI tools accept bounded structured inputs such as a six-digit security code. Do not expose arbitrary URL fetching, shell execution, filesystem access, or unrestricted HTTP clients as model tools.
 - Deterministic calculations, validation, quality scoring, and source selection belong outside the model.
 - Reports must distinguish facts, computed indicators, conflicts, missing data, and conclusions, and must cite sources.
-- Never output direct trade instructions, guaranteed returns, target positions, or personalized investment advice.
-- Keep the disclaimer: `仅供学习研究，不构成投资建议`.
 
 ## Secrets And Local Configuration
 
