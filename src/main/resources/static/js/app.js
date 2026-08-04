@@ -19,6 +19,8 @@ const state = {
   institutionalReportPhase: "idle",
   institutionalReport: null,
   overallReportResponse: null,
+  overallReportFeedback: null,
+  overallReportRequestId: 0,
   loadGeneration: 0,
 };
 
@@ -102,6 +104,7 @@ function renderCurrentView() {
     bindOverallReportAction();
     bindAgentAction();
     if (state.overallReportResponse) $("#overall-report-output").innerHTML = renderOverallReportResponse(state.overallReportResponse);
+    renderOverallRequestFeedback();
     if (state.institutionalReport) $("#agent-output").innerHTML = isInstitutionalReport(state.institutionalReport)
       ? renderInstitutionalReport(state.institutionalReport) : renderLegacyReport(state.institutionalReport);
     refreshIcons();
@@ -275,6 +278,25 @@ function renderOverallReportResponse(response = {}) {
   </article>`;
 }
 
+function renderOverallRequestFeedback() {
+  const requestStatus = $("#overall-report-request-status");
+  if (!requestStatus) return;
+  const feedback = state.overallReportFeedback;
+  if (!feedback) {
+    requestStatus.replaceChildren();
+    return;
+  }
+  if (feedback.kind === "loading") {
+    requestStatus.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在生成总体报告</span><p>所选模型正在读取当前股票的完整数据快照。</p>';
+    return;
+  }
+  if (feedback.kind === "response-failure") {
+    requestStatus.innerHTML = renderOverallFailure(feedback.payload);
+    return;
+  }
+  requestStatus.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>总体报告不可用</span><p>${escapeText(feedback.message || "请检查所选模型的本地配置")}</p>`;
+}
+
 function bindAgentAction() {
   const button = $("#run-agent");
   if (!button) return;
@@ -368,25 +390,44 @@ function bindOverallReportAction() {
   const button = $("#run-overall-report");
   if (!button) return;
   button.addEventListener("click", async () => {
-    const output = $("#overall-report-output");
     const reportCode = state.currentCode;
     const generation = state.loadGeneration;
     const selectedModelId = state.selectedOverallModelId;
     if (!selectedModelId) return;
+    const requestId = ++state.overallReportRequestId;
+    const isCurrentRequest = () => state.overallReportRequestId === requestId
+      && state.currentCode === reportCode
+      && state.loadGeneration === generation;
     state.overallReportPhase = "loading";
+    state.overallReportFeedback = { kind: "loading" };
     syncOverallModelControls();
-    output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在生成总体报告</span><p>所选模型正在读取当前股票的完整数据快照。</p>';
+    renderOverallRequestFeedback();
     try {
       const payload = await stockApi.overallReport(reportCode, selectedModelId);
-      if (state.currentCode !== reportCode || state.loadGeneration !== generation) return;
+      if (!isCurrentRequest()) return;
+      if (payload?.status !== "MODEL_ASSISTED" || !payload.report) {
+        state.overallReportFeedback = { kind: "response-failure", payload };
+        renderOverallRequestFeedback();
+        return;
+      }
       state.overallReportResponse = payload;
-      output.innerHTML = renderOverallReportResponse(payload);
+      state.overallReportFeedback = null;
+      renderOverallRequestFeedback();
+      const currentOutput = $("#overall-report-output");
+      if (currentOutput) currentOutput.innerHTML = renderOverallReportResponse(payload);
       refreshIcons();
     } catch (error) {
-      output.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>总体报告不可用</span><p>${escapeText(error.message || "请检查所选模型的本地配置")}</p>`;
+      if (!isCurrentRequest()) return;
+      state.overallReportFeedback = {
+        kind: "transport-failure",
+        message: error.message || "请检查所选模型的本地配置",
+      };
+      renderOverallRequestFeedback();
     } finally {
-      state.overallReportPhase = "idle";
-      syncOverallModelControls();
+      if (isCurrentRequest()) {
+        state.overallReportPhase = "idle";
+        syncOverallModelControls();
+      }
     }
   });
 }
@@ -394,8 +435,10 @@ function bindOverallReportAction() {
 async function loadStock(code) {
   if (!/^\d{6}$/.test(code)) return;
   state.loadGeneration += 1;
+  state.overallReportRequestId += 1;
   state.currentCode = code;
   state.overallReportPhase = "idle";
+  state.overallReportFeedback = null;
   state.institutionalReportPhase = "idle";
   state.overallReportResponse = null;
   state.institutionalReport = null;

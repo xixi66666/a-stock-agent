@@ -107,6 +107,7 @@ function renderAgent(snapshot) {
           </label>
           <small id="overall-model-help" class="overall-model-help">正在读取本地模型配置</small>
           <button id="run-overall-report" class="secondary-command agent-command" type="button" disabled><i data-lucide="file-chart-column" aria-hidden="true"></i><span>生成总体报告</span><small id="overall-model-name">未选择</small></button>
+          <div id="overall-report-request-status" class="overall-report-request-status" aria-live="polite"></div>
         </div>
         <div id="overall-report-output" class="overall-report-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>所选模型将读取当前股票的完整规范化快照。</p></div>
       </aside>

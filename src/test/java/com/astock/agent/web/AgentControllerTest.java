@@ -138,6 +138,19 @@ class AgentControllerTest {
     }
 
     @Test
+    void unsupportedModelCapabilityUsesStableProblemDetails() throws Exception {
+        OverallReportService overall = mock(OverallReportService.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new AgentController(
+                        new AgentStatusService(new MockEnvironment()), null, overall))
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+
+        mvc.perform(get("/api/agent/models").param("capability", "chat"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MODEL_CAPABILITY"));
+    }
+
+    @Test
     void invalidOverallReportCodeUsesProblemDetails() throws Exception {
         OverallReportService overall = mock(OverallReportService.class);
         AgentController controller = new AgentController(

@@ -67,7 +67,7 @@ public class AgentController {
     public ModelsResponse models(
             @RequestParam(defaultValue = "overall-report") String capability) {
         if (!"overall-report".equals(capability)) {
-            throw new IllegalArgumentException("Unsupported model capability");
+            throw new UnsupportedModelCapabilityException(capability);
         }
         if (overallReports == null) {
             return new ModelsResponse(List.of());

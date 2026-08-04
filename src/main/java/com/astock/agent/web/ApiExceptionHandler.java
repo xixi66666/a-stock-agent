@@ -23,6 +23,16 @@ public class ApiExceptionHandler {
                 exception.getMessage());
     }
 
+    @ExceptionHandler(UnsupportedModelCapabilityException.class)
+    ResponseEntity<ProblemDetail> unsupportedModelCapability(
+            UnsupportedModelCapabilityException exception) {
+        return problem(
+                HttpStatus.BAD_REQUEST,
+                "UNSUPPORTED_MODEL_CAPABILITY",
+                "不支持的模型能力",
+                exception.getMessage());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> invalidInput(IllegalArgumentException exception) {
         return problem(HttpStatus.BAD_REQUEST, "INVALID_SECURITY_CODE", "请求参数无效", exception.getMessage());

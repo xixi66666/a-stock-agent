@@ -87,6 +87,173 @@ test("overall report model can be selected per request", async ({ page }) => {
   await expect(page.locator("#overall-report-output")).not.toContainText("DeepSeek 总体报告");
 });
 
+test("stale overall report completion does not unlock a newer request", async ({ page }) => {
+  const pending = [];
+  await page.route("**/api/agent/overall-report", async (route) => {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const requestNumber = pending.length + 1;
+    pending.push({ release });
+    await gate;
+    await route.fulfill({ json: {
+      status: "MODEL_ASSISTED",
+      report: {
+        overallConclusion: `第 ${requestNumber} 次总体判断`,
+        dataQualitySummary: "数据质量摘要",
+        companyAndFundamentals: "基本面",
+        technicalAndCapital: "技术与资金",
+        valuationAndIndustry: "估值与行业",
+        eventsAndSentiment: "事件与情绪",
+        bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
+        conflictsAndMissingData: [], sourceReferences: [],
+        modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
+      },
+    } });
+  });
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  const button = page.getByRole("button", { name: /生成总体报告/ });
+
+  await button.click();
+  await expect.poll(() => pending.length).toBe(1);
+  await page.getByRole("button", { name: "刷新当前股票" }).click();
+  await button.click();
+  await expect.poll(() => pending.length).toBe(2);
+  await expect(button).toBeDisabled();
+
+  pending[0].release();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(button).toBeDisabled();
+
+  pending[1].release();
+  await expect(page.locator("#overall-report-output")).toContainText("第 2 次总体判断");
+  await expect(button).toBeEnabled();
+});
+
+test("overall report result survives remounting the Agent view", async ({ page }) => {
+  const pending = [];
+  await page.route("**/api/agent/overall-report", async (route) => {
+    const requestNumber = pending.length + 1;
+    let release;
+    await new Promise((resolve) => {
+      release = resolve;
+      pending.push({ release });
+    });
+    if (requestNumber === 1) {
+      await route.fulfill({ json: {
+        status: "MODEL_ASSISTED",
+        report: {
+          overallConclusion: "跨标签返回的总体判断",
+          dataQualitySummary: "数据质量摘要",
+          companyAndFundamentals: "基本面",
+          technicalAndCapital: "技术与资金",
+          valuationAndIndustry: "估值与行业",
+          eventsAndSentiment: "事件与情绪",
+          bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
+          conflictsAndMissingData: [], sourceReferences: [],
+          modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
+        },
+      } });
+      return;
+    }
+    await route.fulfill({ json: {
+      status: "MODEL_FAILED",
+      message: "跨标签模型生成失败",
+      diagnostic: { errorCode: "MODEL_TIMEOUT", message: "模型响应超时" },
+    } });
+  });
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  const agentTab = page.getByRole("tab", { name: "Agent 分析" });
+  const technicalTab = page.getByRole("tab", { name: "技术分析" });
+  await agentTab.click();
+
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
+  await expect.poll(() => pending.length).toBe(1);
+  await technicalTab.click();
+  await agentTab.click();
+  pending[0].release();
+  await expect(page.locator("#overall-report-output")).toContainText("跨标签返回的总体判断");
+
+  await page.getByLabel("总体报告模型").selectOption("mimo");
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
+  await expect.poll(() => pending.length).toBe(2);
+  await technicalTab.click();
+  await agentTab.click();
+  pending[1].release();
+  await expect(page.locator("#overall-report-request-status")).toContainText("跨标签模型生成失败");
+  await expect(page.locator("#overall-report-output")).toContainText("跨标签返回的总体判断");
+});
+
+test("existing overall report remains visible while a replacement fails", async ({ page }) => {
+  let requestCount = 0;
+  let releaseFailure;
+  await page.route("**/api/agent/overall-report", async (route) => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      await route.fulfill({ json: {
+        status: "MODEL_ASSISTED",
+        report: {
+          overallConclusion: "模型 A 已生成的总体判断",
+          dataQualitySummary: "数据质量摘要",
+          companyAndFundamentals: "基本面",
+          technicalAndCapital: "技术与资金",
+          valuationAndIndustry: "估值与行业",
+          eventsAndSentiment: "事件与情绪",
+          bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
+          conflictsAndMissingData: [], sourceReferences: [],
+          modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
+        },
+      } });
+      return;
+    }
+    await new Promise((resolve) => { releaseFailure = resolve; });
+    if (requestCount === 2) {
+      await route.fulfill({ json: {
+        status: "MODEL_FAILED",
+        message: "所选模型生成失败",
+        diagnostic: { errorCode: "MODEL_TIMEOUT", message: "模型响应超时" },
+      } });
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ detail: "模型网关暂不可用" }),
+    });
+  });
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  const button = page.getByRole("button", { name: /生成总体报告/ });
+  const output = page.locator("#overall-report-output");
+  const requestStatus = page.locator("#overall-report-request-status");
+
+  await button.click();
+  await expect(output).toContainText("模型 A 已生成的总体判断");
+  await page.getByLabel("总体报告模型").selectOption("mimo");
+  await button.click();
+  await expect.poll(() => typeof releaseFailure).toBe("function");
+  await expect(output).toContainText("模型 A 已生成的总体判断", { timeout: 500 });
+  await expect(requestStatus).toContainText("正在生成总体报告");
+
+  releaseFailure();
+  await expect(requestStatus).toContainText("所选模型生成失败");
+  await expect(output).toContainText("模型 A 已生成的总体判断");
+
+  releaseFailure = undefined;
+  await page.getByLabel("总体报告模型").selectOption("primary");
+  await button.click();
+  await expect.poll(() => typeof releaseFailure).toBe("function");
+  releaseFailure();
+  await expect(requestStatus).toContainText("模型网关暂不可用");
+  await expect(output).toContainText("模型 A 已生成的总体判断");
+});
+
 test("overall report generation is disabled when no model is available", async ({ page }) => {
   await page.unroute("**/api/agent/models?capability=overall-report");
   await page.route("**/api/agent/models?capability=overall-report", (route) =>
@@ -99,6 +266,21 @@ test("overall report generation is disabled when no model is available", async (
   await expect(page.getByLabel("总体报告模型")).toBeDisabled();
   await expect(page.getByRole("button", { name: /生成总体报告/ })).toBeDisabled();
   await expect(page.locator("#overall-model-help")).toContainText("没有可用模型");
+  await expect(page.getByRole("button", { name: "生成研究报告" })).toBeEnabled();
+});
+
+test("model catalog failure does not disable institutional report generation", async ({ page }) => {
+  await page.unroute("**/api/agent/models?capability=overall-report");
+  await page.route("**/api/agent/models?capability=overall-report", (route) =>
+    route.fulfill({ status: 503, contentType: "application/problem+json", body: "{}" }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+
+  await expect(page.getByLabel("总体报告模型")).toBeDisabled();
+  await expect(page.getByRole("button", { name: /生成总体报告/ })).toBeDisabled();
+  await expect(page.locator("#overall-model-help")).toContainText("模型目录加载失败");
   await expect(page.getByRole("button", { name: "生成研究报告" })).toBeEnabled();
 });
 
@@ -320,7 +502,8 @@ test("selected overall report model shows a local configuration error without af
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "Agent 分析" }).click();
   await page.getByRole("button", { name: /生成总体报告/ }).click();
-  await expect(page.locator("#overall-report-output")).toContainText("所选模型未配置");
+  await expect(page.locator("#overall-report-request-status")).toContainText("所选模型未配置");
+  await expect(page.locator("#overall-report-output")).toContainText("等待生成");
   await expect(page.locator("#agent-output")).toContainText("等待生成");
 });
 
