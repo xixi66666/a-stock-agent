@@ -1,8 +1,12 @@
 package com.astock.agent.agent.overall;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 import com.astock.agent.agent.StockAgentTools;
+import com.astock.agent.agent.model.ModelNotAvailableException;
+import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.report.ModelFailureClassifier;
 import com.astock.agent.analysis.StockResearchSnapshot;
 import com.astock.agent.marketdata.model.SecurityId;
@@ -10,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.client.ChatClient;
 
 class OverallReportServiceTest {
 
@@ -17,15 +22,18 @@ class OverallReportServiceTest {
             StockResearchSnapshot.empty(SecurityId.parse("600519"));
 
     @Test
-    void missingDeepseekReturnsLocalStatusWithoutFetchingSnapshot() {
+    void missingDefaultModelReturnsLocalStatusWithoutFetchingSnapshot() {
         AtomicInteger fetches = new AtomicInteger();
         StockAgentTools tools = new StockAgentTools(id -> {
             fetches.incrementAndGet();
             return snapshot;
         });
 
-        OverallReportResponse response = new OverallReportService(null, tools,
-                new OverallReportValidator(), new ModelFailureClassifier()).generate("600519");
+        OverallReportResponse response = new OverallReportService(
+                new NamedChatClientRegistry(Map.of(), Map.of("overall-report", "missing")),
+                tools,
+                new OverallReportValidator(),
+                new ModelFailureClassifier()).generate("600519");
 
         assertThat(response.status()).isEqualTo(OverallReportStatus.MODEL_NOT_CONFIGURED);
         assertThat(response.report()).isNull();
@@ -114,9 +122,99 @@ class OverallReportServiceTest {
         assertThat(response.diagnostic().modelName()).isEqualTo("deepseek-chat");
     }
 
+    @Test
+    void explicitModelSelectionUsesRequestedGenerator() {
+        AtomicInteger primaryCalls = new AtomicInteger();
+        AtomicInteger mimoCalls = new AtomicInteger();
+        OverallReportGenerator primary = generator("gpt-5", primaryCalls);
+        OverallReportGenerator mimo = generator("mimo-v2.5-pro", mimoCalls);
+
+        OverallReportResponse response = selectableService(
+                Map.of("gpt-5", primary, "mimo-v2.5-pro", mimo), "gpt-5")
+                .generate("600519", "mimo");
+
+        assertThat(response.report().modelName()).isEqualTo("mimo-v2.5-pro");
+        assertThat(primaryCalls).hasValue(0);
+        assertThat(mimoCalls).hasValue(1);
+    }
+
+    @Test
+    void missingModelIdUsesOverallReportRoleDefault() {
+        AtomicInteger calls = new AtomicInteger();
+
+        OverallReportResponse response = selectableService(
+                Map.of("mimo-v2.5-pro", generator("mimo-v2.5-pro", calls)), "mimo-v2.5-pro")
+                .generate("600519");
+
+        assertThat(response.report().modelName()).isEqualTo("mimo-v2.5-pro");
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void unknownExplicitModelIsRejectedBeforeSnapshotFetch() {
+        AtomicInteger fetches = new AtomicInteger();
+        StockAgentTools tools = new StockAgentTools(id -> {
+            fetches.incrementAndGet();
+            return snapshot;
+        });
+        NamedChatClientRegistry registry = registry("gpt-5");
+        OverallReportService service = new OverallReportService(
+                registry,
+                tools,
+                new OverallReportValidator(),
+                new ModelFailureClassifier(),
+                named -> generator(named.modelName(), new AtomicInteger()));
+
+        assertThatThrownBy(() -> service.generate("600519", "unknown"))
+                .isInstanceOf(ModelNotAvailableException.class);
+        assertThat(fetches).hasValue(0);
+    }
+
     private OverallReportService service(OverallReportGenerator generator) {
-        return new OverallReportService(generator, new StockAgentTools(id -> snapshot),
-                new OverallReportValidator(), new ModelFailureClassifier());
+        NamedChatClientRegistry registry = new NamedChatClientRegistry(
+                Map.of("selected", new NamedChatClientRegistry.NamedModel(
+                        mock(ChatClient.class), generator.modelName())),
+                Map.of("overall-report", "selected"));
+        return new OverallReportService(
+                registry,
+                new StockAgentTools(id -> snapshot),
+                new OverallReportValidator(),
+                new ModelFailureClassifier(),
+                named -> generator);
+    }
+
+    private OverallReportService selectableService(
+            Map<String, OverallReportGenerator> generators,
+            String defaultModelName) {
+        return new OverallReportService(
+                registry(defaultModelName),
+                new StockAgentTools(id -> snapshot),
+                new OverallReportValidator(),
+                new ModelFailureClassifier(),
+                named -> generators.get(named.modelName()));
+    }
+
+    private NamedChatClientRegistry registry(String defaultModelName) {
+        Map<String, NamedChatClientRegistry.NamedModel> models = new java.util.LinkedHashMap<>();
+        models.put("primary", new NamedChatClientRegistry.NamedModel(mock(ChatClient.class), "gpt-5"));
+        models.put("mimo", new NamedChatClientRegistry.NamedModel(mock(ChatClient.class), "mimo-v2.5-pro"));
+        String defaultId = "mimo-v2.5-pro".equals(defaultModelName) ? "mimo" : "primary";
+        return new NamedChatClientRegistry(models, Map.of("overall-report", defaultId));
+    }
+
+    private OverallReportGenerator generator(String modelName, AtomicInteger calls) {
+        return new OverallReportGenerator() {
+            @Override
+            public OverallReportDraft generate(StockResearchSnapshot ignored) {
+                calls.incrementAndGet();
+                return validDraft();
+            }
+
+            @Override
+            public String modelName() {
+                return modelName;
+            }
+        };
     }
 
     private static OverallReportDraft validDraft() {
