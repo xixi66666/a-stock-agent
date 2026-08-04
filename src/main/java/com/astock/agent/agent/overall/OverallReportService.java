@@ -43,22 +43,10 @@ public final class OverallReportService {
             StockResearchSnapshot snapshot = tools.getResearchSnapshot(code);
             OverallReportDraft draft = generator.generate(snapshot);
             OverallReportValidator.Validation validation = validator.validate(draft, snapshot);
-
-            if (validation.blocking()) {
-                // 只允许一次修复，避免模型调用失控或在校验失败时递归重试。
-                draft = generator.repair(snapshot, draft, validation.issues());
-                validation = validator.validate(draft, snapshot);
-            }
-
-            if (validation.blocking()) {
-                ModelDiagnostic diagnostic = classifier.validation(
-                        validation.issues(), modelName, elapsedMillis(started), traceId);
-                return new OverallReportResponse(
-                        OverallReportStatus.VALIDATION_FAILED,
-                        null,
-                        diagnostic,
-                        "DeepSeek 总体报告未通过证据校验");
-            }
+            ModelDiagnostic diagnostic = validation.issues().isEmpty()
+                    ? null
+                    : classifier.validationWarning(
+                            validation.issues(), modelName, elapsedMillis(started), traceId);
 
             OverallResearchReport report = OverallResearchReport.from(
                     draft,
@@ -69,8 +57,8 @@ public final class OverallReportService {
             return new OverallReportResponse(
                     OverallReportStatus.MODEL_ASSISTED,
                     report,
-                    null,
-                    "总体报告已生成");
+                    diagnostic,
+                    validation.issues().isEmpty() ? "总体报告已生成" : "总体报告已生成，存在校验警告");
         } catch (Exception failure) {
             ModelDiagnostic diagnostic = classifier.classify(
                     failure, modelName, elapsedMillis(started), traceId);

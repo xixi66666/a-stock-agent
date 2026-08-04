@@ -56,7 +56,7 @@ class OverallReportServiceTest {
     }
 
     @Test
-    void repairsAtMostOnceAndReturnsValidationFailureWhenRepairStillInvalid() {
+    void invalidDraftReturnsReportWithWarningWithoutRepair() {
         AtomicInteger repairs = new AtomicInteger();
         OverallReportGenerator generator = new OverallReportGenerator() {
             @Override
@@ -68,7 +68,7 @@ class OverallReportServiceTest {
             public OverallReportDraft repair(StockResearchSnapshot ignored,
                     OverallReportDraft draft, List<String> issues) {
                 repairs.incrementAndGet();
-                return invalidDraft();
+                throw new AssertionError("非阻断校验不得触发模型修复");
             }
 
             @Override
@@ -79,12 +79,16 @@ class OverallReportServiceTest {
 
         OverallReportResponse response = service(generator).generate("600519");
 
-        assertThat(repairs).hasValue(1);
-        assertThat(response.status()).isEqualTo(OverallReportStatus.VALIDATION_FAILED);
-        assertThat(response.report()).isNull();
+        assertThat(repairs).hasValue(0);
+        assertThat(response.status()).isEqualTo(OverallReportStatus.MODEL_ASSISTED);
+        assertThat(response.report()).isNotNull();
+        assertThat(response.report().overallConclusion()).isEqualTo("建议买入");
         assertThat(response.diagnostic()).isNotNull();
         assertThat(response.diagnostic().modelName()).isEqualTo("deepseek-chat");
-        assertThat(response.diagnostic().validationIssues()).isNotEmpty();
+        assertThat(response.diagnostic().errorCode())
+                .isEqualTo("MODEL_NARRATIVE_VALIDATION_WARNING");
+        assertThat(response.diagnostic().validationIssues())
+                .contains("TRADE_INSTRUCTION", "INVALID_DISCLAIMER");
     }
 
     @Test
