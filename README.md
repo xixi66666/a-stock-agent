@@ -46,7 +46,7 @@ Copy-Item config/application-local.yml.example config/application-local.yml
 cp config/application-local.yml config/application-local.yml
 ```
 
-编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`institutional-report` 默认使用 `primary`，`overall-report` 默认使用 `deepseek`。修改模型、角色或密钥后请重启应用。
+编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`institutional-report` 默认使用 `primary`，`overall-report` 默认使用 `deepseek`。总体报告页面会读取所有已启用且配置完整的命名模型，生成前可以选择具体模型；`overall-report` 角色只指定默认选项，旧客户端未提交 `modelId` 时仍使用该默认模型。修改模型、角色或密钥后请重启应用。
 
 ```yaml
 spring:
@@ -90,7 +90,7 @@ app:
       overall-report: deepseek
 ```
 
-三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK。DeepSeek 总体报告使用 `deepseek` 角色，向 `https://api.deepseek.com/v1/chat/completions` 发送完整的规范化股票研究快照；页面左侧的“生成总体报告 · DeepSeek”按钮和右侧原有“生成研究报告”按钮相互独立，任一模型不可用都不会覆盖另一份报告。
+三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK。总体报告页面从后端安全模型目录动态生成选择器，选择后由服务端按命名模型 ID 路由请求。浏览器只接收模型 ID、实际模型名和默认标记，不会接收 API Key、Base URL 或连接参数。总体报告和右侧原有研究报告相互独立，任一模型不可用都不会覆盖另一份报告。
 
 | 供应商 | Base URL | 默认示例模型 | 额外配置 |
 | --- | --- | --- | --- |
@@ -145,7 +145,8 @@ flowchart LR
 | GET | `/api/stocks/{code}/sources` | 来源与质量状态 |
 | GET | `/api/agent/status` | Agent 配置状态 |
 | POST | `/api/agent/analyze` | 生成结构化研究报告 |
-| POST | `/api/agent/overall-report` | 使用 DeepSeek 生成总体报告 |
+| GET | `/api/agent/models?capability=overall-report` | 获取可用于总体报告的安全模型目录 |
+| POST | `/api/agent/overall-report` | 使用请求选择的命名模型生成总体报告；`modelId` 可选 |
 | GET | `/api/system/providers` | 数据源健康状态 |
 | GET | `/actuator/health` | 应用健康检查 |
 
