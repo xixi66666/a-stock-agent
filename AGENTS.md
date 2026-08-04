@@ -45,6 +45,20 @@ This repository is an evidence-first A-share research application. Preserve the 
 
 ## Verification Commands
 
+The repository-local JDK 21 is stored at `.tools/jdk-21` (currently
+`D:\Code\Java_Code\a-stock-agent\.tools\jdk-21`). Before invoking Maven from
+PowerShell, point the current process at that JDK so the system Java 8/11 is
+not selected:
+
+```powershell
+$env:JAVA_HOME = (Resolve-Path '.tools/jdk-21').Path
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+.\mvnw.cmd -version
+```
+
+The version output must report Java 21. `start.ps1` performs the same local
+toolchain setup for application startup.
+
 ```powershell
 .\mvnw.cmd '-Dmaven.repo.local=.m2/repository' clean test
 .\mvnw.cmd '-Dmaven.repo.local=.m2/repository' '-DskipTests' package
