@@ -2,15 +2,18 @@ package com.astock.agent.web;
 
 import com.astock.agent.agent.AgentStatusService;
 import com.astock.agent.agent.StockAnalysisAgent;
+import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.overall.OverallReportResponse;
 import com.astock.agent.agent.overall.OverallReportService;
 import com.astock.agent.agent.report.InstitutionalResearchReport;
 import com.astock.agent.marketdata.model.SecurityId;
+import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -52,12 +55,24 @@ public class AgentController {
     }
 
     @PostMapping("/overall-report")
-    public OverallReportResponse overallReport(@RequestBody AnalyzeRequest request) {
+    public OverallReportResponse overallReport(@RequestBody OverallReportRequest request) {
         SecurityId.parse(request.code());
         if (overallReports == null) {
             throw new IllegalStateException("Overall report service is unavailable");
         }
-        return overallReports.generate(request.code());
+        return overallReports.generate(request.code(), request.modelId());
+    }
+
+    @GetMapping("/models")
+    public ModelsResponse models(
+            @RequestParam(defaultValue = "overall-report") String capability) {
+        if (!"overall-report".equals(capability)) {
+            throw new IllegalArgumentException("Unsupported model capability");
+        }
+        if (overallReports == null) {
+            return new ModelsResponse(List.of());
+        }
+        return new ModelsResponse(overallReports.availableModels());
     }
 
     @PostMapping("/chat")
@@ -78,6 +93,15 @@ public class AgentController {
     }
 
     public record AnalyzeRequest(String code) {
+    }
+
+    public record OverallReportRequest(String code, String modelId) {
+    }
+
+    public record ModelsResponse(List<NamedChatClientRegistry.ModelReference> models) {
+        public ModelsResponse {
+            models = models == null ? List.of() : List.copyOf(models);
+        }
     }
 
     public record ChatRequest(String code, String message, String conversationId) {

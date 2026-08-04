@@ -1,6 +1,7 @@
 package com.astock.agent.web;
 
 import com.astock.agent.agent.AgentExecutionException;
+import com.astock.agent.agent.model.ModelNotAvailableException;
 import com.astock.agent.analysis.ResearchUnavailableException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    @ExceptionHandler(ModelNotAvailableException.class)
+    ResponseEntity<ProblemDetail> modelNotAvailable(ModelNotAvailableException exception) {
+        return problem(
+                HttpStatus.BAD_REQUEST,
+                "MODEL_NOT_AVAILABLE",
+                "模型不可用",
+                exception.getMessage());
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> invalidInput(IllegalArgumentException exception) {

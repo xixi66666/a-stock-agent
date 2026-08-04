@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.astock.agent.agent.AgentStatusService;
+import com.astock.agent.agent.model.ModelNotAvailableException;
+import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.overall.OverallReportResponse;
 import com.astock.agent.agent.overall.OverallReportService;
 import com.astock.agent.agent.overall.OverallReportStatus;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.astock.agent.agent.StockAnalysisAgent;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -68,7 +71,7 @@ class AgentControllerTest {
                 "summary", "quality", "fundamentals", "technical", "valuation", "events",
                 List.of(), List.of(), List.of(), java.util.Map.of(), List.of(), List.of(),
                 "deepseek-chat", Instant.now(), Instant.now(), "overall-v1", "ignored");
-        when(overall.generate("600519")).thenReturn(new OverallReportResponse(
+        when(overall.generate("600519", null)).thenReturn(new OverallReportResponse(
                 OverallReportStatus.MODEL_ASSISTED, report, null, "DeepSeek overall report generated"));
 
         AgentController controller = new AgentController(
@@ -81,6 +84,57 @@ class AgentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("MODEL_ASSISTED"))
                 .andExpect(jsonPath("$.report.modelName").value("deepseek-chat"));
+        verify(overall).generate("600519", null);
+    }
+
+    @Test
+    void listsOnlySafeOverallReportModelMetadata() throws Exception {
+        OverallReportService overall = mock(OverallReportService.class);
+        when(overall.availableModels()).thenReturn(List.of(
+                new NamedChatClientRegistry.ModelReference("deepseek", "deepseek-chat", true),
+                new NamedChatClientRegistry.ModelReference("mimo", "mimo-v2.5-pro", false)));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, overall)).build();
+
+        mvc.perform(get("/api/agent/models").param("capability", "overall-report"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.models[0].id").value("deepseek"))
+                .andExpect(jsonPath("$.models[0].modelName").value("deepseek-chat"))
+                .andExpect(jsonPath("$.models[0].defaultModel").value(true))
+                .andExpect(jsonPath("$.models[0].apiKey").doesNotExist())
+                .andExpect(jsonPath("$.models[0].baseUrl").doesNotExist());
+    }
+
+    @Test
+    void overallReportPassesSelectedModelIdToService() throws Exception {
+        OverallReportService overall = mock(OverallReportService.class);
+        when(overall.generate("600519", "mimo")).thenReturn(new OverallReportResponse(
+                OverallReportStatus.MODEL_NOT_CONFIGURED, null, null, "test"));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, overall)).build();
+
+        mvc.perform(post("/api/agent/overall-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"600519\",\"modelId\":\"mimo\"}"))
+                .andExpect(status().isOk());
+
+        verify(overall).generate("600519", "mimo");
+    }
+
+    @Test
+    void unknownModelUsesStableProblemDetails() throws Exception {
+        OverallReportService overall = mock(OverallReportService.class);
+        when(overall.generate("600519", "unknown")).thenThrow(new ModelNotAvailableException());
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new AgentController(
+                        new AgentStatusService(new MockEnvironment()), null, overall))
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+
+        mvc.perform(post("/api/agent/overall-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"600519\",\"modelId\":\"unknown\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODEL_NOT_AVAILABLE"));
     }
 
     @Test
