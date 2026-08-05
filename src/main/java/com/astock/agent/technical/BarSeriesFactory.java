@@ -13,6 +13,12 @@ import java.util.Locale;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeriesBuilder;
 
+/**
+ * 把规范化日 K 线转换为 ta4j 序列或更高周期 K 线。
+ *
+ * <p>周期聚合遵循开盘取首条、收盘取末条、最高最低取极值、成交量求和的 OHLCV 规则，
+ * 这样技术指标的输入仍然具有明确的金融语义。</p>
+ */
 public final class BarSeriesFactory {
 
     private static final ZoneId CHINA = ZoneId.of("Asia/Shanghai");
@@ -35,6 +41,7 @@ public final class BarSeriesFactory {
     }
 
     public List<DailyBar> aggregate(List<DailyBar> dailyBars, Timeframe timeframe) {
+        // 聚合前假设上游已经完成排序和重复日期校验；这里不静默修正脏数据。
         List<DailyBar> sorted = dailyBars.stream().sorted(Comparator.comparing(DailyBar::date)).toList();
         if (timeframe == Timeframe.DAILY) {
             return List.copyOf(sorted);

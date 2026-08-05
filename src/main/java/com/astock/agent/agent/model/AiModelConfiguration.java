@@ -14,6 +14,12 @@ import org.springframework.beans.BeansException;
 
 /** 为每个已配置的 app.ai 模型创建独立 ChatClient，不触发网络请求。 */
 @Configuration
+/**
+ * 根据本地命名模型配置创建 ChatClient 注册表。
+ *
+ * <p>真实凭据只从被忽略的本地配置读取；配置不完整的模型被跳过，不影响其他已配置模型。
+ * 该类是连接工厂，不负责报告 Prompt、证据校验或业务判断。</p>
+ */
 public class AiModelConfiguration {
 
     @Bean

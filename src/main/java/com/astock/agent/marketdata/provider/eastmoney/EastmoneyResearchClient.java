@@ -28,6 +28,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Eastmoney 独有研究数据适配器。
+ *
+ * <p>它解析板块、同行、资金流、研报、新闻和资本事件等优先来源之外的数据。
+ * 所有 live 请求都通过 {@code ProviderHttpClient}，因此自动继承共享限流、冷却和脱敏策略；
+ * 这里的解析结果必须在返回前转成项目的规范化模型。</p>
+ */
 public final class EastmoneyResearchClient {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -185,6 +192,7 @@ public final class EastmoneyResearchClient {
     }
 
     public DataSection<List<Sector>> fetchSectors(SecurityId security) {
+        // 请求函数只负责供应商查询，返回的分区由统一 provenance 标记抓取时间和来源 URL。
         ensureLiveClient();
         URI uri = URI.create("https://push2.eastmoney.com/api/qt/slist/get?fltt=2&invt=2&spt=3&pi=0&pz=200&po=1"
                 + "&fields=f12,f14,f3,f128&secid=" + security.eastmoneySecId());

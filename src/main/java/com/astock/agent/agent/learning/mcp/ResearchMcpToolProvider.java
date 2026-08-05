@@ -11,6 +11,12 @@ import java.util.function.Function;
 /**
  * MCP 学习适配层，只暴露有边界的领域操作，不接受 URL、命令或文件路径。
  */
+/**
+ * 学习型 MCP 工具目录和执行器。
+ *
+ * <p>MCP 在这里被当作“结构化工具协议”的学习示例：工具名称、输入 Schema 和执行结果
+ * 都是显式对象，执行器只接受有限股票代码和文本参数，不支持任意网络或系统操作。</p>
+ */
 public final class ResearchMcpToolProvider {
 
     private static final List<McpToolDescriptor> TOOLS = List.of(
@@ -32,6 +38,7 @@ public final class ResearchMcpToolProvider {
     }
 
     public McpToolExecution execute(String tool, Map<String, Object> input) {
+        // 先按固定工具名分派，再在每个分支验证输入；未知工具明确失败，不做动态反射调用。
         if (tool == null || TOOLS.stream().noneMatch(item -> item.name().equals(tool))) {
             return McpToolExecution.failure(String.valueOf(tool), "UNKNOWN_TOOL");
         }

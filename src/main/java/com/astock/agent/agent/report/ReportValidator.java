@@ -10,6 +10,12 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 机构研究报告模型叙述的确定性校验器。
+ *
+ * <p>检查字段、长度、证据 ID、数字、冲突和交易指令。校验结果按字段保存，
+ * 报告编排器可以只回退违规字段，保留其他合规叙述。</p>
+ */
 public final class ReportValidator {
     public static final String FIELD_GLOBAL = "global";
     public static final String FIELD_EXECUTIVE_SUMMARY = "executiveSummary";
@@ -27,6 +33,7 @@ public final class ReportValidator {
             "UNSUPPORTED_NUMBER", "TRADE_INSTRUCTION");
 
     public ValidationResult validate(ReportNarrativeDraft draft, ReportEvidencePackage evidence) {
+        // 先逐字段检查，再对整份文本检查证据引用和冲突，避免只检查单个字段漏掉全局问题。
         Map<String, List<String>> issuesByField = new LinkedHashMap<>();
         if (draft == null || evidence == null) {
             addIssue(issuesByField, FIELD_GLOBAL, "EMPTY_DRAFT");
@@ -84,6 +91,7 @@ public final class ReportValidator {
 
     private void validateNumbers(Map<String, List<String>> issuesByField, String field, String text,
             ReportEvidencePackage evidence) {
+        // 采用保守数字校验：找不到对应证据的数字就阻断叙述，宁可回退也不允许模型创造数字。
         String evidenceText = evidence.evidenceCatalog().values().stream()
                 .map(this::evidenceText).reduce("", (a, b) -> a + " " + b);
         Matcher numbers = NUMBER.matcher(text);

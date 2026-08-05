@@ -4,6 +4,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * ta4j 未覆盖的少量技术统计公式。
+ *
+ * <p>这些方法保持纯函数特征，输入相同就得到相同结果，便于离线测试和审计；
+ * 它们不负责数据抓取，也不把统计结果包装成投资建议。</p>
+ */
 public final class CustomIndicators {
 
     private CustomIndicators() {

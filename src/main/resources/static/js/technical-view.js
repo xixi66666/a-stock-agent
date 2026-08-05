@@ -1,3 +1,7 @@
+/*
+ * 技术指标工作台：指标卡由后端确定性计算，ECharts 只负责交互式展示序列。
+ * 如果技术分区不可用，组件显示原因；不会为了画图把缺失值填成 0。
+ */
 import { sectionIssues, sectionPayload } from "./api.js";
 
 const stateLabels = {
@@ -17,6 +21,7 @@ function formatValue(value, unit = "") {
 }
 
 function sparkline(values) {
+  // 小型 SVG 只用于卡片预览，正式详情图由 ECharts 绘制；非法数字直接过滤。
   const clean = (values || []).map(Number).filter(Number.isFinite);
   if (clean.length < 2) return '<span class="sparkline-empty">--</span>';
   const min = Math.min(...clean);
@@ -47,6 +52,7 @@ function cardTemplate(card, index) {
 }
 
 function chartOptions(card) {
+  // 图表数据来自当前指标卡的 series，颜色遵循研究台语义 token，不改变指标状态。
   const values = (card.series || []).map(Number).filter(Number.isFinite);
   const data = values.length ? values : [Number(card.value) || 0];
   return {
@@ -60,6 +66,7 @@ function chartOptions(card) {
 }
 
 export function renderTechnicalView(section) {
+  // 先检查 DataSection 状态，再渲染指标卡和首个详情指标。
   const technical = sectionPayload(section);
   const cards = technical?.cards || [];
   if (!cards.length) {
@@ -84,6 +91,7 @@ export function renderTechnicalView(section) {
 }
 
 export function activateTechnicalView(section, root = document) {
+  // 绑定卡片选择、分组过滤和窗口 resize；返回 dispose 供 app.js 切换标签时清理。
   const technical = sectionPayload(section);
   const cards = technical?.cards || [];
   if (!cards.length) return null;

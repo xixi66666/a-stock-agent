@@ -1,3 +1,9 @@
+/*
+ * 通用研究数据和报告视图。
+ *
+ * 这里的职责是把后端的状态、事实、来源和限制转成可读 HTML；不做指标计算，不补造缺失
+ * 数字。任何来自接口的文本都必须经过 escapeHtml，避免新闻标题或模型叙述变成 HTML。
+ */
 import { sectionIssues, sectionPayload } from "./api.js";
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 
@@ -26,6 +32,7 @@ function statusLabel(status) {
 }
 
 export function renderUnavailable(title, section) {
+  // 不可用状态显示 issues，而不是展示空卡片，让用户知道“没有数据”和“值为 0”不同。
   const issues = sectionIssues(section);
   return `<div class="state-message"><div><i data-lucide="circle-alert" aria-hidden="true"></i><h2>${escapeHtml(title)}暂不可用</h2><p>${escapeHtml(issues[0] || "数据源未返回有效数据")}</p></div></div>`;
 }
@@ -128,5 +135,6 @@ function renderAgent(snapshot) {
 }
 
 export function renderGenericView(view, snapshot) {
+  // 视图选择只影响展示，所有数据仍来自同一规范化快照。
   return ({ capital: renderCapital, fundamentals: renderFundamentals, valuation: renderValuation, events: renderEvents, sources: renderSources, agent: renderAgent }[view] || renderSources)(snapshot);
 }

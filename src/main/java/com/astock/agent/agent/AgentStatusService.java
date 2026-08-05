@@ -3,7 +3,12 @@ package com.astock.agent.agent;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
 import org.springframework.core.env.Environment;
 
-/** 根据命名模型注册表报告各业务角色状态。 */
+/**
+ * 根据命名模型注册表报告各业务角色状态。
+ *
+ * <p>状态只表示本地配置是否具备调用条件，不代表远端模型此刻一定成功。真实调用失败
+ * 仍然由报告服务捕获并转成局部诊断与确定性回退。</p>
+ */
 public final class AgentStatusService {
 
     private final NamedChatClientRegistry registry;

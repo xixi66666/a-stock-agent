@@ -4,6 +4,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 带状态、来源和问题的规范化数据分区。
+ *
+ * <p>它替代了裸 {@code null}：{@code HEALTHY} 必须同时有 payload 和 provenance，
+ * {@code UNAVAILABLE} 必须没有 payload。其余状态允许展示 payload，但必须通过 issues
+ * 说明降级、过期或未验证原因。</p>
+ */
 public record DataSection<T>(
         SectionStatus status,
         Optional<T> payload,
@@ -11,6 +18,7 @@ public record DataSection<T>(
         List<String> issues) {
 
     public DataSection {
+        // 在构造边界强制状态与数据一致，防止错误状态传播到分析、模型和 UI。
         Objects.requireNonNull(status, "status");
         payload = payload == null ? Optional.empty() : payload;
         provenance = provenance == null ? Optional.empty() : provenance;
@@ -44,6 +52,7 @@ public record DataSection<T>(
     }
 
     public static <T> DataSection<T> unavailable(String issue) {
+        // 不可用分区不返回伪造的空列表或 0；调用方应根据 issues 展示缺失原因。
         String message = Objects.requireNonNull(issue, "issue").trim();
         if (message.isEmpty()) {
             throw new IllegalArgumentException("Unavailable section requires an issue");

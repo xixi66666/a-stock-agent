@@ -1,3 +1,10 @@
+/*
+ * Agent 工作台 UI 测试。
+ *
+ * 测试统一拦截 HTTP 请求，使用离线快照和模型响应 Fixture 验证页面行为：模型选择是否
+ * 传给正确 endpoint、旧请求是否会被丢弃、研究报告和总体报告是否互不覆盖、缺失数据是否
+ * 明确展示。这里不访问真实行情 Provider 或大模型 API。
+ */
 const { test, expect } = require("@playwright/test");
 const baseSnapshot = require("./fixtures/partial-snapshot.json");
 
@@ -46,6 +53,7 @@ function fundFlowSummarySection() {
 }
 
 async function mockApis(page) {
+  // 每个测试从同一份快照开始，单个测试只覆盖它关心的响应或请求路由。
   await page.route("**/api/agent/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
   await page.route("**/api/agent/models?capability=overall-report", (route) => route.fulfill({ json: {
     models: [
@@ -63,6 +71,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("overall report model can be selected per request", async ({ page }) => {
+  // 验证总体报告的 modelId 由前端选择并传到服务端，而不是误用 institutional-report 默认模型。
   let requestBody = null;
   await page.route("**/api/agent/overall-report", async (route) => {
     requestBody = route.request().postDataJSON();
@@ -96,6 +105,7 @@ test("overall report model can be selected per request", async ({ page }) => {
 });
 
 test("stale overall report completion does not unlock a newer request", async ({ page }) => {
+  // 用两个延迟响应模拟竞态，确保较早请求完成后不会覆盖较新的总体报告状态。
   const pending = [];
   await page.route("**/api/agent/overall-report", async (route) => {
     let release;

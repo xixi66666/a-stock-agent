@@ -1,5 +1,8 @@
 # Data Flow
 
+> 学习入口：如果你第一次阅读本项目，先看
+> [`agent-learning-guide.md`](agent-learning-guide.md)，再回到本文查看数据层边界。
+
 ## Request Path
 
 ```mermaid
@@ -27,6 +30,8 @@ sequenceDiagram
 ```
 
 ## Ownership Boundaries
+
+下面的边界是这个项目最重要的 Agent 学习目标：模型只能消费已经规范化、带来源的证据，不能越过数据和安全边界直接访问供应商。
 
 `marketdata/provider` owns transport, decoding, provider-specific fields, throttling and cooldown. Provider models do not leak into controllers.
 

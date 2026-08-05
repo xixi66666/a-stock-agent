@@ -1,3 +1,7 @@
+/*
+ * 市场派生展示组件：把同行估值和资金流窗口汇总渲染成独立区块。
+ * 这些值已经由后端确定性计算；前端只格式化和展示，不重新计算投资结论。
+ */
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
@@ -31,6 +35,7 @@ function unavailable(title, section) {
 }
 
 export function renderPeerValuationTable(section, target = {}) {
+  // 同行选择理由和缺失状态必须随表格保留，不能只显示一个看似精确的 PE/PB 数字。
   const data = section?.payload;
   if (!data) return section ? unavailable("同行估值对比", section) : "";
   const targetRow = {
@@ -60,6 +65,7 @@ export function renderPeerValuationTable(section, target = {}) {
 }
 
 export function renderFundFlowSummary(section) {
+  // 资金流摘要按窗口展示 latest、5d、20d 等范围，避免把不同时间尺度混在一起。
   const summary = section?.payload;
   if (!summary) return section ? unavailable("资金流窗口汇总", section) : "";
   const rows = [["近 5 日", summary.fiveDay], ["近 20 日", summary.twentyDay]]

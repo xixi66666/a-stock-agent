@@ -11,6 +11,12 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
 
+/**
+ * 所有 Provider 共用的 HTTP 边界。
+ *
+ * <p>统一处理连接/请求超时、有限重试、Provider 限流、冷却状态和敏感 URI 脱敏。
+ * Provider 适配器只负责构造请求和解析响应，不应该各自实现一套重试策略。</p>
+ */
 public final class ProviderHttpClient {
 
     private static final Set<String> SENSITIVE_MARKERS = Set.of("key", "token", "secret", "authorization");
@@ -62,6 +68,7 @@ public final class ProviderHttpClient {
     }
 
     private ProviderResponse send(ProviderId provider, URI uri, Supplier<HttpRequest> requestFactory) {
+        // 先检查 Provider 是否处于冷却，再通过共享 throttle 发出请求，避免并发绕过限流。
         if (!healthRegistry.availability(provider).available()) {
             throw new ProviderException(provider, uri, 403, provider.displayName() + " is in cooldown");
         }

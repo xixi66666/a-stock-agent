@@ -12,6 +12,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
+/**
+ * 把边界异常统一转换为 RFC 9457 Problem Details。
+ *
+ * <p>对外返回可理解的错误类型和消息，但不暴露 API Key、完整 URI、请求头或服务端堆栈。</p>
+ */
 public class ApiExceptionHandler {
 
     @ExceptionHandler(ModelNotAvailableException.class)

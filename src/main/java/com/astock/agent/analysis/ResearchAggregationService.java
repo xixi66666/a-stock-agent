@@ -20,6 +20,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+/**
+ * 研究数据聚合服务。
+ *
+ * <p>把多个 Provider 的局部结果组合成一个带时间戳的不可变快照，并承担缓存、技术指标
+ * 派生、交叉来源核验和资金流汇总。核心原则是部分成功：可选分区失败时保留其他健康分区，
+ * 只有核心行情和主 K 线都不可用才让整个研究请求失败。</p>
+ */
 public final class ResearchAggregationService {
 
     private final ResearchGateway gateway;
@@ -42,6 +49,7 @@ public final class ResearchAggregationService {
     }
 
     public StockResearchSnapshot research(SecurityId security) {
+        // Cache 的 value 是完整快照，不缓存单个 Provider 的半成品，避免不同分区来自不同时间。
         return cache.get(security, this::load);
     }
 
@@ -50,6 +58,7 @@ public final class ResearchAggregationService {
     }
 
     private StockResearchSnapshot load(SecurityId security) {
+        // 虚拟线程并行等待独立 Provider；每个 Future 都通过 safe 方法转换成局部 DataSection。
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<DataSection<Quote>> quoteFuture = executor.submit(() -> safeQuote(security));
             Future<DataSection<List<DailyBar>>> barsFuture = executor.submit(() -> safeBars(security));

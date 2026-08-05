@@ -12,6 +12,12 @@ import java.nio.charset.Charset;
 import java.time.Clock;
 import java.util.List;
 
+/**
+ * 腾讯核心行情和日 K 线适配器。
+ *
+ * <p>腾讯是核心行情优先来源。适配器负责编码、请求和响应解析，身份、OHLC、日期顺序等
+ * 通用质量检查由 validation 层完成，避免每个 Provider 重复定义业务规则。</p>
+ */
 public final class TencentMarketDataClient {
 
     private static final Charset GBK = Charset.forName("GBK");
@@ -26,6 +32,7 @@ public final class TencentMarketDataClient {
     }
 
     public SourcedPayload<Quote> fetchQuote(SecurityId security) {
+        // Quote 的 security 必须与请求代码一致，解析器会拒绝跨股票响应。
         URI uri = URI.create("https://qt.gtimg.cn/q=" + security.tencentCode());
         ProviderResponse response = http.get(ProviderId.TENCENT, uri, "https://gu.qq.com/");
         Quote quote = parser.parseQuote(response.text(GBK), security);

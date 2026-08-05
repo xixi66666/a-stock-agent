@@ -9,6 +9,12 @@ import java.util.Map;
 import java.util.Objects;
 import org.springframework.ai.document.Document;
 
+/**
+ * 把规范化研究证据转成可检索文档并写入进程内向量库。
+ *
+ * <p>索引项保留 section、security code、Provider 和时间元数据；空文本或无来源证据会跳过，
+ * 避免 RAG 返回无法解释的上下文。</p>
+ */
 public final class ResearchKnowledgeIndexer {
 
     private final InMemoryResearchVectorStore vectorStore;
@@ -18,6 +24,7 @@ public final class ResearchKnowledgeIndexer {
     }
 
     public IndexResult index(SecurityId security, List<ResearchEvidence> evidence) {
+        // 先过滤不具备最小证据条件的项，再统一写入向量库，结果中记录跳过原因。
         Objects.requireNonNull(security, "security");
         List<Document> documents = new ArrayList<>();
         List<String> skipped = new ArrayList<>();

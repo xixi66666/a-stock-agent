@@ -16,6 +16,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+/**
+ * Caffeine 缓存配置。
+ *
+ * <p>缓存的是带抓取时间和 provenance 的完整结果；刷新会使快照失效，不能把缓存命中误认为
+ * Provider 刚刚返回了实时数据。</p>
+ */
 public class CacheConfiguration {
 
     @Bean

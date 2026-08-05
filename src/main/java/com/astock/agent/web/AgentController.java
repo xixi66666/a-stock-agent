@@ -19,6 +19,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/api/agent")
+/**
+ * Agent REST 边界。
+ *
+ * <p>Controller 只做请求解析、代码校验和服务调用。研究报告、总体报告和学习型聊天
+ * 使用不同的 endpoint，避免前端把不同的模型路由和失败语义混在一起。</p>
+ */
 public class AgentController {
 
     private final AgentStatusService statusService;
@@ -48,6 +54,7 @@ public class AgentController {
 
     @PostMapping("/analyze")
     public InstitutionalResearchReport analyze(@RequestBody AnalyzeRequest request) {
+        // “生成研究报告”只走 institutional-report 角色；不会使用总体报告下拉框的 modelId。
         if (agent == null) {
             throw new IllegalStateException("Agent is unavailable");
         }
@@ -56,6 +63,7 @@ public class AgentController {
 
     @PostMapping("/overall-report")
     public OverallReportResponse overallReport(@RequestBody OverallReportRequest request) {
+        // 总体报告单独校验证券代码，并把可选模型 ID 交给 OverallReportService 路由。
         SecurityId.parse(request.code());
         if (overallReports == null) {
             throw new IllegalStateException("Overall report service is unavailable");
@@ -66,6 +74,7 @@ public class AgentController {
     @GetMapping("/models")
     public ModelsResponse models(
             @RequestParam(defaultValue = "overall-report") String capability) {
+        // 浏览器只获取安全模型目录，不会获取 API Key、Base URL 或连接参数。
         if (!"overall-report".equals(capability)) {
             throw new UnsupportedModelCapabilityException(capability);
         }

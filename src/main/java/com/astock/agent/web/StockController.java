@@ -19,6 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/stocks")
+/**
+ * 股票研究数据 REST 接口。
+ *
+ * <p>它把代码解析、快照、技术分区和来源元数据暴露给前端，但不计算指标、不访问 Provider
+ * 私有接口。复杂聚合由 {@code ResearchAggregationService} 完成。</p>
+ */
 public class StockController {
 
     private static final List<StockSearchResult> POPULAR = List.of(
@@ -64,6 +70,7 @@ public class StockController {
 
     @GetMapping("/{code}/snapshot")
     public StockResearchSnapshot snapshot(@PathVariable String code) {
+        // 每个 snapshot 请求都从统一聚合服务取得完整快照，保证页面各模块共享数据边界。
         return research.apply(SecurityId.parse(code));
     }
 

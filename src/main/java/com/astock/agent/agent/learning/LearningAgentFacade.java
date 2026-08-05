@@ -21,6 +21,13 @@ import java.util.Objects;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 
+/**
+ * 学习型聊天 Agent 的门面。
+ *
+ * <p>它把记忆、RAG、MCP 工具和可选 ChatClient 组合成一次学习请求。与研究报告编排器不同，
+ * 这里的重点是展示 Agent 运行时组件如何协作；没有模型凭据时仍返回 evidence-only 结果，
+ * 让学习流程可以离线运行和测试。</p>
+ */
 public final class LearningAgentFacade {
 
     private final LearningAgentProperties properties;
@@ -61,6 +68,7 @@ public final class LearningAgentFacade {
     }
 
     public LearningAgentResponse chat(String code, String message, String conversationId) {
+        // 先限制用户输入和会话 ID，再把当前问题放入受控的 Advisor/Memory 链。
         SecurityId security = SecurityId.parse(code);
         String normalizedMessage = requireMessage(message);
         String normalizedConversation = requireConversationId(conversationId);

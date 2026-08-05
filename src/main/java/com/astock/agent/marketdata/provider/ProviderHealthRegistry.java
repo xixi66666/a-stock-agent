@@ -7,6 +7,12 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * 记录 Provider 成功、阻断和冷却窗口。
+ *
+ * <p>当供应商返回 403、429 或连续失败时，客户端可以把它放入冷却期；后续请求应尽快
+ * 选择备用来源或返回局部不可用，而不是在冷却期间继续重试。</p>
+ */
 public final class ProviderHealthRegistry {
 
     private final Duration cooldown;
@@ -29,6 +35,7 @@ public final class ProviderHealthRegistry {
     }
 
     public synchronized ProviderAvailability availability(ProviderId provider) {
+        // 过期冷却在读取时清理；返回值同时保留上次成功时间，方便诊断数据新鲜度。
         Instant now = clock.instant();
         Instant until = blockedUntil.get(provider);
         if (until != null && now.isBefore(until)) {

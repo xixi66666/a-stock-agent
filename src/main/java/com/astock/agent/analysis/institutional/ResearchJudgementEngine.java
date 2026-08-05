@@ -23,6 +23,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /** 基于固定规则生成方向和证据边界；不做缺失维度的权重再分配。 */
+/**
+ * 机构研究的确定性判断引擎。
+ *
+ * <p>这里集中保存固定权重、阈值、模块证据、冲突、风险和失效条件。它不调用大模型，
+ * 也不会因为某个维度缺失就把其他维度重新加权；缺失会进入 EvidenceStatus 和诊断字段。</p>
+ */
 public final class ResearchJudgementEngine {
     private static final Map<String, Integer> WEIGHTS = Map.of(
             "TECHNICAL_PRICE_VOLUME", 30,
@@ -32,6 +38,7 @@ public final class ResearchJudgementEngine {
             "VALUATION_INDUSTRY", 15);
 
     public DeterministicAssessment assess(StockResearchSnapshot snapshot) {
+        // 先分别计算五个维度，再统一识别冲突和汇总方向，避免单个模块偷偷改变全局规则。
         if (snapshot == null) throw new IllegalArgumentException("snapshot is required");
         List<String> missing = new ArrayList<>();
         List<String> constraints = new ArrayList<>();

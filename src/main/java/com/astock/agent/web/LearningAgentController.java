@@ -14,6 +14,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/agent/learning")
 @ConditionalOnBean(LearningAgentFacade.class)
+/**
+ * 学习型 Agent 的聊天接口。
+ *
+ * <p>它展示 Advisor、RAG、MCP 和记忆的组合方式，与固定机构研究报告 API 分开，
+ * 方便学习和测试各自的输入输出及失败处理。</p>
+ */
 public class LearningAgentController {
 
     private final LearningAgentFacade facade;

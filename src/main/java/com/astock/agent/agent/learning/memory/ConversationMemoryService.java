@@ -7,6 +7,12 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 
+/**
+ * 对话消息的受控存储门面。
+ *
+ * <p>它统一校验 conversationId 和消息文本，并把记忆实现隐藏在 Spring AI ChatMemory 后面。
+ * 记忆用于保持会话上下文，不是用来存放秘密配置或无限制历史数据的数据库。</p>
+ */
 public final class ConversationMemoryService {
 
     private final ChatMemory memory;

@@ -8,6 +8,11 @@ import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisor;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
 
+/**
+ * 记录学习型 Agent 的 Advisor 执行轨迹。
+ *
+ * <p>Trace 用于学习和诊断，不应记录密钥、Cookie、完整敏感请求头或无限增长的原始响应。</p>
+ */
 public final class TraceAdvisor implements CallAdvisor {
 
     public static final String TRACE_KEY = "learning.advisorTrace";

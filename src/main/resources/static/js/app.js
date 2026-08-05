@@ -1,3 +1,10 @@
+/*
+ * 研究工作台的页面状态机。
+ *
+ * state.snapshot 是当前股票的规范化快照，state.institutionalReport 和
+ * state.overallReportResponse 是两条独立的报告结果。所有异步回调都要检查 code 和
+ * loadGeneration，防止用户切换股票后旧请求覆盖新页面。
+ */
 import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
 import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
@@ -47,6 +54,7 @@ function marketName(exchange) {
 }
 
 function setPhase(phase, message) {
+  // 全局加载状态只控制股票快照；报告按钮有自己的 phase，避免相互禁用。
   state.phase = phase;
   document.body.dataset.phase = phase;
   $("#global-status").textContent = message;
@@ -87,6 +95,7 @@ function renderOverview(snapshot) {
 }
 
 function renderCurrentView() {
+  // 每次切换标签都重新绑定局部交互，并销毁旧图表控制器，避免重复监听和内存泄漏。
   if (!state.snapshot) return;
   const content = $("#view-content");
   content.hidden = false;
@@ -164,6 +173,7 @@ function renderModelDiagnostic(diagnostic, titleOverride = null) {
 }
 
 function renderInstitutionalReport(report) {
+  // generationMode 是后端真实生成路径的提示，不能仅根据文本外观猜测是否调用了模型。
   const direction = ({ STRONGER: "偏强", NEUTRAL: "中性", WEAKER: "偏弱", INSUFFICIENT: "证据不足" })[report.direction] || report.direction?.label || report.direction || "证据不足";
   const mode = report.generationMode || "DETERMINISTIC_FALLBACK";
   const technical = report.technicalAndFlow?.narrative || "技术与资金证据不可用";
@@ -303,6 +313,7 @@ function renderOverallRequestFeedback() {
 }
 
 function bindAgentAction() {
+  // “生成研究报告”与“生成总体报告”是两个独立请求和两个独立输出区域。
   const button = $("#run-agent");
   if (!button) return;
   button.addEventListener("click", async () => {
@@ -313,6 +324,7 @@ function bindAgentAction() {
     button.disabled = true;
     output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在综合</span><p>Agent 正在调用受限股票研究工具。</p>';
     try {
+      // 请求期间记录股票和加载代数；返回时如果页面已切换，丢弃旧结果。
       const report = unwrapReport(await stockApi.analyze(reportCode));
       if (state.currentCode !== reportCode || state.loadGeneration !== generation) return;
       state.institutionalReport = report;
@@ -357,6 +369,7 @@ function syncOverallModelControls() {
 }
 
 async function loadOverallModels() {
+  // 模型目录只描述安全的 ID、实际模型名和默认标记，不包含任何连接秘密。
   if (state.overallModelsPhase === "loading" || state.overallModelsPhase === "ready") {
     syncOverallModelControls();
     return;
@@ -392,6 +405,7 @@ function bindOverallModelControls() {
 }
 
 function bindOverallReportAction() {
+  // 总体报告把当前选中的 modelId 发给后端，后端再次校验该 ID 是否存在。
   const button = $("#run-overall-report");
   if (!button) return;
   button.addEventListener("click", async () => {
@@ -438,6 +452,7 @@ function bindOverallReportAction() {
 }
 
 async function loadStock(code) {
+  // 快照加载是页面状态机的根请求；其余视图都从同一份 snapshot 派生。
   if (!/^\d{6}$/.test(code)) return;
   state.loadGeneration += 1;
   state.overallReportRequestId += 1;

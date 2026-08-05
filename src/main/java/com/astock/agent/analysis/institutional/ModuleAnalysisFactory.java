@@ -23,10 +23,17 @@ import java.util.List;
 import java.util.Map;
 
 /** 将维度分数展开为可审计的事实、信号、方法依据与限制。 */
+/**
+ * 把确定性维度分数转换成面向报告的模块分析。
+ *
+ * <p>分数适合机器汇总，模块分析还需要结论、方法依据、反证、限制、事实和信号，
+ * 因此由本类把同一批证据组织成可阅读且可追溯的报告结构。</p>
+ */
 public final class ModuleAnalysisFactory {
 
     public Map<AnalysisModule, ModuleAnalysis> analyze(
             StockResearchSnapshot snapshot, Map<String, EvidenceScore> dimensions) {
+        // 每个模块独立生成；不可用模块保留限制说明，而不是用空字符串伪装成健康。
         EnumMap<AnalysisModule, ModuleAnalysis> result = new EnumMap<>(AnalysisModule.class);
         result.put(AnalysisModule.TECHNICAL_PRICE_VOLUME, technical(snapshot, score(dimensions, AnalysisModule.TECHNICAL_PRICE_VOLUME)));
         result.put(AnalysisModule.FUND_FLOW_CAPITAL, flowAndCapital(snapshot, score(dimensions, AnalysisModule.FUND_FLOW_CAPITAL)));

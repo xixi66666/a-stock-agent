@@ -10,6 +10,12 @@ import com.astock.agent.technical.TechnicalSnapshot;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * 一次研究请求形成的不可变规范化快照。
+ *
+ * <p>快照是分析层和 Agent 层之间的稳定契约：每个分区都保留状态、payload、来源和问题，
+ * 同一次请求的报告、API 和 UI 应该尽量基于同一快照，而不是各自重新请求 Provider。</p>
+ */
 public record StockResearchSnapshot(
         SecurityId security,
         DataSection<Quote> quote,
@@ -55,6 +61,7 @@ public record StockResearchSnapshot(
     }
 
     public static StockResearchSnapshot empty(SecurityId security) {
+        // empty 快照用于离线测试和局部失败场景；不可用不是“数值为 0”。
         return new StockResearchSnapshot(
                 security,
                 DataSection.unavailable("not loaded"),

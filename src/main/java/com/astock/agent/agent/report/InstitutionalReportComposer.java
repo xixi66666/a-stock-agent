@@ -34,12 +34,19 @@ import java.util.List;
 import java.util.Map;
 
 /** 将快照压缩成有界证据，并把方向等关键字段固定在 Java 侧。 */
+/**
+ * 把研究快照压缩成模型可读的有界证据，并组装最终机构研究报告。
+ *
+ * <p>这是“事实”和“语言”之间的防火墙：方向、证据状态、事实数字、来源和缺失项来自
+ * Java；模型只返回叙述草稿。证据包还会限制新闻和公告数量，避免 Prompt 无界增长。</p>
+ */
 public final class InstitutionalReportComposer {
     public static final String HORIZON = "1-3个月";
     public static final String RULE_VERSION = "institutional-rules-v1";
     public static final String PROMPT_VERSION = "institutional-narrative-v1";
 
     public ReportEvidencePackage compose(StockResearchSnapshot snapshot, DeterministicAssessment assessment) {
+        // 先建立稳定的证据目录，再把模块分析、新闻和公告放入目录，保证模型引用可追踪。
         if (snapshot == null || assessment == null) throw new IllegalArgumentException("snapshot and assessment are required");
         Map<String, ReportEvidence> catalog = new LinkedHashMap<>();
         addMarketEvidence(catalog, snapshot);
@@ -55,6 +62,7 @@ public final class InstitutionalReportComposer {
     }
 
     public InstitutionalResearchReport fallback(StockResearchSnapshot snapshot, DeterministicAssessment assessment, String reason) {
+        // 回退报告复用相同的事实提取和事件边界，不能为了降级而制造另一套数据。
         return fallbackWithDiagnostic(snapshot, assessment, null, reason);
     }
 
@@ -92,6 +100,7 @@ public final class InstitutionalReportComposer {
     public InstitutionalResearchReport assembleValidated(StockResearchSnapshot snapshot,
             DeterministicAssessment assessment, ReportNarrativeDraft draft,
             ReportValidator.ValidationResult validation, String modelName, ModelDiagnostic diagnostic) {
+        // 有阻断问题的字段使用确定性文本；没有阻断的问题才允许展示模型叙述。
         if (draft == null) return fallbackWithDiagnostic(snapshot, assessment, diagnostic);
         ReportEvidencePackage evidence = compose(snapshot, assessment);
         boolean partial = validation != null && !validation.blockingIssues().isEmpty();

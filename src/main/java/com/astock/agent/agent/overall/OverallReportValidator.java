@@ -17,6 +17,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** 对总体报告执行确定性、证据边界和安全校验。 */
+/**
+ * 对总体报告执行确定性、证据边界和安全校验。
+ *
+ * <p>除了必填章节和交易指令，还检查来源分区、Provider、快照中的数字和日期、
+ * 核心数据限制以及固定免责声明。</p>
+ */
 public final class OverallReportValidator {
     private static final Pattern TRADE = Pattern.compile(
             "买入|卖出|加仓|减仓|建仓|清仓|止盈|止损|目标价|保证收益|收益保证|稳赚"
@@ -32,6 +38,7 @@ public final class OverallReportValidator {
             .findAndRegisterModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     public Validation validate(OverallReportDraft draft, StockResearchSnapshot snapshot) {
+        // 先做结构和安全检查，再做依赖快照的来源、数字和缺失限制检查。
         List<String> issues = new ArrayList<>();
         if (draft == null) {
             issues.add("EMPTY_REQUIRED_SECTION");
@@ -59,6 +66,7 @@ public final class OverallReportValidator {
 
     private void validateSources(List<OverallSourceReference> references,
             StockResearchSnapshot snapshot, List<String> issues) {
+        // 引用必须指向快照真实存在的分区，Provider 也必须与该分区 provenance 一致。
         Map<String, DataSection<?>> sections = sections(snapshot);
         for (OverallSourceReference reference : references) {
             if (reference == null || !sections.containsKey(reference.section())) {

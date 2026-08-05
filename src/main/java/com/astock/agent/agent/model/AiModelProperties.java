@@ -9,6 +9,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** 本地并存的 OpenAI 兼容模型配置及业务角色映射。 */
 @ConfigurationProperties("app.ai")
+/**
+ * {@code app.ai.models} 和 {@code app.ai.roles} 的不可变配置对象。
+ *
+ * <p>models 描述连接参数，roles 描述业务默认路由。二者分开是为了让总体报告可以按请求
+ * 选择模型，同时让研究报告保留稳定的 institutional-report 默认角色。</p>
+ */
 public record AiModelProperties(Map<String, Model> models, Map<String, String> roles) {
 
     public AiModelProperties {
@@ -18,6 +24,7 @@ public record AiModelProperties(Map<String, Model> models, Map<String, String> r
 
     /** 根据业务角色返回模型名称和配置。角色或模型不存在时返回空。 */
     public Optional<Map.Entry<String, Model>> modelForRole(String role) {
+        // 只有角色指向已启用且配置完整的模型时，才返回可用模型。
         if (role == null || role.isBlank()) {
             return Optional.empty();
         }

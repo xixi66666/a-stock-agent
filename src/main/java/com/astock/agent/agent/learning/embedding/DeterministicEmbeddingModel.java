@@ -11,6 +11,12 @@ import org.springframework.ai.embedding.EmbeddingResponse;
 /**
  * 仅用于离线学习和测试的确定性 Embedding，不代表生产级语义模型。
  */
+/**
+ * 用哈希和归一化向量实现的确定性 Embedding。
+ *
+ * <p>它不是生产语义模型，而是让 RAG 学习链在离线环境中具备可重复的向量表示，
+ * 便于理解“文本 -> 向量 -> 相似度排序”的基本机制。</p>
+ */
 public final class DeterministicEmbeddingModel implements EmbeddingModel {
 
     private final int dimension;
@@ -44,6 +50,7 @@ public final class DeterministicEmbeddingModel implements EmbeddingModel {
 
     @Override
     public float[] embed(String text) {
+        // 同一文本和维度始终生成同一向量；归一化后余弦相似度可直接比较。
         float[] vector = new float[dimension];
         if (text == null || text.isBlank()) {
             return vector;

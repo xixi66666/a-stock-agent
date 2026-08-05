@@ -9,6 +9,12 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Agent 相关 Bean 的组装入口。
+ *
+ * <p>配置类只负责连接模型注册表、工具和报告服务，不把模型调用细节写进 Controller。
+ * 没有 {@code institutional-report} 模型时，仍然注册确定性可用的报告 Agent。</p>
+ */
 @Configuration
 public class AgentConfiguration {
 
@@ -27,6 +33,7 @@ public class AgentConfiguration {
             NamedChatClientRegistry registry,
             AgentStatusService status,
             StockAgentTools tools) {
+        // 业务角色决定研究报告使用哪个命名模型；浏览器不会直接接触 ChatClient 配置。
         var named = registry.forRole("institutional-report");
         if (named.isEmpty()) {
             return new StockAnalysisAgent((ChatClient) null, status, tools);

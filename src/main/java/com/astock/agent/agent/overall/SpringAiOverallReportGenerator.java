@@ -14,6 +14,12 @@ import org.springframework.ai.chat.client.ChatClient;
  * <p>这里仅负责提示词和结构化响应映射，不负责抓取数据、计算指标或做投资判断。
  * 这样可以保证 DeepSeek 与现有机构报告使用不同角色，同时共享同一份规范化快照。
  */
+/**
+ * 面向 OpenAI 兼容接口的总体报告适配器。
+ *
+ * <p>只负责 Prompt、快照序列化和 Spring AI 的结构化 entity 映射，不负责抓取 Provider、
+ * 计算指标或决定投资方向；结果仍必须经过 {@link OverallReportValidator} 校验。</p>
+ */
 public final class SpringAiOverallReportGenerator implements OverallReportGenerator {
 
     /** 提示词版本会写入最终报告，修改约束时应同步递增。 */
@@ -83,6 +89,7 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
 
     @Override
     public OverallReportDraft generate(StockResearchSnapshot snapshot) throws Exception {
+        // 快照在进入模型前已经由聚合层规范化；生成器不在这里补数据或调用其他工具。
         Objects.requireNonNull(snapshot, "snapshot is required");
         return invoker.invoke(SYSTEM_PROMPT, generationPrompt(snapshot));
     }
@@ -90,6 +97,7 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
     @Override
     public OverallReportDraft repair(StockResearchSnapshot snapshot,
             OverallReportDraft draft, List<String> issues) throws Exception {
+        // 修复请求携带旧草稿和问题列表，防止模型修复时丢失原有事实和来源。
         Objects.requireNonNull(snapshot, "snapshot is required");
         Objects.requireNonNull(draft, "draft is required");
         List<String> safeIssues = issues == null ? List.of() : List.copyOf(issues);

@@ -21,6 +21,12 @@ import com.github.benmanes.caffeine.cache.Cache;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * Provider 组合网关，把“优先来源、备用来源、缓存和局部失败”隐藏在分析层之下。
+ *
+ * <p>Controller 和 Agent 只看到 {@code DataSection}，不需要知道某个分区来自腾讯、百度、
+ * Eastmoney、新浪还是巨潮。网关也不会因为一个可选分区失败而抛掉整个快照。</p>
+ */
 public final class ProviderResearchGateway implements ResearchGateway {
 
     private final TencentMarketDataClient tencent;
@@ -56,6 +62,7 @@ public final class ProviderResearchGateway implements ResearchGateway {
 
     @Override
     public DataSection<Quote> quote(SecurityId security) {
+        // 核心行情优先走腾讯；这里返回的仍是规范化 Quote 和 Provenance，不泄漏供应商字段。
         var result = tencent.fetchQuote(security);
         return DataSection.healthy(result.payload(), result.provenance());
     }
@@ -68,6 +75,7 @@ public final class ProviderResearchGateway implements ResearchGateway {
 
     @Override
     public DataSection<List<DailyBar>> crossCheckBars(SecurityId security) {
+        // 交叉 K 线用于一致性核验，不直接替换主 K 线；两者的身份和日期由校验层比较。
         var result = baidu.fetchDailyBars(security);
         return DataSection.healthy(result.bars(), result.provenance());
     }

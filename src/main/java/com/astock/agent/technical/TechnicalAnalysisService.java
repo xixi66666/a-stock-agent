@@ -19,6 +19,12 @@ import org.ta4j.core.indicators.averages.SMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.num.Num;
 
+/**
+ * 技术指标的确定性计算服务。
+ *
+ * <p>它只消费已经通过市场数据校验的 K 线，输出带参数、数值、状态和触发解释的指标卡。
+ * 指标计算不交给大模型，报告模型最多引用这些结果并解释其限制。</p>
+ */
 public final class TechnicalAnalysisService {
 
     private final BarSeriesFactory seriesFactory;
@@ -28,6 +34,7 @@ public final class TechnicalAnalysisService {
     }
 
     public TechnicalSnapshot analyze(List<DailyBar> dailyBars, Timeframe timeframe) {
+        // 先按周期聚合 K 线，再计算指标；每个指标不足历史长度时返回不可用状态，而不是补 0。
         List<DailyBar> bars = seriesFactory.aggregate(dailyBars, timeframe);
         if (bars.size() < 20) {
             throw new IllegalArgumentException("At least 20 bars are required for technical analysis");

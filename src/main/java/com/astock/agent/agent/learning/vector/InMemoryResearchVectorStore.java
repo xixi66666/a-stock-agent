@@ -9,6 +9,12 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.ai.document.Document;
 
+/**
+ * 进程内研究证据向量存储。
+ *
+ * <p>用于学习和离线测试，不提供持久化、分布式一致性或生产级 ANN 索引。搜索仍然保留
+ * security code 过滤和元数据返回，帮助理解 RAG 的可追溯性要求。</p>
+ */
 public final class InMemoryResearchVectorStore {
 
     private final DeterministicEmbeddingModel embeddingModel;
@@ -32,6 +38,7 @@ public final class InMemoryResearchVectorStore {
     }
 
     public List<VectorSearchResult> search(String query, String securityCode, int topK) {
+        // 只在同一证券的条目中计算余弦相似度，避免最相似但属于另一只股票的证据泄漏。
         if (query == null || query.isBlank() || topK <= 0) {
             return List.of();
         }

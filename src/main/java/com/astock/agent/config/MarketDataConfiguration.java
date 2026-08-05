@@ -34,6 +34,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+/**
+ * 市场数据基础设施 Bean 组装。
+ *
+ * <p>把共享 HTTP 客户端、限流器、健康注册表、Provider 客户端和研究 Gateway 连接起来；
+ * 这里不做具体数据分析，便于测试时替换某个 Provider 或使用离线 Fixture。</p>
+ */
 public class MarketDataConfiguration {
 
     @Bean Clock applicationClock() { return Clock.systemUTC(); }

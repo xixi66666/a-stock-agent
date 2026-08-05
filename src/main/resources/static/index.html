@@ -9,6 +9,10 @@
 </head>
 <body>
   <a class="skip-link" href="#workspace">跳到研究内容</a>
+  <!--
+    页面骨架只负责布局和可访问的容器；数据由 app.js 加载，报告由 views.js 渲染。
+    研究报告和总体报告在 Agent 视图中使用两个独立输出区域。
+  -->
   <header class="app-header">
     <div class="header-inner">
       <a class="brand" href="/" aria-label="A 股智能研究台首页">
@@ -102,6 +106,7 @@
     <span id="global-status">系统就绪</span>
   </footer>
 
+  <!-- 第三方库只提供图表和图标能力，不参与数据获取或模型调用。 -->
   <script src="/webjars/echarts/6.1.0/dist/echarts.min.js"></script>
   <script src="/webjars/lucide/1.16.0/dist/umd/lucide.min.js"></script>
   <script type="module" src="/js/app.js?v=20260731-2"></script>
