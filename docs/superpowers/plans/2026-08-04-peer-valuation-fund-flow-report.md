@@ -1110,7 +1110,7 @@ Run the Playwright command inside the same port-preflight/start/health/`finally`
 - Modify: `src/main/resources/static/styles.css`
 - Modify: `tests/ui/dashboard.spec.js`
 
-- [ ] **Step 1: Add failing report UI tests**
+- [x] **Step 1: Add failing report UI tests**
 
 Extend the existing mocked overall-report response so `report` contains the fixture `industryValuation` and `fundFlowSummary`. Extend the institutional response so `technicalAndFlow.fundFlowSummary` and `valuationAndIndustry.industryValuation` contain the same values.
 
@@ -1196,7 +1196,7 @@ test("reports keep narratives when deterministic details are absent", async ({ p
 });
 ```
 
-- [ ] **Step 2: Run report UI tests and verify RED**
+- [x] **Step 2: Run report UI tests and verify RED**
 
 ```powershell
 $env:PLAYWRIGHT_CHANNEL='msedge'
@@ -1207,7 +1207,7 @@ Expected: assertions for the two new tables fail.
 
 Run this Playwright command inside the Task 4 Step 3 server lifecycle wrapper, substituting only the inner `npm.cmd` command.
 
-- [ ] **Step 3: Integrate the shared renderer into report views**
+- [x] **Step 3: Integrate the shared renderer into report views**
 
 Import `renderPeerValuationTable` and `renderFundFlowSummary` into `app.js`.
 
@@ -1232,7 +1232,7 @@ ${renderPeerValuationTable(report.industryValuation)}
 
 Ensure the structured details remain part of `state.overallReportResponse` and `state.institutionalReport`, so the existing tab-remount and failed-replacement protections preserve them automatically.
 
-- [ ] **Step 4: Run report and full UI tests and commit**
+- [x] **Step 4: Run report and full UI tests and commit**
 
 ```powershell
 $env:PLAYWRIGHT_CHANNEL='msedge'
@@ -1254,7 +1254,7 @@ Run both Playwright commands inside separate Task 4 Step 3 lifecycle wrappers so
 - Modify: `README.md`
 - Verify: all files from Tasks 1–5
 
-- [ ] **Step 1: Update user-facing documentation**
+- [x] **Step 1: Update user-facing documentation**
 
 Add a README section explaining:
 
@@ -1265,7 +1265,7 @@ Add a README section explaining:
 - Eastmoney remains the peer source and Eastmoney/Sina remain the fund-flow chain;
 - Northbound, industry-wide flow and seat-level detail are not included.
 
-- [ ] **Step 2: Run focused Java verification**
+- [x] **Step 2: Run focused Java verification**
 
 ```powershell
 $env:JAVA_HOME = (Resolve-Path '.tools/jdk-21').Path
@@ -1275,7 +1275,7 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 Expected: all focused tests pass.
 
-- [ ] **Step 3: Run the default offline suite and package**
+- [x] **Step 3: Run the default offline suite and package**
 
 The ignored real local configuration still makes `LocalModelConfigurationExampleTest` environment-dependent. Per the existing user decision, exclude only that test:
 
@@ -1286,7 +1286,7 @@ The ignored real local configuration still makes `LocalModelConfigurationExample
 
 Expected: offline tests and packaging succeed on Java 21.
 
-- [ ] **Step 4: Run UI verification and inspect screenshots**
+- [x] **Step 4: Run UI verification and inspect screenshots**
 
 ```powershell
 $env:PLAYWRIGHT_CHANNEL='msedge'
@@ -1305,7 +1305,7 @@ Inspect:
 
 Check table horizontal scrolling is local, the page has no unintended horizontal overflow, labels fit, and fixed headers do not cover content.
 
-- [ ] **Step 5: Run live-data verification without hiding external failures**
+- [x] **Step 5: Run live-data verification without hiding external failures**
 
 ```powershell
 .\scripts\verify-data.cmd
@@ -1313,7 +1313,9 @@ Check table horizontal scrolling is local, the page has no unintended horizontal
 
 Expected: success when external quote/K-line sources are reachable. If it repeats the known `No core quote or K-line source is available` errors, record that as an external-source limitation rather than changing this feature or fabricating fixtures.
 
-- [ ] **Step 6: Audit whitespace, secrets, provider copy and worktree scope**
+本次验证中 600519、000001、300750 均因外部行情与 K 线源不可用而失败；该结果已记录为外部数据源限制，未修改功能逻辑或伪造实时数据。
+
+- [x] **Step 6: Audit whitespace, secrets, provider copy and worktree scope**
 
 ```powershell
 git diff --check
@@ -1324,7 +1326,7 @@ git status --short
 
 Expected: no whitespace errors; secret matches are placeholders, property names or redaction tests only; unsupported data is not presented as available; `out/` remains untracked and is not staged.
 
-- [ ] **Step 7: Review acceptance criteria and commit documentation**
+- [x] **Step 7: Review acceptance criteria and commit documentation**
 
 Confirm all eight criteria in `docs/superpowers/specs/2026-08-04-peer-valuation-fund-flow-report-design.md` with direct code or test evidence, then:
 
