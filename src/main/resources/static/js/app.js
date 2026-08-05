@@ -1,6 +1,7 @@
 import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
 import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
+import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -181,8 +182,10 @@ function renderInstitutionalReport(report) {
     <div class="report-grid">
       ${renderCoreDrivers(report.coreDrivers)}
       ${renderModuleAnalysis("技术与资金", report.technicalAndFlow, technical)}
+      ${renderFundFlowSummary(report.technicalAndFlow?.fundFlowSummary)}
       ${renderModuleAnalysis("基本面与机构预期", report.fundamentals, fundamental)}
       ${renderModuleAnalysis("估值与行业", report.valuationAndIndustry, valuation)}
+      ${renderPeerValuationTable(report.valuationAndIndustry?.industryValuation)}
       ${renderAgentList("催化剂", report.catalysts)}
       ${renderAgentList("风险", report.risks)}
       ${renderAgentList("证据冲突", report.conflicts)}
@@ -265,7 +268,9 @@ function renderOverallReportResponse(response = {}) {
     ${renderOverallSection("数据质量", report.dataQualitySummary, true)}
     ${renderOverallSection("公司与基本面", report.companyAndFundamentals)}
     ${renderOverallSection("技术与资金", report.technicalAndCapital)}
+    ${renderFundFlowSummary(report.fundFlowSummary)}
     ${renderOverallSection("估值与行业", report.valuationAndIndustry)}
+    ${renderPeerValuationTable(report.industryValuation)}
     ${renderOverallSection("事件与情绪", report.eventsAndSentiment)}
     ${renderOverallList("支持证据", report.bullishEvidence, "support")}
     ${renderOverallList("反向证据", report.bearishEvidence, "oppose")}

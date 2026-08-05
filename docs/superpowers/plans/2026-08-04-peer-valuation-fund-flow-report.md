@@ -786,7 +786,7 @@ Expected: all focused tests pass; model narrative DTO remains unchanged and stru
 - Modify: `tests/ui/dashboard.spec.js`
 - Modify: `src/test/java/com/astock/agent/web/StaticResourceTest.java`
 
-- [ ] **Step 1: Enrich the offline UI fixture**
+- [x] **Step 1: Enrich the offline UI fixture**
 
 Add this healthy `industryValuation` section containing target PE/PB, medians, percentiles and two selected peers. One peer contains both selection reasons:
 
@@ -889,7 +889,7 @@ Add a healthy `fundFlowSummary` section with:
 }
 ```
 
-- [ ] **Step 2: Write failing Playwright assertions**
+- [x] **Step 2: Write failing Playwright assertions**
 
 Add two tests:
 
@@ -922,7 +922,7 @@ test("capital view shows latest and multi-window order-size flows", async ({ pag
 });
 ```
 
-- [ ] **Step 3: Run the two UI tests and verify RED**
+- [x] **Step 3: Run the two UI tests and verify RED**
 
 Start the app with `start.ps1` using the repository JDK, set `PLAYWRIGHT_CHANNEL=msedge`, then run:
 
@@ -956,7 +956,7 @@ The preflight makes ownership explicit: abort when 10001 is already occupied, an
 
 Expected: both tests fail because the tables and labels are absent.
 
-- [ ] **Step 4: Create the shared renderer**
+- [x] **Step 4: Create the shared renderer**
 
 Create `derived-market-view.js` with this implementation:
 
@@ -1038,7 +1038,7 @@ export function renderFundFlowSummary(section) {
 }
 ```
 
-- [ ] **Step 5: Integrate data pages and styles**
+- [x] **Step 5: Integrate data pages and styles**
 
 Import both shared renderers in `views.js`. Change `renderCapital` to use `snapshot.fundFlowSummary.payload`, render five separate latest-day cards, and append the shared window table. Keep existing capital sections.
 
@@ -1087,7 +1087,7 @@ Add these compact styles; reuse the existing table rules and semantic tokens:
 
 Update `StaticResourceTest` to load `/js/derived-market-view.js` and assert it contains `同行估值对比`, `资金流窗口汇总`, and no provider credentials.
 
-- [ ] **Step 6: Run focused UI/static tests and commit**
+- [x] **Step 6: Run focused UI/static tests and commit**
 
 ```powershell
 .\mvnw.cmd '-Dmaven.repo.local=.m2/repository' '-Dtest=StaticResourceTest' test

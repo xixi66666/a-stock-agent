@@ -37,6 +37,14 @@ function snapshot() {
   return result;
 }
 
+function industryValuationSection() {
+  return structuredClone(snapshot().industryValuation);
+}
+
+function fundFlowSummarySection() {
+  return structuredClone(snapshot().fundFlowSummary);
+}
+
 async function mockApis(page) {
   await page.route("**/api/agent/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
   await page.route("**/api/agent/models?capability=overall-report", (route) => route.fulfill({ json: {
@@ -521,6 +529,77 @@ test("overall report is independent and appears before the existing research rep
   await page.getByRole("button", { name: "刷新当前股票" }).click();
   await expect(page.locator("#overall-report-output")).toContainText("等待生成");
   await expect(page.locator("#agent-output")).toContainText("等待生成");
+});
+
+test("overall and institutional reports render deterministic market details", async ({ page }) => {
+  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
+    status: "MODEL_ASSISTED",
+    report: {
+      overallConclusion: "总体判断内容",
+      dataQualitySummary: "数据质量摘要",
+      companyAndFundamentals: "公司与基本面分析",
+      technicalAndCapital: "技术面与资金面分析",
+      valuationAndIndustry: "估值与行业分析",
+      industryValuation: industryValuationSection(),
+      fundFlowSummary: fundFlowSummarySection(),
+      eventsAndSentiment: "事件与情绪分析",
+      bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
+      conflictsAndMissingData: [], sourceReferences: [],
+      modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
+    },
+  } }));
+  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+    direction: "NEUTRAL", generationMode: "DETERMINISTIC_FALLBACK", executiveSummary: "现有研究报告内容",
+    technicalAndFlow: { narrative: "技术与资金", fundFlowSummary: fundFlowSummarySection() },
+    fundamentals: { narrative: "基本面" },
+    valuationAndIndustry: { narrative: "估值", industryValuation: industryValuationSection() },
+    coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
+    disclaimer: "仅供学习研究，不构成投资建议",
+  } }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
+  await expect(page.locator("#overall-report-output")).toContainText("同行估值对比");
+  await expect(page.locator("#overall-report-output")).toContainText("五粮液");
+  await expect(page.locator("#overall-report-output")).toContainText("资金流窗口汇总");
+  await expect(page.locator("#overall-report-output")).toContainText("近 20 日");
+
+  await page.getByRole("button", { name: "生成研究报告" }).click();
+  await expect(page.locator("#agent-output")).toContainText("同行估值对比");
+  await expect(page.locator("#agent-output")).toContainText("资金流窗口汇总");
+});
+
+test("reports keep narratives when deterministic details are absent", async ({ page }) => {
+  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
+    status: "MODEL_ASSISTED",
+    report: {
+      overallConclusion: "总体叙述仍然可见", technicalAndCapital: "资金叙述仍然可见", valuationAndIndustry: "估值叙述仍然可见",
+      industryValuation: null, fundFlowSummary: null,
+      bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {}, conflictsAndMissingData: [], sourceReferences: [],
+      disclaimer: "仅供学习研究，不构成投资建议",
+    },
+  } }));
+  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+    executiveSummary: "研究叙述仍然可见",
+    technicalAndFlow: { narrative: "技术叙述", fundFlowSummary: null },
+    fundamentals: { narrative: "基本面叙述" },
+    valuationAndIndustry: { narrative: "行业叙述", industryValuation: null },
+    coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
+    disclaimer: "仅供学习研究，不构成投资建议",
+  } }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("button", { name: /生成总体报告/ }).click();
+  await page.getByRole("button", { name: "生成研究报告" }).click();
+
+  await expect(page.locator("#overall-report-output")).toContainText("总体叙述仍然可见");
+  await expect(page.locator("#agent-output")).toContainText("研究叙述仍然可见");
+  await expect(page.getByRole("table", { name: "同行估值对比" })).toHaveCount(0);
+  await expect(page.getByRole("table", { name: "资金流窗口汇总" })).toHaveCount(0);
 });
 
 test("selected overall report model shows a local configuration error without affecting the existing report", async ({ page }) => {
