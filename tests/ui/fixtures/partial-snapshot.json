@@ -33,6 +33,41 @@
   "technical": { "status": "HEALTHY", "payload": { "timeframe": "DAILY", "calculatedAt": "2026-07-15", "cards": [] }, "provenance": { "provider": "Tencent", "sourceUrl": "https://web.ifzq.gtimg.cn", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:05Z", "cached": false, "fallbackProvider": null }, "issues": [] },
   "sectors": { "status": "DEGRADED", "payload": ["白酒", "贵州板块", "沪股通"], "provenance": { "provider": "Eastmoney", "sourceUrl": "https://push2.eastmoney.com", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:08Z", "cached": false, "fallbackProvider": null }, "issues": ["部分概念板块暂不可用"] },
   "fundFlow": { "status": "HEALTHY", "payload": [{ "date": "2026-07-15", "mainNetYuan": 386000000, "smallNetYuan": -121000000, "mediumNetYuan": -76000000, "largeNetYuan": 155000000, "superLargeNetYuan": 231000000, "source": "Eastmoney" }], "provenance": { "provider": "Eastmoney", "sourceUrl": "https://push2his.eastmoney.com", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:09Z", "cached": false, "fallbackProvider": null }, "issues": [] },
+  "fundFlowSummary": {
+    "status": "HEALTHY",
+    "payload": {
+      "latestDate": "2026-07-15",
+      "latestDay": { "requestedDays": 1, "sampleDays": 1, "mainNetYuan": 386000000, "superLargeNetYuan": 231000000, "largeNetYuan": 155000000, "mediumNetYuan": -76000000, "smallNetYuan": -121000000 },
+      "fiveDay": { "requestedDays": 5, "sampleDays": 5, "mainNetYuan": 820000000, "superLargeNetYuan": 500000000, "largeNetYuan": 320000000, "mediumNetYuan": -180000000, "smallNetYuan": -260000000 },
+      "twentyDay": { "requestedDays": 20, "sampleDays": 18, "mainNetYuan": 1260000000, "superLargeNetYuan": 900000000, "largeNetYuan": 360000000, "mediumNetYuan": -430000000, "smallNetYuan": -610000000 }
+    },
+    "provenance": { "provider": "Eastmoney", "sourceUrl": "https://push2his.eastmoney.com", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:09Z", "cached": false, "fallbackProvider": null },
+    "issues": []
+  },
+  "industryValuation": {
+    "status": "HEALTHY",
+    "payload": {
+      "industryCode": "BK0477",
+      "industryName": "白酒",
+      "totalSamples": 20,
+      "validPeSamples": 18,
+      "excludedPeSamples": 2,
+      "validPbSamples": 19,
+      "excludedPbSamples": 1,
+      "targetPe": 20.32,
+      "peMedian": 18.40,
+      "pePercentile": 72.22,
+      "targetPb": 7.46,
+      "pbMedian": 4.80,
+      "pbPercentile": 84.21,
+      "selectedPeers": [
+        { "code": "000858", "name": "五粮液", "peDynamic": 18.10, "pb": 4.20, "totalMarketValueYuan": 530000000000, "targetPePremiumPercent": 12.27, "targetPbPremiumPercent": 77.62, "selectionReasons": ["MARKET_CAP_NEARBY", "INDUSTRY_LEADER"] },
+        { "code": "000568", "name": "泸州老窖", "peDynamic": 17.20, "pb": 4.60, "totalMarketValueYuan": 210000000000, "targetPePremiumPercent": 18.14, "targetPbPremiumPercent": 62.17, "selectionReasons": ["MARKET_CAP_NEARBY"] }
+      ]
+    },
+    "provenance": { "provider": "Eastmoney", "sourceUrl": "https://push2.eastmoney.com/industry-peers", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:08Z", "cached": false, "fallbackProvider": null },
+    "issues": []
+  },
   "capital": { "status": "UNAVAILABLE", "payload": null, "provenance": null, "issues": ["资金数据源进入冷却期"] },
   "fundamentals": { "status": "UNAVAILABLE", "payload": null, "provenance": null, "issues": ["财务报表暂不可用"] },
   "research": { "status": "HEALTHY", "payload": [], "provenance": { "provider": "Eastmoney", "sourceUrl": "https://reportapi.eastmoney.com", "providerTimestamp": null, "fetchedAt": "2026-07-15T07:00:10Z", "cached": false, "fallbackProvider": null }, "issues": [] },

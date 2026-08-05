@@ -81,4 +81,18 @@ class StaticResourceTest {
                 .contains("agent-output")
                 .doesNotContain("DeepSeek 总体报告");
     }
+
+    @Test
+    void servesDerivedMarketViewWithoutProviderCredentials() throws Exception {
+        String script = mvc.perform(get("/js/derived-market-view.js"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("同行估值对比")
+                .contains("资金流窗口汇总")
+                .doesNotMatch("(?i)(api[-_]?key|authorization|bearer|token|secret)");
+    }
 }

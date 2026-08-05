@@ -1,4 +1,5 @@
 import { sectionIssues, sectionPayload } from "./api.js";
+import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 
 const escapeHtml = (value) => {
   const raw = String(value ?? "");
@@ -43,16 +44,19 @@ function emptyRow(label) {
 }
 
 function renderCapital(snapshot) {
-  const flow = sectionPayload(snapshot.fundFlow, []);
+  const flowSummary = sectionPayload(snapshot.fundFlowSummary);
   const capital = sectionPayload(snapshot.capital);
-  if (!flow.length && !capital) return renderUnavailable("资金与筹码", snapshot.capital);
-  const latest = flow.at(-1) || {};
+  if (!flowSummary && !capital) return renderUnavailable("资金与筹码", snapshot.fundFlowSummary || snapshot.capital);
+  const latest = flowSummary?.latestDay || {};
   const metrics = [
     ["主力净流入", money(latest.mainNetYuan), latest.mainNetYuan], ["超大单净流入", money(latest.superLargeNetYuan), latest.superLargeNetYuan],
-    ["大单净流入", money(latest.largeNetYuan), latest.largeNetYuan], ["中小单净流入", money((Number(latest.mediumNetYuan) || 0) + (Number(latest.smallNetYuan) || 0)), (Number(latest.mediumNetYuan) || 0) + (Number(latest.smallNetYuan) || 0)],
+    ["大单净流入", money(latest.largeNetYuan), latest.largeNetYuan],
+    ["中单净流入", money(latest.mediumNetYuan), latest.mediumNetYuan],
+    ["小单净流入", money(latest.smallNetYuan), latest.smallNetYuan],
   ];
-  return `<section>${heading(`${statusLabel(snapshot.fundFlow?.status)} · ${latest.date || "--"}`, "资金与筹码", snapshot.fundFlow)}
-    <div class="metric-grid">${metrics.map(([label, value, tone]) => `<div class="metric-tile"><span>${label}</span><strong class="${tone > 0 ? "is-up" : tone < 0 ? "is-down" : ""}">${value}</strong></div>`).join("")}</div>
+  return `<section>${heading(`${statusLabel(snapshot.fundFlowSummary?.status)} · ${flowSummary?.latestDate || "--"}`, "资金与筹码", snapshot.fundFlowSummary || snapshot.fundFlow)}
+    <h3>最新日资金流</h3><div class="metric-grid">${metrics.map(([label, value, tone]) => `<div class="metric-tile"><span>${label}</span><strong class="${tone > 0 ? "is-up" : tone < 0 ? "is-down" : ""}">${value}</strong></div>`).join("")}</div>
+    ${renderFundFlowSummary(snapshot.fundFlowSummary)}
     <div class="data-columns"><section><h3>融资融券</h3>${renderSimpleTable(capital?.marginHistory, [["日期","date"],["融资余额","financingBalanceYuan",money],["两融余额","totalBalanceYuan",money]], "暂无融资融券记录")}</section><section><h3>大宗交易</h3>${renderSimpleTable(capital?.blockTrades, [["日期","date"],["成交价","price",format],["溢价率","premiumPercent",(v)=>`${format(v)}%`]], "暂无大宗交易记录")}</section></div>
     <div class="data-columns"><section><h3>股东户数变化</h3>${renderSimpleTable(capital?.shareholderChanges, [["日期","date"],["股东户数","holderCount",(v)=>format(v,0)],["环比","changePercent",(v)=>`${format(v)}%`]], "暂无股东户数记录")}</section><section><h3>限售解禁</h3>${renderSimpleTable(capital?.unlocks, [["日期","date"],["类型","type"],["占总股本","totalShareRatio",(v)=>`${format(v)}%`]], "暂无近期解禁记录")}</section></div>
   </section>`;
@@ -75,7 +79,14 @@ function renderValuation(snapshot) {
   const quote = sectionPayload(snapshot.quote, {});
   const research = sectionPayload(snapshot.research, []);
   const metrics = [["市盈率 TTM",format(quote.peTtm)],["静态市盈率",format(quote.peStatic)],["市净率",format(quote.pb)],["总市值",money(quote.totalMarketValueYuan)]];
-  return `<section>${heading(`${statusLabel(snapshot.research?.status)} · 市场与机构口径`, "估值与机构预期", snapshot.research)}<div class="metric-grid">${metrics.map(([label,value])=>`<div class="metric-tile"><span>${label}</span><strong>${value}</strong></div>`).join("")}</div><section class="table-section"><h3>最新机构研报</h3>${renderSimpleTable(research, [["发布日期","publishedAt"],["机构","organization"],["评级","rating"],["标题","title"],["下年 EPS","nextYearEps",format]], "暂无近期机构研报")}</section></section>`;
+  const target = {
+    code: snapshot.security?.code || quote.security?.code,
+    name: quote.name,
+    peTtm: quote.peTtm,
+    pb: quote.pb,
+    totalMarketValueYuan: quote.totalMarketValueYuan,
+  };
+  return `<section>${heading(`${statusLabel(snapshot.research?.status)} · 市场与机构口径`, "估值与机构预期", snapshot.research)}<div class="metric-grid">${metrics.map(([label,value])=>`<div class="metric-tile"><span>${label}</span><strong>${value}</strong></div>`).join("")}</div>${renderPeerValuationTable(snapshot.industryValuation, target)}<section class="table-section"><h3>最新机构研报</h3>${renderSimpleTable(research, [["发布日期","publishedAt"],["机构","organization"],["评级","rating"],["标题","title"],["下年 EPS","nextYearEps",format]], "暂无近期机构研报")}</section></section>`;
 }
 
 function renderEvents(snapshot) {

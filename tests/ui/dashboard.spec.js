@@ -362,6 +362,33 @@ test("source quality uses the backend scoring weights", async ({ page }) => {
   await expect(page.locator(".quality-components")).toContainText("15 / 15");
 });
 
+test("valuation view shows target and deterministic peer groups", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "估值预期" }).click();
+
+  const table = page.getByRole("table", { name: "同行估值对比" });
+  await expect(table).toContainText("目标");
+  await expect(table).toContainText("市值接近");
+  await expect(table).toContainText("行业龙头");
+  await expect(table).toContainText("000858");
+  await expect(table).toContainText("五粮液");
+});
+
+test("capital view shows latest and multi-window order-size flows", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "资金筹码" }).click();
+
+  await expect(page.locator("#view-content")).toContainText("最新日资金流");
+  await expect(page.locator("#view-content")).toContainText("中单净流入");
+  await expect(page.locator("#view-content")).toContainText("小单净流入");
+  const table = page.getByRole("table", { name: "资金流窗口汇总" });
+  await expect(table).toContainText("近 5 日");
+  await expect(table).toContainText("近 20 日");
+  await expect(table).toContainText("18 / 20 日");
+});
+
 test("agent renders the structured report even when direction metadata is absent", async ({ page }) => {
   await page.route("**/api/agent/analyze", (route) => route.fulfill({
     json: {
