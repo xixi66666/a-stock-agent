@@ -162,7 +162,7 @@ public final class StockAnalysisAgent {
         }
     }
 
-    private static long elapsedMillis(long started)
+    private static long elapsedMillis(long started) {
         return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
     }
 
