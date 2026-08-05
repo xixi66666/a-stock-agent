@@ -5,7 +5,8 @@ import com.astock.agent.analysis.StockResearchSnapshot;
 import com.astock.agent.marketdata.model.Announcement;
 import com.astock.agent.marketdata.model.CapitalData;
 import com.astock.agent.marketdata.model.DataSection;
-import com.astock.agent.marketdata.model.FundFlow;
+import com.astock.agent.marketdata.model.FundFlowSummary;
+import com.astock.agent.marketdata.model.FundFlowWindowSummary;
 import com.astock.agent.marketdata.model.FundamentalData;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.ResearchItem;
@@ -90,24 +91,31 @@ public final class ModuleAnalysisFactory {
         List<AnalysisSignal> signals = new ArrayList<>();
         List<String> counter = new ArrayList<>();
         List<String> sources = new ArrayList<>();
-        List<FundFlow> flows = typedList(snapshot.fundFlow().payload().orElse(null), FundFlow.class).stream()
-                .sorted(Comparator.comparing(FundFlow::date).reversed()).toList();
+        FundFlowSummary flowSummary = snapshot.fundFlowSummary().payload().orElse(null);
         boolean directional = false;
-        if (!flows.isEmpty()) {
-            BigDecimal sum5 = sumFlows(flows, 5);
-            BigDecimal sum20 = sumFlows(flows, 20);
-            facts.add(fact("flow-main-5d", "近5日主力净流入", sum5, "元", "flow", observedAt(snapshot.fundFlow())));
-            facts.add(fact("flow-main-20d", "近20日主力净流入", sum20, "元", "flow", observedAt(snapshot.fundFlow())));
-            Direction flowDirection = sum20.signum() > 0 ? Direction.STRONGER
-                    : sum20.signum() < 0 ? Direction.WEAKER : Direction.NEUTRAL;
-            signals.add(new AnalysisSignal("flow-main-direction", flowDirection, 75,
-                    "近20日主力资金" + (sum20.signum() > 0 ? "净流入" : sum20.signum() < 0 ? "净流出" : "净额为零"),
-                    "多日累计资金流用于降低单日噪声，但只能说明已发生交易",
-                    List.of("flow-main-5d", "flow-main-20d"), "20日累计资金方向反转"));
-            directional = true;
-            sources.add("flow");
-            if (sum5.signum() != 0 && sum20.signum() != 0 && sum5.signum() != sum20.signum()) {
-                counter.add("近5日与近20日资金方向相反，短期和中期信号冲突");
+        if (flowSummary != null) {
+            Instant observedAt = observedAt(snapshot.fundFlowSummary());
+            addFlowWindowFacts(facts, 5, flowSummary.fiveDay(), observedAt);
+            addFlowWindowFacts(facts, 20, flowSummary.twentyDay(), observedAt);
+            BigDecimal sum5 = flowSummary.fiveDay() == null ? null : flowSummary.fiveDay().mainNetYuan();
+            BigDecimal sum20 = flowSummary.twentyDay() == null ? null : flowSummary.twentyDay().mainNetYuan();
+            if (!facts.isEmpty()) sources.add("fundFlowSummary");
+            if (sum20 != null) {
+                Direction flowDirection = sum20.signum() > 0 ? Direction.STRONGER
+                        : sum20.signum() < 0 ? Direction.WEAKER : Direction.NEUTRAL;
+                List<String> mainFactIds = sum5 == null
+                        ? List.of("flow-main-20d")
+                        : List.of("flow-main-5d", "flow-main-20d");
+                signals.add(new AnalysisSignal("flow-main-direction", flowDirection, 75,
+                        "近20日主力资金" + (sum20.signum() > 0 ? "净流入"
+                                : sum20.signum() < 0 ? "净流出" : "净额为零"),
+                        "多日累计资金流用于降低单日噪声，但只能说明已发生交易",
+                        mainFactIds, "20日累计资金方向反转"));
+                directional = true;
+                if (sum5 != null && sum5.signum() != 0 && sum20.signum() != 0
+                        && sum5.signum() != sum20.signum()) {
+                    counter.add("近5日与近20日资金方向相反，短期和中期信号冲突");
+                }
             }
         }
         Object capitalPayload = snapshot.capital().payload().orElse(null);
@@ -313,9 +321,23 @@ public final class ModuleAnalysisFactory {
         return new ReportFact(id, label, number(value) + safe(unit), source, observedAt);
     }
 
-    private static BigDecimal sumFlows(List<FundFlow> flows, int limit) {
-        return flows.stream().limit(limit).map(FundFlow::mainNetYuan).filter(value -> value != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private static void addFlowWindowFacts(
+            List<ReportFact> facts, int days, FundFlowWindowSummary window, Instant observedAt) {
+        if (window == null) return;
+        addFlowFact(facts, "flow-main-" + days + "d", days, "主力", window.mainNetYuan(), observedAt);
+        addFlowFact(facts, "flow-super-large-" + days + "d", days, "超大单", window.superLargeNetYuan(), observedAt);
+        addFlowFact(facts, "flow-large-" + days + "d", days, "大单", window.largeNetYuan(), observedAt);
+        addFlowFact(facts, "flow-medium-" + days + "d", days, "中单", window.mediumNetYuan(), observedAt);
+        addFlowFact(facts, "flow-small-" + days + "d", days, "小单", window.smallNetYuan(), observedAt);
+    }
+
+    private static void addFlowFact(
+            List<ReportFact> facts, String id, int days, String category,
+            BigDecimal value, Instant observedAt) {
+        if (value != null) {
+            facts.add(fact(id, "近" + days + "日" + category + "净流入", value,
+                    "元", "fundFlowSummary", observedAt));
+        }
     }
 
     private static BigDecimal premium(BigDecimal target, BigDecimal median) {

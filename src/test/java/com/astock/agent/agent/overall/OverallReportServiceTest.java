@@ -61,6 +61,8 @@ class OverallReportServiceTest {
         assertThat(response.report()).isNotNull();
         assertThat(response.report().modelName()).isEqualTo("deepseek-chat");
         assertThat(response.report().disclaimer()).isEqualTo(OverallResearchReport.REQUIRED_DISCLAIMER);
+        assertThat(response.report().industryValuation()).isEqualTo(snapshot.industryValuation());
+        assertThat(response.report().fundFlowSummary()).isEqualTo(snapshot.fundFlowSummary());
     }
 
     @Test

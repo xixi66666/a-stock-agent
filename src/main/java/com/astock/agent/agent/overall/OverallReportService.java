@@ -87,10 +87,10 @@ public final class OverallReportService {
                     : classifier.validationWarning(
                             validation.issues(), modelName, elapsedMillis(started), traceId);
 
-            OverallResearchReport report = OverallResearchReport.from(
+            OverallResearchReport report = OverallResearchReport.fromSnapshot(
                     draft,
                     modelName,
-                    snapshot.fetchedAt(),
+                    snapshot,
                     Instant.now(),
                     SpringAiOverallReportGenerator.PROMPT_VERSION);
             return new OverallReportResponse(

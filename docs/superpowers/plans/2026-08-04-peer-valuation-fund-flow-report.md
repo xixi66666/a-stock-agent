@@ -655,7 +655,7 @@ Add to `OverallResearchReportTest`:
 @Test
 void copiesStructuredMarketDetailsFromSnapshotInsteadOfDraft() {
     StockResearchSnapshot snapshot = enrichedSnapshot();
-    OverallResearchReport report = OverallResearchReport.from(
+    OverallResearchReport report = OverallResearchReport.fromSnapshot(
             draft(), "mimo-v2.5-pro", snapshot, Instant.EPOCH, "overall-v3");
 
     assertThat(report.industryValuation()).isEqualTo(snapshot.industryValuation());
@@ -704,7 +704,7 @@ private static StockResearchSnapshot enrichedSnapshot() {
 
 - [ ] **Step 2: Run report tests and verify RED**
 
-Run `InstitutionalReportComposerTest,OverallResearchReportTest`. Expected: compilation fails because report child records do not expose the new fields and `OverallResearchReport.from` does not accept a snapshot.
+Run `InstitutionalReportComposerTest,OverallResearchReportTest`. Expected: compilation fails because report child records do not expose the new fields and `OverallResearchReport.fromSnapshot` does not exist.
 
 - [ ] **Step 3: Extend report records with backward-compatible constructors**
 
@@ -712,10 +712,10 @@ Append `DataSection<FundFlowSummary> fundFlowSummary` to `TechnicalAndFlowAnalys
 
 Append `DataSection<IndustryValuationData> industryValuation` to `ValuationIndustryAnalysis`. Keep the existing constructors by delegating with `DataSection.unavailable("industry valuation not provided")`.
 
-Append `DataSection<IndustryValuationData> industryValuation` and `DataSection<FundFlowSummary> fundFlowSummary` to `OverallResearchReport` immediately before model metadata. Keeping `DataSection` preserves `status`, `issues` and `Provenance` in report responses. Add an overloaded constructor with the old field list that delegates with unavailable sections for controller tests and compatibility. Keep the existing `from(draft, modelName, snapshotAt, generatedAt, promptVersion)` factory for validator-test/source compatibility, and add this snapshot-aware overload for production:
+Append `DataSection<IndustryValuationData> industryValuation` and `DataSection<FundFlowSummary> fundFlowSummary` to `OverallResearchReport` immediately before model metadata. Keeping `DataSection` preserves `status`, `issues` and `Provenance` in report responses. Add an overloaded constructor with the old field list that delegates with unavailable sections for controller tests and compatibility. Keep the existing `from(draft, modelName, snapshotAt, generatedAt, promptVersion)` factory for validator-test/source compatibility, and add the snapshot-aware `fromSnapshot` factory below. A same-name overload is intentionally avoided because legacy calls with a null third argument would be ambiguous between `Instant` and `StockResearchSnapshot`.
 
 ```java
-public static OverallResearchReport from(
+public static OverallResearchReport fromSnapshot(
         OverallReportDraft draft,
         String modelName,
         StockResearchSnapshot snapshot,

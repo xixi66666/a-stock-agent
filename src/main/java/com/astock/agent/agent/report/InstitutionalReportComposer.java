@@ -13,9 +13,12 @@ import com.astock.agent.analysis.institutional.ModuleAnalysis;
 import com.astock.agent.marketdata.model.Announcement;
 import com.astock.agent.marketdata.model.CapitalData;
 import com.astock.agent.marketdata.model.DataSection;
-import com.astock.agent.marketdata.model.FundFlow;
+import com.astock.agent.marketdata.model.FundFlowSummary;
+import com.astock.agent.marketdata.model.FundFlowWindowSummary;
 import com.astock.agent.marketdata.model.FundamentalData;
+import com.astock.agent.marketdata.model.IndustryPeerComparison;
 import com.astock.agent.marketdata.model.IndustryValuationData;
+import com.astock.agent.marketdata.model.PeerSelectionReason;
 import com.astock.agent.marketdata.model.NewsItem;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.SectionStatus;
@@ -26,7 +29,6 @@ import com.astock.agent.technical.TechnicalSnapshot;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -130,13 +132,15 @@ public final class InstitutionalReportComposer {
                         mergeFacts(technicalFacts, facts(technicalModule), facts(flowModule)),
                         mergeSignals(technicalModule, flowModule), mergeText(technicalModule, flowModule, ModuleAnalysis::methodology),
                         mergeText(technicalModule, flowModule, ModuleAnalysis::counterEvidence),
-                        mergeText(technicalModule, flowModule, ModuleAnalysis::limitations)),
+                        mergeText(technicalModule, flowModule, ModuleAnalysis::limitations),
+                        snapshot.fundFlowSummary()),
                 new FundamentalExpectationAnalysis(fundamental, List.of(), mergeFacts(fundamentalFacts, facts(fundamentalModule)),
                         signals(fundamentalModule), text(fundamentalModule, ModuleAnalysis::methodology),
                         text(fundamentalModule, ModuleAnalysis::counterEvidence), text(fundamentalModule, ModuleAnalysis::limitations)),
                 new ValuationIndustryAnalysis(valuation, List.of(), mergeFacts(valuationFacts, facts(valuationModule)),
                         signals(valuationModule), text(valuationModule, ModuleAnalysis::methodology),
-                        text(valuationModule, ModuleAnalysis::counterEvidence), text(valuationModule, ModuleAnalysis::limitations)),
+                        text(valuationModule, ModuleAnalysis::counterEvidence),
+                        text(valuationModule, ModuleAnalysis::limitations), snapshot.industryValuation()),
                 events, assessment.risks(), assessment.conflicts(),
                 assessment.missingData(), assessment.invalidationConditions(), citations(snapshot), mode,
                 RULE_VERSION, PROMPT_VERSION, modelName, snapshot.fetchedAt(), Instant.now(), "", diagnostic);
@@ -227,22 +231,50 @@ public final class InstitutionalReportComposer {
             add(facts, "行业PE分位数", data.pePercentile(), "%", "industryValuation");
             add(facts, "行业PB中位数", data.pbMedian(), "industryValuation");
             add(facts, "估值样本数", data.totalSamples() + " 家", "industryValuation");
+            data.selectedPeers().forEach(peer -> addPeerFact(facts, peer));
         }
         return List.copyOf(facts);
     }
 
     private static void addFlowFacts(List<ReportFact> facts, StockResearchSnapshot snapshot) {
-        Object payload = snapshot.fundFlow().payload().orElse(null);
-        if (!(payload instanceof List<?> values)) return;
-        List<FundFlow> flows = values.stream().filter(FundFlow.class::isInstance).map(FundFlow.class::cast)
-                .sorted(Comparator.comparing(FundFlow::date).reversed()).toList();
-        if (flows.isEmpty()) return;
-        BigDecimal sum5 = flows.stream().limit(5).map(FundFlow::mainNetYuan).filter(v -> v != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal sum20 = flows.stream().limit(20).map(FundFlow::mainNetYuan).filter(v -> v != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        add(facts, "近5日主力净流入", sum5, "元", "flow");
-        add(facts, "近20日主力净流入", sum20, "元", "flow");
+        FundFlowSummary summary = snapshot.fundFlowSummary().payload().orElse(null);
+        if (summary == null) return;
+        addFlowWindowFacts(facts, 5, summary.fiveDay());
+        addFlowWindowFacts(facts, 20, summary.twentyDay());
+    }
+
+    private static void addFlowWindowFacts(
+            List<ReportFact> facts, int days, FundFlowWindowSummary window) {
+        if (window == null) return;
+        add(facts, "近" + days + "日主力净流入", window.mainNetYuan(), "元", "fundFlowSummary");
+        add(facts, "近" + days + "日超大单净流入", window.superLargeNetYuan(), "元", "fundFlowSummary");
+        add(facts, "近" + days + "日大单净流入", window.largeNetYuan(), "元", "fundFlowSummary");
+        add(facts, "近" + days + "日中单净流入", window.mediumNetYuan(), "元", "fundFlowSummary");
+        add(facts, "近" + days + "日小单净流入", window.smallNetYuan(), "元", "fundFlowSummary");
+    }
+
+    private static void addPeerFact(List<ReportFact> facts, IndustryPeerComparison peer) {
+        if (peer == null) return;
+        List<String> values = new ArrayList<>();
+        addSegment(values, "PE", peer.peDynamic(), "");
+        addSegment(values, "PB", peer.pb(), "");
+        addSegment(values, "总市值", peer.totalMarketValueYuan(), " 元");
+        peer.selectionReasons().stream().map(InstitutionalReportComposer::reasonLabel).forEach(values::add);
+        if (values.isEmpty()) return;
+        String name = nonBlank(peer.name(), "未知同行");
+        String code = nonBlank(peer.code(), "------");
+        add(facts, "同行估值·" + name + "(" + code + ")", String.join("；", values), "industryValuation");
+    }
+
+    private static void addSegment(List<String> values, String label, BigDecimal value, String suffix) {
+        if (value != null) values.add(label + " " + value.stripTrailingZeros().toPlainString() + suffix);
+    }
+
+    private static String reasonLabel(PeerSelectionReason reason) {
+        return switch (reason) {
+            case MARKET_CAP_NEARBY -> "市值接近";
+            case INDUSTRY_LEADER -> "行业龙头";
+        };
     }
 
     private static void addCapitalFacts(List<ReportFact> facts, StockResearchSnapshot snapshot) {
@@ -376,7 +408,8 @@ public final class InstitutionalReportComposer {
     private static Map<String, DataSection<?>> sections(StockResearchSnapshot snapshot) {
         Map<String, DataSection<?>> sections = new LinkedHashMap<>();
         sections.put("quote", snapshot.quote()); sections.put("bars", snapshot.bars()); sections.put("technical", snapshot.technical());
-        sections.put("fundFlow", snapshot.fundFlow()); sections.put("capital", snapshot.capital()); sections.put("fundamentals", snapshot.fundamentals());
+        sections.put("fundFlow", snapshot.fundFlow()); sections.put("fundFlowSummary", snapshot.fundFlowSummary());
+        sections.put("capital", snapshot.capital()); sections.put("fundamentals", snapshot.fundamentals());
         sections.put("research", snapshot.research()); sections.put("news", snapshot.news()); sections.put("announcements", snapshot.announcements());
         sections.put("industryValuation", snapshot.industryValuation()); return sections;
     }
