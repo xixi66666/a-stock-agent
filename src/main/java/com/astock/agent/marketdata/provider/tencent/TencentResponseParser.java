@@ -64,8 +64,12 @@ public final class TencentResponseParser {
     }
 
     public List<DailyBar> parseDailyBars(String body, SecurityId requested) {
+        return parseDailyBars(body, requested.tencentCode());
+    }
+
+    public List<DailyBar> parseDailyBars(String body, String tencentCode) {
         try {
-            JsonNode security = objectMapper.readTree(body).path("data").path(requested.tencentCode());
+            JsonNode security = objectMapper.readTree(body).path("data").path(tencentCode);
             JsonNode rows = security.has("qfqday") ? security.path("qfqday") : security.path("day");
             if (!rows.isArray()) {
                 throw new IllegalArgumentException("Tencent K-line payload is missing qfqday/day");

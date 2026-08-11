@@ -18,11 +18,13 @@ import com.astock.agent.marketdata.model.Sector;
 import com.astock.agent.marketdata.provider.ProviderHealthRegistry;
 import com.astock.agent.marketdata.provider.ProviderHttpClient;
 import com.astock.agent.marketdata.provider.ProviderThrottle;
+import com.astock.agent.marketdata.provider.BenchmarkDataGateway;
 import com.astock.agent.marketdata.provider.baidu.BaiduKlineClient;
 import com.astock.agent.marketdata.provider.cninfo.CninfoAnnouncementClient;
 import com.astock.agent.marketdata.provider.eastmoney.EastmoneyResearchClient;
 import com.astock.agent.marketdata.provider.sina.SinaFinanceClient;
 import com.astock.agent.marketdata.provider.tencent.TencentMarketDataClient;
+import com.astock.agent.marketdata.provider.tencent.TencentBenchmarkDataGateway;
 import com.astock.agent.marketdata.provider.tencent.TencentResponseParser;
 import com.astock.agent.technical.BarSeriesFactory;
 import com.astock.agent.technical.TechnicalAnalysisService;
@@ -78,6 +80,12 @@ public class MarketDataConfiguration {
     TencentMarketDataClient tencentMarketDataClient(
             ProviderHttpClient http, TencentResponseParser parser, Clock clock) {
         return new TencentMarketDataClient(http, parser, clock);
+    }
+
+    @Bean
+    BenchmarkDataGateway benchmarkDataGateway(
+            ProviderHttpClient http, TencentResponseParser parser, Clock clock) {
+        return new TencentBenchmarkDataGateway(http, parser, clock);
     }
 
     @Bean BaiduKlineClient baiduKlineClient(ProviderHttpClient http, Clock clock) {
