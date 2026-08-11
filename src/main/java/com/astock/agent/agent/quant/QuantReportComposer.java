@@ -49,6 +49,26 @@ public final class QuantReportComposer {
                 List.of("文字由" + (modelName == null || modelName.isBlank() ? "确定性回退" : modelName) + "组织；数字和来源来自事实包"));
     }
 
+    /**
+     * 直接采用模型文字草稿。调用方已明确选择跳过叙述校验时使用，数字和来源仍来自事实包。
+     */
+    public QuantResearchReport composeWithoutValidation(StockResearchSnapshot snapshot, QuantReportFacts facts,
+                                                        QuantNarrativeDraft draft, String modelName) {
+        QuantResearchReport fallback = fallback(snapshot, facts);
+        if (draft == null) return fallback;
+        return report(snapshot, facts,
+                nonBlank(draft.executiveSummary(), fallback.executiveSummary()),
+                nonBlank(draft.marketEnvironment(), fallback.marketEnvironment()),
+                nonBlank(draft.securityPerformance(), fallback.securityPerformance()),
+                nonBlank(draft.factorObservations(), fallback.factorObservations()),
+                nonBlank(draft.valuationAndFundamentals(), fallback.valuationAndFundamentals()),
+                nonBlank(draft.capitalAndEvents(), fallback.capitalAndEvents()),
+                nonBlank(draft.riskAndOutlook(), fallback.riskAndInvalidation()),
+                fallback.outlook(), fallback.portfolioUnavailable(),
+                List.of("文字由" + (modelName == null || modelName.isBlank() ? "确定性回退" : modelName)
+                        + "组织；数字和来源来自事实包"));
+    }
+
     public QuantResearchReport compose(StockResearchSnapshot snapshot, QuantReportFacts facts,
                                        QuantNarrativeDraft draft) {
         QuantNarrativeValidator.Validation validation = new QuantNarrativeValidator().validate(draft, facts);

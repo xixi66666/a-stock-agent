@@ -25,32 +25,24 @@ public final class QuantResearchReportService {
     private final BenchmarkDataGateway benchmarkGateway;
     private final QuantFactsCalculator calculator;
     private final QuantReportComposer composer;
-    private final QuantNarrativeValidator validator;
     private final NamedChatClientRegistry registry;
     private final GeneratorFactory generatorFactory;
 
     public QuantResearchReportService(StockAgentTools tools, BenchmarkDataGateway benchmarkGateway,
                                       QuantFactsCalculator calculator, QuantReportComposer composer,
-                                      QuantNarrativeValidator validator, NamedChatClientRegistry registry) {
-        this(tools, benchmarkGateway, calculator, composer, validator, registry,
-                model -> new SpringAiQuantNarrativeGenerator(model.client(), model.modelName()));
-    }
-
-    public QuantResearchReportService(StockAgentTools tools, BenchmarkDataGateway benchmarkGateway,
-                                      QuantFactsCalculator calculator, QuantReportComposer composer,
                                       NamedChatClientRegistry registry) {
-        this(tools, benchmarkGateway, calculator, composer, new QuantNarrativeValidator(), registry);
+        this(tools, benchmarkGateway, calculator, composer, registry,
+                model -> new SpringAiQuantNarrativeGenerator(model.client(), model.modelName()));
     }
 
     QuantResearchReportService(StockAgentTools tools, BenchmarkDataGateway benchmarkGateway,
                                QuantFactsCalculator calculator, QuantReportComposer composer,
-                               QuantNarrativeValidator validator, NamedChatClientRegistry registry,
+                               NamedChatClientRegistry registry,
                                GeneratorFactory generatorFactory) {
         this.tools = Objects.requireNonNull(tools, "tools is required");
         this.benchmarkGateway = benchmarkGateway;
         this.calculator = Objects.requireNonNull(calculator, "calculator is required");
         this.composer = Objects.requireNonNull(composer, "composer is required");
-        this.validator = Objects.requireNonNull(validator, "validator is required");
         this.registry = registry == null ? new NamedChatClientRegistry(null, null) : registry;
         this.generatorFactory = Objects.requireNonNull(generatorFactory, "generatorFactory is required");
     }
@@ -75,12 +67,7 @@ public final class QuantResearchReportService {
         try {
             QuantNarrativeGenerator generator = generatorFactory.create(model.orElseThrow());
             QuantNarrativeDraft draft = generator.generate(facts);
-            QuantNarrativeValidator.Validation validation = validator.validate(draft, facts);
-            if (!validation.blockingIssues().isEmpty()) {
-                draft = generator.repair(facts, draft, validation.blockingIssues());
-                validation = validator.validate(draft, facts);
-            }
-            return composer.compose(snapshot, facts, draft, validation, generator.modelName());
+            return composer.composeWithoutValidation(snapshot, facts, draft, generator.modelName());
         } catch (Exception ignored) {
             return composer.fallback(snapshot, facts);
         }
