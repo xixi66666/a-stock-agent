@@ -5,6 +5,8 @@ import com.astock.agent.agent.StockAnalysisAgent;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.overall.OverallReportResponse;
 import com.astock.agent.agent.overall.OverallReportService;
+import com.astock.agent.agent.quant.QuantResearchReportService;
+import com.astock.agent.agent.quant.QuantResearchReport;
 import com.astock.agent.agent.report.InstitutionalResearchReport;
 import com.astock.agent.marketdata.model.SecurityId;
 import java.util.List;
@@ -30,17 +32,24 @@ public class AgentController {
     private final AgentStatusService statusService;
     private final StockAnalysisAgent agent;
     private final OverallReportService overallReports;
+    private final QuantResearchReportService quantReports;
 
     public AgentController(AgentStatusService statusService, StockAnalysisAgent agent) {
-        this(statusService, agent, null);
+        this(statusService, agent, null, null);
+    }
+
+    public AgentController(AgentStatusService statusService, StockAnalysisAgent agent,
+            OverallReportService overallReports) {
+        this(statusService, agent, overallReports, null);
     }
 
     @Autowired
     public AgentController(AgentStatusService statusService, StockAnalysisAgent agent,
-            OverallReportService overallReports) {
+            OverallReportService overallReports, QuantResearchReportService quantReports) {
         this.statusService = statusService;
         this.agent = agent;
         this.overallReports = overallReports;
+        this.quantReports = quantReports;
     }
 
     @GetMapping("/status")
@@ -59,6 +68,15 @@ public class AgentController {
             throw new IllegalStateException("Agent is unavailable");
         }
         return agent.analyzeInstitutional(request.code());
+    }
+
+    @PostMapping("/quant-report")
+    public QuantResearchReport quantReport(@RequestBody AnalyzeRequest request) {
+        SecurityId.parse(request.code());
+        if (quantReports == null) {
+            throw new IllegalStateException("Quantitative report service is unavailable");
+        }
+        return quantReports.generate(request.code());
     }
 
     @PostMapping("/overall-report")

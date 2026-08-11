@@ -13,6 +13,8 @@ import com.astock.agent.agent.overall.OverallReportStatus;
 import com.astock.agent.agent.overall.OverallResearchReport;
 import com.astock.agent.agent.report.GenerationMode;
 import com.astock.agent.agent.report.InstitutionalResearchReport;
+import com.astock.agent.agent.quant.QuantResearchReportService;
+import com.astock.agent.agent.quant.QuantResearchReport;
 import com.astock.agent.analysis.institutional.Direction;
 import com.astock.agent.analysis.institutional.EvidenceStatus;
 import java.time.Instant;
@@ -62,6 +64,30 @@ class AgentControllerTest {
                 .andExpect(jsonPath("$.conflicts").isArray())
                 .andExpect(jsonPath("$.invalidationConditions").isArray())
                 .andExpect(jsonPath("$.disclaimer").value("仅供学习研究，不构成投资建议"));
+    }
+
+    @Test
+    void quantReportUsesIndependentScoreFreeEndpoint() throws Exception {
+        QuantResearchReportService service = mock(QuantResearchReportService.class);
+        QuantResearchReport report = new QuantResearchReport(
+                new QuantResearchReport.ReportMeta("QUANT_SINGLE_SECURITY", "v2", "600519", Instant.now()),
+                new QuantResearchReport.PortfolioScope("SINGLE_SECURITY", List.of("组合级数据不可用")),
+                "summary", "market", "performance", "factors", "valuation", "capital", "risk", "outlook",
+                "UNAVAILABLE", List.of(), List.of(), List.of(), List.of());
+        when(service.generate("600519")).thenReturn(report);
+        AgentController controller = new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, null, service);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mvc.perform(post("/api/agent/quant-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"600519\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportMeta.reportType").value("QUANT_SINGLE_SECURITY"))
+                .andExpect(jsonPath("$.portfolioScope.scope").value("SINGLE_SECURITY"))
+                .andExpect(jsonPath("$.portfolioUnavailable").value("UNAVAILABLE"))
+                .andExpect(jsonPath("$.score").doesNotExist());
+        verify(service).generate("600519");
     }
 
     @Test

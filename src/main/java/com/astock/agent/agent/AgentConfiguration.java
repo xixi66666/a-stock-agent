@@ -3,8 +3,13 @@ package com.astock.agent.agent;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.overall.OverallReportService;
 import com.astock.agent.agent.overall.OverallReportValidator;
+import com.astock.agent.agent.quant.QuantFactsCalculator;
+import com.astock.agent.agent.quant.QuantNarrativeValidator;
+import com.astock.agent.agent.quant.QuantReportComposer;
+import com.astock.agent.agent.quant.QuantResearchReportService;
 import com.astock.agent.agent.report.ModelFailureClassifier;
 import com.astock.agent.analysis.ResearchAggregationService;
+import com.astock.agent.marketdata.provider.BenchmarkDataGateway;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,5 +56,14 @@ public class AgentConfiguration {
                 tools,
                 new OverallReportValidator(),
                 new ModelFailureClassifier());
+    }
+
+    @Bean
+    QuantResearchReportService quantResearchReportService(
+            NamedChatClientRegistry registry,
+            StockAgentTools tools,
+            BenchmarkDataGateway benchmarkDataGateway) {
+        return new QuantResearchReportService(tools, benchmarkDataGateway,
+                new QuantFactsCalculator(), new QuantReportComposer(), new QuantNarrativeValidator(), registry);
     }
 }

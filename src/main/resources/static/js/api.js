@@ -53,6 +53,13 @@ export const stockApi = {
       body: JSON.stringify({ code }),
     });
   },
+  quantReport(code) {
+    return request("/api/agent/quant-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  },
   overallModels() {
     return request("/api/agent/models?capability=overall-report");
   },

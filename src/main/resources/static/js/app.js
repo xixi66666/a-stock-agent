@@ -115,8 +115,10 @@ function renderCurrentView() {
     bindAgentAction();
     if (state.overallReportResponse) $("#overall-report-output").innerHTML = renderOverallReportResponse(state.overallReportResponse);
     renderOverallRequestFeedback();
-    if (state.institutionalReport) $("#agent-output").innerHTML = isInstitutionalReport(state.institutionalReport)
-      ? renderInstitutionalReport(state.institutionalReport) : renderLegacyReport(state.institutionalReport);
+    if (state.institutionalReport) $("#agent-output").innerHTML = isQuantResearchReport(state.institutionalReport)
+      ? renderQuantResearchReport(state.institutionalReport)
+      : isInstitutionalReport(state.institutionalReport)
+        ? renderInstitutionalReport(state.institutionalReport) : renderLegacyReport(state.institutionalReport);
     refreshIcons();
   }
 }
@@ -145,6 +147,93 @@ function renderReportSources(sources) {
 function renderReportFacts(facts) {
   if (!Array.isArray(facts) || !facts.length) return '<p class="muted report-facts-empty">暂无可用结构化指标</p>';
   return `<ul class="report-facts">${facts.map((fact) => `<li><span>${escapeText(fact.label || "指标")}</span><strong>${escapeText(fact.value || "--")}</strong></li>`).join("")}</ul>`;
+}
+
+const QUANT_METRIC_LABELS = {
+  "return-5": "5 日收益", "return-20": "20 日收益", "return-60": "60 日收益",
+  "return-120": "120 日收益", "return-250": "250 日收益",
+  "annualized-volatility": "年化波动率", "downside-volatility": "下行波动率",
+  "max-drawdown": "最大回撤", sharpe: "Sharpe", sortino: "Sortino", calmar: "Calmar",
+  "var-95": "历史 VaR 95%", "cvar-95": "历史 CVaR 95%", skewness: "收益偏度", kurtosis: "超额峰度",
+};
+
+const QUANT_STATUS_LABELS = {
+  AVAILABLE: "可用", INSUFFICIENT_SAMPLE: "样本不足", INVALID_INPUT: "输入无效", UNAVAILABLE: "不可用",
+};
+
+function formatQuantValue(value, unit) {
+  if (value == null || value === "") return "--";
+  const number = Number(value);
+  const text = Number.isFinite(number)
+    ? number.toLocaleString("zh-CN", { maximumFractionDigits: 4 })
+    : escapeText(value);
+  return `${text}${unit || ""}`;
+}
+
+function renderQuantMetrics(metrics) {
+  const rows = Array.isArray(metrics) ? metrics : [];
+  return `<section class="quant-section quant-metrics"><h4>个股收益与价格行为</h4>${rows.length
+    ? `<div class="quant-metric-grid">${rows.map((metric) => `<article class="quant-metric" data-status="${escapeText(metric.availability || "UNAVAILABLE")}">
+        <div><strong>${escapeText(QUANT_METRIC_LABELS[metric.name] || metric.name || "指标")}</strong><span>${escapeText(QUANT_STATUS_LABELS[metric.availability] || metric.availability || "不可用")}</span></div>
+        <b>${formatQuantValue(metric.value, metric.unit)}</b>
+        <dl><dt>窗口</dt><dd>${escapeText(metric.window || "--")}</dd><dt>截至</dt><dd>${escapeText(metric.asOf || "--")}</dd><dt>方法</dt><dd>${escapeText(metric.method || "--")}</dd></dl>
+        ${Array.isArray(metric.limitations) && metric.limitations.length ? `<p>${metric.limitations.map(escapeText).join("；")}</p>` : ""}
+      </article>`).join("")}</div>`
+    : '<p class="muted">UNAVAILABLE：当前没有可展示的量化指标。</p>'}</section>`;
+}
+
+function renderBenchmarkComparisons(comparisons) {
+  const rows = Array.isArray(comparisons) ? comparisons : [];
+  return `<section class="quant-section"><h4>市场环境与基准表现</h4>${rows.length
+    ? `<div class="quant-benchmark-table" role="table" aria-label="基准比较">
+        <div class="quant-table-head" role="row"><span>基准</span><span>超额收益</span><span>Beta</span><span>信息比率</span><span>状态</span></div>
+        ${rows.map((item) => `<div class="quant-table-row" role="row"><strong>${escapeText(item.benchmarkId || "--")}</strong><span>${formatQuantValue(item.excessReturnPercent, "%")}</span><span>${formatQuantValue(item.beta, "")}</span><span>${formatQuantValue(item.informationRatio, "")}</span><span class="source-status" data-status="${escapeText(item.availability || "UNAVAILABLE")}"><i></i>${escapeText(QUANT_STATUS_LABELS[item.availability] || item.availability || "不可用")}</span></div>`).join("")}
+      </div>`
+    : '<p class="muted">UNAVAILABLE：基准日线不可用。</p>'}</section>`;
+}
+
+function renderQuantTextSection(title, content) {
+  return `<section class="quant-section"><h4>${escapeText(title)}</h4><p>${escapeText(content || "UNAVAILABLE：当前分区没有可用证据。")}</p></section>`;
+}
+
+function renderQuantStringList(title, values, emptyText) {
+  const items = Array.isArray(values) ? values : [];
+  return `<section class="quant-section"><h4>${escapeText(title)}</h4>${items.length
+    ? `<ul>${items.map((value) => `<li>${escapeText(value)}</li>`).join("")}</ul>`
+    : `<p class="muted">${escapeText(emptyText)}</p>`}</section>`;
+}
+
+function isQuantResearchReport(report) {
+  return Boolean(report?.reportMeta?.reportType === "QUANT_SINGLE_SECURITY" || report?.portfolioScope?.scope === "SINGLE_SECURITY");
+}
+
+function renderQuantResearchReport(report) {
+  const meta = report.reportMeta || {};
+  const portfolio = report.portfolioScope || {};
+  const unavailableReasons = Array.isArray(portfolio.unavailableReasons) ? portfolio.unavailableReasons : [];
+  return `<article class="quant-report">
+    <header class="quant-report-header">
+      <div><span class="source-status" data-status="HEALTHY"><span></span>单股量化研究 · ${escapeText(meta.version || "v2")}</span><h3>${escapeText(meta.securityCode || state.currentCode || "--")} 量化研究报告</h3></div>
+      <dl><dt>报告类型</dt><dd>${escapeText(meta.reportType || "QUANT_SINGLE_SECURITY")}</dd><dt>生成时间</dt><dd>${escapeText(meta.generatedAt || "--")}</dd></dl>
+    </header>
+    <p class="quant-executive-summary">${escapeText(report.executiveSummary || "UNAVAILABLE：当前没有可用摘要。")}</p>
+    ${renderBenchmarkComparisons(report.benchmarkComparisons)}
+    ${renderQuantMetrics(report.metrics)}
+    <div class="quant-prose-grid">
+      ${renderQuantTextSection("因子文字观察", report.factorObservations)}
+      ${renderQuantTextSection("估值与基本面", report.valuationAndFundamentals)}
+      ${renderQuantTextSection("资金与事件", report.capitalAndEvents)}
+      ${renderQuantTextSection("风险与失效条件", report.riskAndInvalidation)}
+      ${renderQuantTextSection("前瞻展望", report.outlook)}
+      ${renderQuantTextSection("个股表现说明", report.securityPerformance)}
+    </div>
+    <section class="quant-unavailable" aria-label="组合级不可用说明"><h4>组合级数据不可用</h4><p>${escapeText(report.portfolioUnavailable || "UNAVAILABLE")}</p>${unavailableReasons.length ? `<ul>${unavailableReasons.map((value) => `<li>${escapeText(value)}</li>`).join("")}</ul>` : ""}</section>
+    <div class="quant-prose-grid quant-evidence-grid">
+      ${renderQuantStringList("来源", report.sources, "UNAVAILABLE：没有可展示来源。")}
+      ${renderQuantStringList("方法", report.methods, "UNAVAILABLE：没有可展示方法。")}
+    </div>
+    <small class="report-disclaimer">仅供研究，不构成投资建议；历史表现不代表未来。</small>
+  </article>`;
 }
 
 function renderCoreDrivers(drivers) {
@@ -325,9 +414,14 @@ function bindAgentAction() {
     output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在综合</span><p>Agent 正在调用受限股票研究工具。</p>';
     try {
       // 请求期间记录股票和加载代数；返回时如果页面已切换，丢弃旧结果。
-      const report = unwrapReport(await stockApi.analyze(reportCode));
+      const report = unwrapReport(await stockApi.quantReport(reportCode));
       if (state.currentCode !== reportCode || state.loadGeneration !== generation) return;
       state.institutionalReport = report;
+      if (isQuantResearchReport(report)) {
+        output.innerHTML = renderQuantResearchReport(report);
+        refreshIcons();
+        return;
+      }
       if (isInstitutionalReport(report)) {
         output.innerHTML = renderInstitutionalReport(report);
         refreshIcons();

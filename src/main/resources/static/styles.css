@@ -257,6 +257,46 @@ th, td { padding: 9px 7px; border-bottom: 1px solid var(--hairline); white-space
 .report-sources a { color: var(--purple); }
 .report-sources small { display: block; color: var(--muted); }
 
+/* 单股量化报告：以阅读顺序组织事实，不使用评分仪表盘。 */
+.quant-report { min-width: 0; max-width: 1120px; }
+.quant-report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
+.quant-report-header h3 { margin: 8px 0 0; font-size: 22px; }
+.quant-report-header dl { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 4px 10px; margin: 0; min-width: 220px; color: var(--body); font-size: 11px; }
+.quant-report-header dt { color: var(--muted); }
+.quant-report-header dd { margin: 0; overflow-wrap: anywhere; }
+.quant-executive-summary { max-width: 76ch; margin: 18px 0 0; color: var(--body); line-height: 1.75; }
+.quant-section { min-width: 0; margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.quant-section h4 { margin: 0 0 10px; font-size: 13px; }
+.quant-section > p { margin: 0; color: var(--body); line-height: 1.7; overflow-wrap: anywhere; }
+.quant-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.quant-metric { min-width: 0; padding: 12px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface); }
+.quant-metric > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.quant-metric > div strong { min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.quant-metric > div span { flex: 0 0 auto; color: var(--muted); font-size: 10px; }
+.quant-metric[data-status="AVAILABLE"] > div span { color: var(--down); }
+.quant-metric[data-status="INSUFFICIENT_SAMPLE"] > div span { color: var(--warning); }
+.quant-metric > b { display: block; margin-top: 8px; font-size: 18px; font-variant-numeric: tabular-nums; font-weight: 650; }
+.quant-metric dl { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 2px 8px; margin: 9px 0 0; color: var(--muted); font-size: 10px; }
+.quant-metric dt { color: var(--muted); }
+.quant-metric dd { margin: 0; color: var(--body); overflow-wrap: anywhere; }
+.quant-metric p { margin: 8px 0 0; color: var(--warning); font-size: 10px; line-height: 1.45; }
+.quant-benchmark-table { display: grid; border-top: 1px solid var(--hairline); }
+.quant-table-head, .quant-table-row { display: grid; grid-template-columns: 1.2fr repeat(4, minmax(80px, 1fr)); align-items: center; gap: 12px; min-height: 42px; border-bottom: 1px solid var(--hairline); font-size: 11px; }
+.quant-table-head { color: var(--muted); font-size: 10px; }
+.quant-table-row > span:not(.source-status) { font-variant-numeric: tabular-nums; }
+.quant-table-row .source-status { font-size: 10px; }
+.quant-table-row .source-status i { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: var(--muted); }
+.quant-table-row .source-status[data-status="AVAILABLE"] i { background: var(--down); }
+.quant-table-row .source-status[data-status="INSUFFICIENT_SAMPLE"] i { background: var(--warning); }
+.quant-prose-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
+.quant-prose-grid .quant-section { margin-top: 22px; }
+.quant-prose-grid ul, .quant-unavailable ul { margin: 0; padding-left: 18px; color: var(--body); line-height: 1.65; }
+.quant-unavailable { margin-top: 26px; padding: 14px 0; border-top: 1px solid var(--hairline-strong); border-bottom: 1px solid var(--hairline-strong); background: var(--canvas-soft); }
+.quant-unavailable h4 { margin: 0 0 7px; padding: 0 14px; font-size: 13px; }
+.quant-unavailable p { margin: 0 14px 8px; color: var(--body); line-height: 1.65; overflow-wrap: anywhere; }
+.quant-unavailable ul { margin: 0 14px; }
+.quant-evidence-grid .quant-section { margin-top: 18px; }
+
 .app-footer { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 max(20px, calc((100vw - 1504px) / 2)); border-top: 1px solid var(--hairline); color: var(--muted); background: var(--canvas-soft); font-size: 11px; }
 .app-footer p { margin: 0; }
 
@@ -272,6 +312,7 @@ th, td { padding: 9px 7px; border-bottom: 1px solid var(--hairline); white-space
   .quote-strip { grid-template-columns: repeat(4, minmax(72px, 1fr)); gap: 10px 14px; }
   .loading-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
   .indicator-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .quant-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 820px) {
   :root { --header-height: 112px; }
@@ -291,6 +332,9 @@ th, td { padding: 9px 7px; border-bottom: 1px solid var(--hairline); white-space
   .agent-layout { grid-template-columns: 1fr; gap: 20px; }
   .agent-sidebar { border-right: 0; padding-right: 0; }
   .agent-output { border-top: 1px solid var(--hairline); padding-top: 22px; }
+  .quant-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .quant-report-header { flex-direction: column; gap: 12px; }
+  .quant-report-header dl { width: 100%; min-width: 0; }
   .app-footer { align-items: flex-start; flex-direction: column; padding: 14px; }
 }
 @media (max-width: 520px) {
@@ -317,6 +361,9 @@ th, td { padding: 9px 7px; border-bottom: 1px solid var(--hairline); white-space
   .agent-command span { display: inline; }
   .report-grid { grid-template-columns: 1fr; }
   .overall-report-header dl { grid-template-columns: 48px minmax(0, 1fr); }
+  .quant-metric-grid, .quant-prose-grid { grid-template-columns: 1fr; }
+  .quant-table-head, .quant-table-row { grid-template-columns: 1.1fr repeat(4, minmax(58px, 1fr)); gap: 6px; font-size: 10px; }
+  .quant-table-head { font-size: 9px; }
   .quick-symbols { width: 100%; flex-direction: column; }
   .quick-symbols button { width: 100%; }
 }

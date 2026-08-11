@@ -70,6 +70,42 @@ test.beforeEach(async ({ page }) => {
   await mockApis(page);
 });
 
+test("quant report renders evidence-backed prose without scores", async ({ page }) => {
+  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
+    reportMeta: { reportType: "QUANT_SINGLE_SECURITY", version: "v2", securityCode: "600519", generatedAt: "2026-08-11T06:00:00Z" },
+    portfolioScope: { scope: "SINGLE_SECURITY", unavailableReasons: ["组合净值、持仓结构、换手率、对冲比例和 Brinson 归因不在单股快照范围内"] },
+    executiveSummary: "报告只展示客观指标与证据化文字。",
+    marketEnvironment: "市场环境与基准表现基于同交易日样本。",
+    securityPerformance: "20 日收益可用，风险指标按日收益计算。",
+    factorObservations: "仅描述价格、波动和流动性观察，不称为 Barra 风险暴露。",
+    valuationAndFundamentals: "估值与基本面以当前快照为边界。",
+    capitalAndEvents: "资金与事件缺失项保持不可用。",
+    riskAndInvalidation: "回撤扩大或样本失效时需重新计算。",
+    outlook: "前瞻仅描述策略适应性，不提供交易建议。",
+    portfolioUnavailable: "组合级数据不可用。",
+    metrics: [
+      { name: "return-20", value: 12.34, unit: "%", window: "20日", asOf: "2026-08-11", availability: "AVAILABLE", method: "区间收益", sourceIds: ["Tencent:bars"], limitations: [] },
+      { name: "var-95", value: null, unit: "%", window: "历史日收益", asOf: "2026-08-11", availability: "INSUFFICIENT_SAMPLE", method: "历史分位数", sourceIds: ["Tencent:bars"], limitations: ["样本不足"] },
+    ],
+    benchmarkComparisons: [
+      { benchmarkId: "CSI_300", excessReturnPercent: 2.1, beta: 0.8, informationRatio: 0.4, asOf: "2026-08-11", availability: "AVAILABLE", method: "同日配对", sourceIds: ["Tencent:bars"], limitations: [] },
+    ],
+    sources: ["Tencent:bars"], methods: ["指标由 Java 确定性规则计算"]
+  } }));
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("button", { name: "生成研究报告" }).click();
+
+  const output = page.locator("#agent-output");
+  await expect(output).toContainText("市场环境与基准表现");
+  await expect(output).toContainText("20 日收益");
+  await expect(output).toContainText("组合级数据不可用");
+  await expect(output).not.toContainText("综合得分");
+  await expect(output.locator(".quality-score, progress, .radar-chart")).toHaveCount(0);
+});
+
 test("overall report model can be selected per request", async ({ page }) => {
   // 验证总体报告的 modelId 由前端选择并传到服务端，而不是误用 institutional-report 默认模型。
   let requestBody = null;
@@ -408,7 +444,7 @@ test("capital view shows latest and multi-window order-size flows", async ({ pag
 });
 
 test("agent renders the structured report even when direction metadata is absent", async ({ page }) => {
-  await page.route("**/api/agent/analyze", (route) => route.fulfill({
+  await page.route("**/api/agent/quant-report", (route) => route.fulfill({
     json: {
       direction: null,
       generationMode: null,
@@ -430,7 +466,7 @@ test("agent renders the structured report even when direction metadata is absent
 });
 
 test("agent renders evidence-backed report diagnostics", async ({ page }) => {
-  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
     direction: "STRONGER", generationMode: "DETERMINISTIC_FALLBACK", evidenceStatus: "SUFFICIENT",
     executiveSummary: "确定性报告完整保留",
     coreDrivers: [{ conclusion: "SMA20高于SMA60", rationale: "趋势与动量互相确认", invalidation: "均线反向交叉" }],
@@ -464,7 +500,7 @@ test("agent renders evidence-backed report diagnostics", async ({ page }) => {
 });
 
 test("agent keeps valid model narrative when only one field falls back", async ({ page }) => {
-  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
     direction: "NEUTRAL", generationMode: "MODEL_ASSISTED_PARTIAL", evidenceStatus: "PARTIAL",
     executiveSummary: "模型主摘要", coreDrivers: [],
     technicalAndFlow: { narrative: "确定性技术参考", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
@@ -508,7 +544,7 @@ test("overall report is independent and appears before the existing research rep
       disclaimer: "仅供学习研究，不构成投资建议",
     },
   } }));
-  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
     direction: "NEUTRAL", generationMode: "DETERMINISTIC_FALLBACK", executiveSummary: "现有研究报告内容",
     technicalAndFlow: { narrative: "技术与资金" }, fundamentals: { narrative: "基本面" }, valuationAndIndustry: { narrative: "估值" },
     coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
@@ -558,7 +594,7 @@ test("overall and institutional reports render deterministic market details", as
       modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
     },
   } }));
-  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
     direction: "NEUTRAL", generationMode: "DETERMINISTIC_FALLBACK", executiveSummary: "现有研究报告内容",
     technicalAndFlow: { narrative: "技术与资金", fundFlowSummary: fundFlowSummarySection() },
     fundamentals: { narrative: "基本面" },
@@ -591,7 +627,7 @@ test("reports keep narratives when deterministic details are absent", async ({ p
       disclaimer: "仅供学习研究，不构成投资建议",
     },
   } }));
-  await page.route("**/api/agent/analyze", (route) => route.fulfill({ json: {
+  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
     executiveSummary: "研究叙述仍然可见",
     technicalAndFlow: { narrative: "技术叙述", fundFlowSummary: null },
     fundamentals: { narrative: "基本面叙述" },

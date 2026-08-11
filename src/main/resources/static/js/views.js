@@ -129,7 +129,7 @@ function renderAgent(snapshot) {
         </div>
         <div id="overall-report-output" class="overall-report-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>所选模型将读取当前股票的完整规范化快照。</p></div>
       </aside>
-      <div id="agent-output" class="agent-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>现有结构化研究报告将在这里显示。</p></div>
+      <div id="agent-output" class="agent-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>单股量化研究报告将在这里显示。</p></div>
     </div>
   </section>`;
 }
