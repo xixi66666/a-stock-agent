@@ -5,6 +5,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.astock.agent.agent.AgentStatusService;
+import com.astock.agent.agent.financial.FinancialNarrative;
+import com.astock.agent.agent.financial.FinancialReportAnalysis;
+import com.astock.agent.agent.financial.FinancialReportService;
 import com.astock.agent.agent.model.ModelNotAvailableException;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.overall.OverallReportResponse;
@@ -15,6 +18,9 @@ import com.astock.agent.agent.report.GenerationMode;
 import com.astock.agent.agent.report.InstitutionalResearchReport;
 import com.astock.agent.agent.quant.QuantResearchReportService;
 import com.astock.agent.agent.quant.QuantResearchReport;
+import com.astock.agent.analysis.FinancialDataUnavailableException;
+import com.astock.agent.analysis.financial.FinancialQualityScore;
+import com.astock.agent.analysis.financial.FinancialTrendResult;
 import com.astock.agent.analysis.institutional.Direction;
 import com.astock.agent.analysis.institutional.EvidenceStatus;
 import java.time.Instant;
@@ -190,5 +196,66 @@ class AgentControllerTest {
                         .content("{\"code\":\"ABC\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_SECURITY_CODE"));
+    }
+
+    @Test
+    void financialReportReturnsAnalysis() throws Exception {
+        FinancialReportService service = mock(FinancialReportService.class);
+        FinancialReportAnalysis analysis = new FinancialReportAnalysis(
+                "600519", "2023-06-30 - 2026-03-31", 12,
+                new FinancialQualityScore(6, "良", 9, List.of(), true),
+                new FinancialTrendResult(List.of(), 12),
+                new FinancialNarrative("F-Score 为 6 分，档位 良。", "信号正常。", "趋势正常。", "无风险。"),
+                GenerationMode.DETERMINISTIC_FALLBACK, null, false,
+                "2026-08-31T00:00:00Z", "financial-fscore-v1", "deterministic",
+                FinancialReportAnalysis.REQUIRED_DISCLAIMER);
+        when(service.generate("600519")).thenReturn(analysis);
+        AgentController controller = new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, null, null, service);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mvc.perform(post("/api/agent/financial-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"600519\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.securityCode").value("600519"))
+                .andExpect(jsonPath("$.qualityScore.total").value(6))
+                .andExpect(jsonPath("$.qualityScore.tier").value("良"))
+                .andExpect(jsonPath("$.generationMode").value("DETERMINISTIC_FALLBACK"));
+        verify(service).generate("600519");
+    }
+
+    @Test
+    void invalidFinancialReportCodeUsesProblemDetails() throws Exception {
+        FinancialReportService service = mock(FinancialReportService.class);
+        AgentController controller = new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, null, null, service);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+
+        mvc.perform(post("/api/agent/financial-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"abc\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SECURITY_CODE"));
+    }
+
+    @Test
+    void unavailableFinancialDataUsesStableProblemDetails() throws Exception {
+        FinancialReportService service = mock(FinancialReportService.class);
+        when(service.generate("600519")).thenThrow(
+                new FinancialDataUnavailableException("Sina statements failed"));
+        AgentController controller = new AgentController(
+                new AgentStatusService(new MockEnvironment()), null, null, null, service);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+
+        mvc.perform(post("/api/agent/financial-report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"600519\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("FINANCIAL_DATA_UNAVAILABLE"));
     }
 }

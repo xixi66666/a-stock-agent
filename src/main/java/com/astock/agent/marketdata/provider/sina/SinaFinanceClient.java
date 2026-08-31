@@ -3,6 +3,8 @@ package com.astock.agent.marketdata.provider.sina;
 import com.astock.agent.marketdata.model.FundFlow;
 import com.astock.agent.marketdata.model.FundamentalData;
 import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.FinancialPeriodStatement;
+import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.marketdata.provider.ProviderHttpClient;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 public final class SinaFinanceClient {
 
@@ -132,6 +135,120 @@ public final class SinaFinanceClient {
         } catch (Exception exception) {
             return DataSection.unavailable("Sina fund flow failed: " + exception.getMessage());
         }
+    }
+
+    public DataSection<FinancialStatementHistory> fetchStatementHistory(SecurityId security) {
+        ensureLiveClient();
+        String paperCode = (security.exchange() == com.astock.agent.marketdata.model.Exchange.SHANGHAI ? "sh" : "sz")
+                + security.code();
+        Map<LocalDate, Map<String, BigDecimal>> lrb = Map.of();
+        Map<LocalDate, Map<String, BigDecimal>> fzb = Map.of();
+        Map<LocalDate, Map<String, BigDecimal>> llb = Map.of();
+        URI firstUri = null;
+        try {
+            for (String type : List.of("lrb", "fzb", "llb")) {
+                URI uri = URI.create("https://quotes.sina.cn/cn/api/openapi.php/"
+                        + "CompanyFinanceService.getFinanceReport2022?paperCode=" + paperCode
+                        + "&source=" + type + "&type=0&page=1&num=12");
+                if (firstUri == null) {
+                    firstUri = uri;
+                }
+                Map<LocalDate, Map<String, BigDecimal>> parsed = parseStatementHistory(
+                        http.get(ProviderId.SINA, uri, "https://finance.sina.com.cn/").utf8Text());
+                if ("lrb".equals(type)) {
+                    lrb = parsed;
+                } else if ("fzb".equals(type)) {
+                    fzb = parsed;
+                } else {
+                    llb = parsed;
+                }
+            }
+            FinancialStatementHistory history = alignStatementHistory(security, lrb, fzb, llb);
+            if (history.periodCount() == 0) {
+                return DataSection.unavailable("Sina statements returned no aligned periods");
+            }
+            return DataSection.healthy(history,
+                    new Provenance(ProviderId.SINA.displayName(), firstUri, null, clock.instant(), false, null));
+        } catch (Exception exception) {
+            return DataSection.unavailable("Sina statements failed: " + exception.getMessage());
+        }
+    }
+
+    public Map<LocalDate, Map<String, BigDecimal>> parseStatementHistory(String body) {
+        try {
+            JsonNode reports = MAPPER.readTree(body).path("result").path("data").path("report_list");
+            Map<LocalDate, Map<String, BigDecimal>> result = new LinkedHashMap<>();
+            var fields = reports.fieldNames();
+            while (fields.hasNext()) {
+                String key = fields.next();
+                if (key == null || key.length() != 8) {
+                    continue;
+                }
+                LocalDate period = LocalDate.of(
+                        Integer.parseInt(key.substring(0, 4)),
+                        Integer.parseInt(key.substring(4, 6)),
+                        Integer.parseInt(key.substring(6, 8)));
+                Map<String, BigDecimal> items = new LinkedHashMap<>();
+                for (JsonNode item : reports.path(key).path("data")) {
+                    String title = item.path("item_title").asText();
+                    BigDecimal value = decimalOrNull(item.path("item_value"));
+                    if (title.isBlank() || value == null) {
+                        continue;
+                    }
+                    items.put(title, value);
+                }
+                result.put(period, items);
+            }
+            if (result.isEmpty()) {
+                throw new IllegalArgumentException("Sina response contains no report period");
+            }
+            return result;
+        } catch (IllegalArgumentException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Unable to parse Sina statement history", exception);
+        }
+    }
+
+    public FinancialStatementHistory alignStatementHistory(SecurityId security,
+            Map<LocalDate, Map<String, BigDecimal>> lrb,
+            Map<LocalDate, Map<String, BigDecimal>> fzb,
+            Map<LocalDate, Map<String, BigDecimal>> llb) {
+        TreeSet<LocalDate> all = new TreeSet<>();
+        all.addAll(lrb.keySet());
+        all.addAll(fzb.keySet());
+        all.addAll(llb.keySet());
+        List<FinancialPeriodStatement> periods = new ArrayList<>();
+        for (LocalDate period : all) {
+            periods.add(new FinancialPeriodStatement(
+                    period,
+                    value(lrb, period, "营业总收入", "营业收入"),
+                    value(lrb, period, "营业成本"),
+                    value(lrb, period, "净利润"),
+                    value(lrb, period, "归属于母公司所有者的净利润", "归属于母公司股东的净利润"),
+                    value(llb, period, "经营活动产生的现金流量净额"),
+                    value(fzb, period, "资产总计"),
+                    value(fzb, period, "负债合计"),
+                    value(fzb, period, "流动资产合计"),
+                    value(fzb, period, "流动负债合计"),
+                    value(fzb, period, "实收资本(或股本)"),
+                    value(fzb, period, "归属于母公司股东权益合计")));
+        }
+        return new FinancialStatementHistory(security, periods);
+    }
+
+    private static BigDecimal value(Map<LocalDate, Map<String, BigDecimal>> table,
+            LocalDate period, String... titles) {
+        Map<String, BigDecimal> items = table.get(period);
+        if (items == null) {
+            return null;
+        }
+        for (String title : titles) {
+            if (items.containsKey(title)) {
+                return items.get(title);
+            }
+        }
+        return null;
     }
 
     private void ensureLiveClient() {

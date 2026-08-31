@@ -147,6 +147,7 @@ flowchart LR
 | POST | `/api/agent/analyze` | 生成结构化研究报告 |
 | GET | `/api/agent/models?capability=overall-report` | 获取可用于总体报告的安全模型目录 |
 | POST | `/api/agent/overall-report` | 使用请求选择的命名模型生成总体报告；`modelId` 可选 |
+| POST | `/api/agent/financial-report` | 财报分析（F-Score 财务质量评分 + 多期趋势 + DeepSeek 叙事，失败时确定性回退） |
 | GET | `/api/system/providers` | 数据源健康状态 |
 | GET | `/actuator/health` | 应用健康检查 |
 

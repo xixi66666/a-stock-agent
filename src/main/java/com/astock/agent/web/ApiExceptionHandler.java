@@ -2,6 +2,7 @@ package com.astock.agent.web;
 
 import com.astock.agent.agent.AgentExecutionException;
 import com.astock.agent.agent.model.ModelNotAvailableException;
+import com.astock.agent.analysis.FinancialDataUnavailableException;
 import com.astock.agent.analysis.ResearchUnavailableException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ResearchUnavailableException.class)
     ResponseEntity<ProblemDetail> researchUnavailable(ResearchUnavailableException exception) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "CORE_DATA_UNAVAILABLE", "核心行情不可用", exception.getMessage());
+    }
+
+    @ExceptionHandler(FinancialDataUnavailableException.class)
+    ResponseEntity<ProblemDetail> financialDataUnavailable(FinancialDataUnavailableException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "FINANCIAL_DATA_UNAVAILABLE",
+                "财报数据不可用", exception.getMessage());
     }
 
     @ExceptionHandler(AgentExecutionException.class)

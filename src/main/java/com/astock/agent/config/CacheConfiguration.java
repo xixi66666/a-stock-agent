@@ -3,6 +3,7 @@ package com.astock.agent.config;
 import com.astock.agent.analysis.StockResearchSnapshot;
 import com.astock.agent.marketdata.model.Announcement;
 import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.IndustryPeerQuote;
 import com.astock.agent.marketdata.model.NewsItem;
 import com.astock.agent.marketdata.model.ResearchItem;
@@ -55,5 +56,10 @@ public class CacheConfiguration {
     @Bean("announcementCache")
     Cache<SecurityId, DataSection<List<Announcement>>> announcementCache() {
         return Caffeine.newBuilder().maximumSize(500).expireAfterWrite(Duration.ofMinutes(30)).build();
+    }
+
+    @Bean("financialHistoryCache")
+    Cache<SecurityId, DataSection<FinancialStatementHistory>> financialHistoryCache() {
+        return Caffeine.newBuilder().maximumSize(500).expireAfterWrite(Duration.ofHours(6)).build();
     }
 }

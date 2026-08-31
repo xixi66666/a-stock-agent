@@ -2,6 +2,8 @@ package com.astock.agent.web;
 
 import com.astock.agent.agent.AgentStatusService;
 import com.astock.agent.agent.StockAnalysisAgent;
+import com.astock.agent.agent.financial.FinancialReportAnalysis;
+import com.astock.agent.agent.financial.FinancialReportService;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.overall.OverallReportResponse;
 import com.astock.agent.agent.overall.OverallReportService;
@@ -33,23 +35,31 @@ public class AgentController {
     private final StockAnalysisAgent agent;
     private final OverallReportService overallReports;
     private final QuantResearchReportService quantReports;
+    private final FinancialReportService financialReports;
 
     public AgentController(AgentStatusService statusService, StockAnalysisAgent agent) {
-        this(statusService, agent, null, null);
+        this(statusService, agent, null, null, null);
     }
 
     public AgentController(AgentStatusService statusService, StockAnalysisAgent agent,
             OverallReportService overallReports) {
-        this(statusService, agent, overallReports, null);
+        this(statusService, agent, overallReports, null, null);
+    }
+
+    public AgentController(AgentStatusService statusService, StockAnalysisAgent agent,
+            OverallReportService overallReports, QuantResearchReportService quantReports) {
+        this(statusService, agent, overallReports, quantReports, null);
     }
 
     @Autowired
     public AgentController(AgentStatusService statusService, StockAnalysisAgent agent,
-            OverallReportService overallReports, QuantResearchReportService quantReports) {
+            OverallReportService overallReports, QuantResearchReportService quantReports,
+            FinancialReportService financialReports) {
         this.statusService = statusService;
         this.agent = agent;
         this.overallReports = overallReports;
         this.quantReports = quantReports;
+        this.financialReports = financialReports;
     }
 
     @GetMapping("/status")
@@ -87,6 +97,16 @@ public class AgentController {
             throw new IllegalStateException("Overall report service is unavailable");
         }
         return overallReports.generate(request.code(), request.modelId());
+    }
+
+    @PostMapping("/financial-report")
+    public FinancialReportAnalysis financialReport(@RequestBody AnalyzeRequest request) {
+        // 财报分析走 financial-report 角色：确定性评分/趋势 + DeepSeek 叙事，失败时确定性回退。
+        SecurityId.parse(request.code());
+        if (financialReports == null) {
+            throw new IllegalStateException("Financial report service is unavailable");
+        }
+        return financialReports.generate(request.code());
     }
 
     @GetMapping("/models")

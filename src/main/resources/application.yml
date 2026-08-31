@@ -38,6 +38,7 @@ app:
     roles:
       institutional-report: primary
       overall-report: deepseek
+      financial-report: deepseek
   agent:
     learning:
       enabled: false

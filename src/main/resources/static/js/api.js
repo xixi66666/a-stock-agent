@@ -71,6 +71,14 @@ export const stockApi = {
       body: JSON.stringify({ code, modelId }),
     });
   },
+  financialReport(code) {
+    // 财报分析固定走 financial-report 后端角色；模型失败时后端返回确定性回退内容。
+    return request("/api/agent/financial-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  },
 };
 
 export function sectionPayload(section, fallback = null) {

@@ -1,0 +1,128 @@
+{
+  "securityCode": "600519",
+  "reportPeriodRange": "2023-06-30 - 2026-03-31",
+  "periodCount": 12,
+  "qualityScore": {
+    "total": 6,
+    "tier": "良",
+    "evaluatedSignals": 9,
+    "sufficientData": true,
+    "signals": [
+      { "number": 1, "name": "TTM ROA 为正", "status": "PASS", "evidence": "条件成立" },
+      { "number": 2, "name": "TTM 经营现金流为正", "status": "PASS", "evidence": "条件成立" },
+      { "number": 3, "name": "ROA 改善", "status": "PASS", "evidence": "条件成立" },
+      { "number": 4, "name": "现金流质量(CFO > 净利润)", "status": "PASS", "evidence": "条件成立" },
+      { "number": 5, "name": "杠杆改善(资产负债率下降)", "status": "PASS", "evidence": "条件成立" },
+      { "number": 6, "name": "流动性改善(流动比率上升)", "status": "FAIL", "evidence": "条件不成立" },
+      { "number": 7, "name": "无股本稀释", "status": "PASS", "evidence": "条件成立" },
+      { "number": 8, "name": "毛利率改善", "status": "FAIL", "evidence": "条件不成立" },
+      { "number": 9, "name": "资产周转率改善", "status": "FAIL", "evidence": "条件不成立" }
+    ]
+  },
+  "trends": {
+    "periodCount": 12,
+    "series": [
+      { "name": "营业总收入", "unit": "元", "caliber": "CUMULATIVE",
+        "points": [
+          { "period": "2023-06-30", "value": 70600000000 }, { "period": "2023-09-30", "value": 105390000000 },
+          { "period": "2023-12-31", "value": 147690000000 }, { "period": "2024-03-31", "value": 46480000000 },
+          { "period": "2024-06-30", "value": 81940000000 }, { "period": "2024-09-30", "value": 120760000000 },
+          { "period": "2024-12-31", "value": 170890000000 }, { "period": "2025-03-31", "value": 51420000000 },
+          { "period": "2025-06-30", "value": 90110000000 }, { "period": "2025-09-30", "value": 133950000000 },
+          { "period": "2025-12-31", "value": 189020000000 }, { "period": "2026-03-31", "value": 57130000000 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, 16.0, 14.6, 15.7, 10.6, 10.0, 10.9, 10.6, 11.1],
+        "direction": "RISING", "acceleration": 0.5, "volatility": 2.1 },
+      { "name": "归母净利润", "unit": "元", "caliber": "CUMULATIVE",
+        "points": [
+          { "period": "2023-06-30", "value": 35950000000 }, { "period": "2023-09-30", "value": 52860000000 },
+          { "period": "2023-12-31", "value": 74730000000 }, { "period": "2024-03-31", "value": 24060000000 },
+          { "period": "2024-06-30", "value": 41690000000 }, { "period": "2024-09-30", "value": 60800000000 },
+          { "period": "2024-12-31", "value": 86230000000 }, { "period": "2025-03-31", "value": 26870000000 },
+          { "period": "2025-06-30", "value": 46700000000 }, { "period": "2025-09-30", "value": 68100000000 },
+          { "period": "2025-12-31", "value": 96120000000 }, { "period": "2026-03-31", "value": 29530000000 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, 15.9, 15.0, 15.4, 11.7, 12.0, 12.0, 11.5, 9.9],
+        "direction": "RISING", "acceleration": -1.6, "volatility": 1.9 },
+      { "name": "净利润", "unit": "元", "caliber": "CUMULATIVE",
+        "points": [
+          { "period": "2023-06-30", "value": 35960000000 }, { "period": "2023-09-30", "value": 52870000000 },
+          { "period": "2023-12-31", "value": 74730000000 }, { "period": "2024-03-31", "value": 24060000000 },
+          { "period": "2024-06-30", "value": 41690000000 }, { "period": "2024-09-30", "value": 60800000000 },
+          { "period": "2024-12-31", "value": 86230000000 }, { "period": "2025-03-31", "value": 26870000000 },
+          { "period": "2025-06-30", "value": 46700000000 }, { "period": "2025-09-30", "value": 68100000000 },
+          { "period": "2025-12-31", "value": 96120000000 }, { "period": "2026-03-31", "value": 29530000000 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, 15.9, 15.0, 15.4, 11.7, 12.0, 12.0, 11.5, 9.9],
+        "direction": "RISING", "acceleration": -1.6, "volatility": 1.9 },
+      { "name": "毛利率", "unit": "%", "caliber": "CUMULATIVE",
+        "points": [
+          { "period": "2023-06-30", "value": 91.7 }, { "period": "2023-09-30", "value": 91.47 },
+          { "period": "2023-12-31", "value": 91.65 }, { "period": "2024-03-31", "value": 92.0 },
+          { "period": "2024-06-30", "value": 91.52 }, { "period": "2024-09-30", "value": 91.51 },
+          { "period": "2024-12-31", "value": 91.76 }, { "period": "2025-03-31", "value": 91.95 },
+          { "period": "2025-06-30", "value": 91.78 }, { "period": "2025-09-30", "value": 91.74 },
+          { "period": "2025-12-31", "value": 91.91 }, { "period": "2026-03-31", "value": 91.86 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, -0.18, 0.04, 0.11, -0.05, 0.26, 0.23, 0.15, -0.09],
+        "direction": "MIXED", "acceleration": -0.24, "volatility": 0.16 },
+      { "name": "净利率", "unit": "%", "caliber": "CUMULATIVE",
+        "points": [
+          { "period": "2023-06-30", "value": 50.94 }, { "period": "2023-09-30", "value": 50.17 },
+          { "period": "2023-12-31", "value": 50.6 }, { "period": "2024-03-31", "value": 51.77 },
+          { "period": "2024-06-30", "value": 50.88 }, { "period": "2024-09-30", "value": 50.35 },
+          { "period": "2024-12-31", "value": 50.46 }, { "period": "2025-03-31", "value": 52.26 },
+          { "period": "2025-06-30", "value": 51.83 }, { "period": "2025-09-30", "value": 50.84 },
+          { "period": "2025-12-31", "value": 50.85 }, { "period": "2026-03-31", "value": 51.68 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, -0.89, 0.18, -0.14, 0.49, 0.95, 0.49, 0.39, -0.58],
+        "direction": "MIXED", "acceleration": -0.97, "volatility": 0.6 },
+      { "name": "ROE_TTM", "unit": "%", "caliber": "CUMULATIVE",
+        "points": [
+          { "period": "2023-06-30", "value": 30.2 }, { "period": "2023-09-30", "value": 30.5 },
+          { "period": "2023-12-31", "value": 33.4 }, { "period": "2024-03-31", "value": 32.6 },
+          { "period": "2024-06-30", "value": 33.9 }, { "period": "2024-09-30", "value": 34.1 },
+          { "period": "2024-12-31", "value": 35.8 }, { "period": "2025-03-31", "value": 35.4 },
+          { "period": "2025-06-30", "value": 35.6 }, { "period": "2025-09-30", "value": 35.7 },
+          { "period": "2025-12-31", "value": 36.0 }, { "period": "2026-03-31", "value": 35.2 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, 3.7, 3.6, 2.4, 2.8, 1.7, 1.6, 0.2, -0.2],
+        "direction": "RISING", "acceleration": -0.4, "volatility": 1.4 },
+      { "name": "经营现金流", "unit": "元", "caliber": "CUMULATIVE",
+        "points": [
+          { "period": "2023-06-30", "value": 29740000000 }, { "period": "2023-09-30", "value": 45920000000 },
+          { "period": "2023-12-31", "value": 66590000000 }, { "period": "2024-03-31", "value": 9100000000 },
+          { "period": "2024-06-30", "value": 36630000000 }, { "period": "2024-09-30", "value": 52450000000 },
+          { "period": "2024-12-31", "value": 92430000000 }, { "period": "2025-03-31", "value": 11080000000 },
+          { "period": "2025-06-30", "value": 41020000000 }, { "period": "2025-09-30", "value": 58760000000 },
+          { "period": "2025-12-31", "value": 105200000000 }, { "period": "2026-03-31", "value": 12400000000 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, 23.2, 14.2, 38.8, 21.8, 12.0, 12.0, 13.8, 11.9],
+        "direction": "RISING", "acceleration": -1.9, "volatility": 9.8 },
+      { "name": "资产负债率", "unit": "%", "caliber": "POINT_IN_TIME",
+        "points": [
+          { "period": "2023-06-30", "value": 14.69 }, { "period": "2023-09-30", "value": 16.48 },
+          { "period": "2023-12-31", "value": 17.97 }, { "period": "2024-03-31", "value": 15.64 },
+          { "period": "2024-06-30", "value": 18.03 }, { "period": "2024-09-30", "value": 19.91 },
+          { "period": "2024-12-31", "value": 19.37 }, { "period": "2025-03-31", "value": 16.83 },
+          { "period": "2025-06-30", "value": 18.79 }, { "period": "2025-09-30", "value": 19.93 },
+          { "period": "2025-12-31", "value": 19.38 }, { "period": "2026-03-31", "value": 17.03 }
+        ],
+        "yoyGrowthPercent": [null, null, null, null, 3.34, 3.43, 1.4, 1.19, 0.76, 0.02, 0.01, 0.2],
+        "direction": "RISING", "acceleration": 0.19, "volatility": 1.3 }
+    ]
+  },
+  "narrative": {
+    "tierInterpretation": "按确定性规则计算，600519 财务质量 F-Score 为 6 分，档位 良（0-2 弱 / 3-5 中 / 6-7 良 / 8-9 优），共评估 9 个信号。",
+    "signalCommentary": "盈利、现金流、杠杆与无稀释信号通过；流动比率与资产周转率信号未通过。",
+    "trendCommentary": "营业总收入方向为上升，资产负债率保持低位。",
+    "riskNotes": "趋势基于报告期累计口径，同比为当期与上年同期比较。"
+  },
+  "generationMode": "DETERMINISTIC_FALLBACK",
+  "diagnostic": null,
+  "financialIndustry": false,
+  "generatedAt": "2026-08-31T00:00:00Z",
+  "ruleVersion": "financial-fscore-v1",
+  "promptVersion": "deterministic",
+  "disclaimer": "仅供学习研究，不构成投资建议"
+}

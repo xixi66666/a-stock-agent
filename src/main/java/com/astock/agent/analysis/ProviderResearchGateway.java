@@ -4,6 +4,7 @@ import com.astock.agent.analysis.institutional.IndustryValuationService;
 import com.astock.agent.marketdata.model.Announcement;
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.FundFlow;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.NewsItem;
@@ -106,6 +107,9 @@ public final class ProviderResearchGateway implements ResearchGateway {
 
     @Override public DataSection<?> capital(SecurityId security) { return eastmoney.fetchCapitalData(security); }
     @Override public DataSection<?> fundamentals(SecurityId security) { return sina.fetchStatements(security); }
+    @Override public DataSection<FinancialStatementHistory> financialHistory(SecurityId security) {
+        return sina.fetchStatementHistory(security);
+    }
     @Override public DataSection<List<ResearchItem>> research(SecurityId security) {
         return cached(security, researchCache, () -> eastmoney.fetchReports(security));
     }

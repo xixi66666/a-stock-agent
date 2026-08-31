@@ -1,6 +1,8 @@
 package com.astock.agent.agent;
 
 import com.astock.agent.agent.model.NamedChatClientRegistry;
+import com.astock.agent.agent.financial.FinancialReportService;
+import com.astock.agent.agent.financial.FinancialReportValidator;
 import com.astock.agent.agent.overall.OverallReportService;
 import com.astock.agent.agent.overall.OverallReportValidator;
 import com.astock.agent.agent.quant.QuantFactsCalculator;
@@ -8,8 +10,14 @@ import com.astock.agent.agent.quant.QuantReportComposer;
 import com.astock.agent.agent.quant.QuantResearchReportService;
 import com.astock.agent.agent.report.ModelFailureClassifier;
 import com.astock.agent.analysis.ResearchAggregationService;
+import com.astock.agent.analysis.ResearchGateway;
+import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.FinancialStatementHistory;
+import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.marketdata.provider.BenchmarkDataGateway;
+import com.github.benmanes.caffeine.cache.Cache;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -64,5 +72,16 @@ public class AgentConfiguration {
             BenchmarkDataGateway benchmarkDataGateway) {
         return new QuantResearchReportService(tools, benchmarkDataGateway,
                 new QuantFactsCalculator(), new QuantReportComposer(), registry);
+    }
+
+    @Bean
+    FinancialReportService financialReportService(
+            NamedChatClientRegistry registry,
+            StockAgentTools tools,
+            ResearchGateway gateway,
+            @Qualifier("financialHistoryCache")
+            Cache<SecurityId, DataSection<FinancialStatementHistory>> historyCache) {
+        return new FinancialReportService(gateway, tools, registry, historyCache,
+                new FinancialReportValidator(), new ModelFailureClassifier());
     }
 }

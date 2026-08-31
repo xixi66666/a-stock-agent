@@ -9,6 +9,7 @@ import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
 import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
+import { activateFinancialChart, renderFinancialReport, renderFinancialViewShell } from "./financial-view.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -29,6 +30,10 @@ const state = {
   overallReportResponse: null,
   overallReportFeedback: null,
   overallReportRequestId: 0,
+  financialReportPhase: "idle",
+  financialReportResult: null,
+  financialReportRequestId: 0,
+  financialController: null,
   loadGeneration: 0,
 };
 
@@ -102,6 +107,18 @@ function renderCurrentView() {
   $("#workspace-state").hidden = true;
   state.technicalController?.dispose();
   state.technicalController = null;
+  state.financialController?.dispose();
+  state.financialController = null;
+  if (state.currentView === "financial") {
+    content.innerHTML = renderFinancialViewShell();
+    bindFinancialAction();
+    if (state.financialReportResult) {
+      $("#financial-output").innerHTML = renderFinancialReport(state.financialReportResult);
+      state.financialController = activateFinancialChart(state.financialReportResult, $("#financial-trend-chart"));
+    }
+    refreshIcons();
+    return;
+  }
   if (state.currentView === "technical") {
     content.innerHTML = renderTechnicalView(state.snapshot.technical);
   } else {
@@ -488,6 +505,41 @@ async function loadOverallModels() {
   syncOverallModelControls();
 }
 
+function bindFinancialAction() {
+  // 财报分析按需生成:评分与趋势由后端确定性计算,DeepSeek 只负责叙事,失败时后端回退确定性文字。
+  const button = $("#run-financial-report");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    const reportCode = state.currentCode;
+    const generation = state.loadGeneration;
+    const requestId = ++state.financialReportRequestId;
+    const isCurrent = () => state.financialReportRequestId === requestId
+      && state.currentCode === reportCode && state.loadGeneration === generation;
+    state.financialReportPhase = "loading";
+    button.disabled = true;
+    const status = $("#financial-request-status");
+    if (status) status.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在生成财报分析</span>';
+    const output = $("#financial-output");
+    try {
+      const report = await stockApi.financialReport(reportCode);
+      if (!isCurrent()) return;
+      state.financialReportResult = report;
+      if (output) output.innerHTML = renderFinancialReport(report);
+      state.financialController = activateFinancialChart(report, $("#financial-trend-chart"));
+      refreshIcons();
+    } catch (error) {
+      if (!isCurrent()) return;
+      if (output) output.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>财报分析不可用</span><p>${escapeText(error.message || "请检查数据源配置")}</p>`;
+    } finally {
+      if (isCurrent()) {
+        state.financialReportPhase = "idle";
+        button.disabled = false;
+        if (status) status.replaceChildren();
+      }
+    }
+  });
+}
+
 function bindOverallModelControls() {
   const select = $("#overall-model-select");
   if (!select) return;
@@ -556,6 +608,8 @@ async function loadStock(code) {
   state.institutionalReportPhase = "idle";
   state.overallReportResponse = null;
   state.institutionalReport = null;
+  state.financialReportResult = null;
+  state.financialReportRequestId += 1;
   setPhase("loading", `正在获取 ${code} 的公开市场数据`);
   $("#workspace-state").hidden = true;
   $("#view-content").hidden = false;

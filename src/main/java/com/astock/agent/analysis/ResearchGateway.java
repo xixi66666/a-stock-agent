@@ -2,6 +2,7 @@ package com.astock.agent.analysis;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.SecurityId;
@@ -16,6 +17,7 @@ public interface ResearchGateway {
     DataSection<?> fundFlow(SecurityId security);
     DataSection<?> capital(SecurityId security);
     DataSection<?> fundamentals(SecurityId security);
+    DataSection<FinancialStatementHistory> financialHistory(SecurityId security);
     DataSection<?> research(SecurityId security);
     DataSection<?> news(SecurityId security);
     DataSection<?> announcements(SecurityId security);

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
+import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.FundFlow;
 import com.astock.agent.marketdata.model.IndustryValuationData;
 import com.astock.agent.marketdata.model.Provenance;
@@ -133,6 +134,10 @@ class ResearchAggregationServiceTest {
         @Override public DataSection<?> fundFlow(SecurityId security) { return DataSection.healthy(List.of(), source); }
         @Override public DataSection<?> capital(SecurityId security) { return DataSection.healthy(List.of(), source); }
         @Override public DataSection<?> fundamentals(SecurityId security) { return DataSection.healthy(List.of(), source); }
+        @Override
+        public DataSection<FinancialStatementHistory> financialHistory(SecurityId security) {
+            return DataSection.unavailable("not stubbed");
+        }
         @Override public DataSection<?> research(SecurityId security) { return DataSection.healthy(List.of(), source); }
         @Override public DataSection<?> news(SecurityId security) { return DataSection.unavailable("simulated provider block"); }
         @Override public DataSection<?> announcements(SecurityId security) { return DataSection.healthy(List.of(), source); }
