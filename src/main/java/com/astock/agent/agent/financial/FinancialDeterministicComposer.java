@@ -13,29 +13,40 @@ public final class FinancialDeterministicComposer {
         FinancialQualityScore score = pack.qualityScore();
         String tierText;
         if (score.sufficientData()) {
-            tierText = "按确定性规则计算，" + pack.securityCode()
-                    + " 财务质量 F-Score 为 " + score.total() + " 分，档位 " + score.tier()
-                    + "（0-2 弱 / 3-5 中 / 6-7 良 / 8-9 优），共评估 "
-                    + score.evaluatedSignals() + " 个信号。";
+            tierText = "总体判断：财务质量为“" + score.tier() + "”。F-Score 为 "
+                    + score.total() + " 分（满分 9 分），说明盈利、现金流、杠杆与经营效率的综合表现"
+                    + tierMeaning(score.tier()) + "。";
         } else {
-            tierText = "报告期不足 4 期，无法计算财务质量评分，当前状态为数据不足。";
+            tierText = "总体判断：数据不足。报告期不足 4 期，暂时无法形成可靠的财务质量评分。";
         }
         return new FinancialNarrative(tierText, signalText(pack), trendText(pack), riskText(pack));
     }
 
     private String signalText(FinancialEvidencePackage pack) {
-        List<String> lines = pack.qualityScore().signals().stream()
-                .map(signal -> signal.number() + " " + signal.name() + "："
-                        + statusText(signal.status()) + "。" + signal.evidence())
-                .toList();
-        return lines.isEmpty() ? "当前没有可评估的财务质量信号。" : String.join(" ", lines);
+        List<FinancialQualityScore.SignalResult> signals = pack.qualityScore().signals();
+        if (signals.isEmpty()) {
+            return "当前没有可评估的财务质量信号。";
+        }
+        List<String> sections = new ArrayList<>();
+        appendSignalGroup(sections, signals, FinancialQualityScore.SignalStatus.PASS,
+                "表现较好");
+        appendSignalGroup(sections, signals, FinancialQualityScore.SignalStatus.FAIL,
+                "需要关注");
+        appendSignalGroup(sections, signals, FinancialQualityScore.SignalStatus.UNVERIFIED,
+                "暂时无法判断");
+        return String.join("。", sections) + "。详细数值与判定依据见下方信号明细。";
     }
 
     private String trendText(FinancialEvidencePackage pack) {
-        List<String> lines = pack.trends().series().stream()
-                .map(series -> series.name() + " 方向为 " + directionText(series.direction()))
-                .toList();
-        return lines.isEmpty() ? "当前没有可展示的趋势序列。" : String.join(" ", lines);
+        if (pack.trends().series().isEmpty()) {
+            return "当前没有可展示的趋势序列。";
+        }
+        List<String> sections = new ArrayList<>();
+        appendTrendGroup(sections, pack, "RISING", "上升");
+        appendTrendGroup(sections, pack, "FALLING", "下降");
+        appendTrendGroup(sections, pack, "MIXED", "波动");
+        appendTrendGroup(sections, pack, "INSUFFICIENT", "样本不足");
+        return String.join("；", sections) + "。关键同比变化见上方趋势摘要。";
     }
 
     private String riskText(FinancialEvidencePackage pack) {
@@ -46,24 +57,43 @@ public final class FinancialDeterministicComposer {
         if (pack.financialIndustry()) {
             risks.add("该公司属于金融行业，毛利率与资产周转率信号不适用传统口径。");
         }
-        risks.add("趋势基于报告期累计口径，同比为当期与上年同期比较。");
+        risks.add("口径说明：利润表和现金流量表是年初至今累计值，同比表示本期与上年同期比较，不代表单季度变化。");
         return String.join(" ", risks);
     }
 
-    private static String statusText(FinancialQualityScore.SignalStatus status) {
-        return switch (status) {
-            case PASS -> "通过";
-            case FAIL -> "未通过";
-            case UNVERIFIED -> "无法评估";
-        };
+    private static void appendSignalGroup(List<String> output,
+            List<FinancialQualityScore.SignalResult> signals,
+            FinancialQualityScore.SignalStatus status,
+            String label) {
+        List<String> names = signals.stream()
+                .filter(signal -> signal.status() == status)
+                .map(FinancialQualityScore.SignalResult::name)
+                .toList();
+        if (!names.isEmpty()) {
+            output.add(label + "：" + String.join("、", names));
+        }
     }
 
-    private static String directionText(String direction) {
-        return switch (direction) {
-            case "RISING" -> "上升";
-            case "FALLING" -> "下降";
-            case "MIXED" -> "波动";
-            default -> "样本不足";
+    private static void appendTrendGroup(List<String> output,
+            FinancialEvidencePackage pack, String direction, String label) {
+        List<String> names = pack.trends().series().stream()
+                .filter(series -> direction.equals(series.direction())
+                        || ("INSUFFICIENT".equals(direction)
+                        && !List.of("RISING", "FALLING", "MIXED").contains(series.direction())))
+                .map(com.astock.agent.analysis.financial.FinancialTrendResult.TrendSeries::name)
+                .toList();
+        if (!names.isEmpty()) {
+            output.add(label + "：" + String.join("、", names));
+        }
+    }
+
+    private static String tierMeaning(String tier) {
+        return switch (tier) {
+            case "优" -> "较强";
+            case "良" -> "较稳健，但仍有需要关注的项目";
+            case "中" -> "一般，优势与风险并存";
+            case "弱" -> "偏弱，需要重点核查未通过项目";
+            default -> "尚不明确";
         };
     }
 }

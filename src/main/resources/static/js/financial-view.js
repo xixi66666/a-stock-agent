@@ -64,19 +64,121 @@ function renderSignals(report) {
 
 function renderNarrative(report) {
   const narrative = report.narrative || {};
-  return `<section class="financial-narrative"><h4>解读</h4>
-    <p><strong>评分档位</strong> ${escapeText(narrative.tierInterpretation || "UNAVAILABLE：暂无解读。")}</p>
-    <p><strong>信号归因</strong> ${escapeText(narrative.signalCommentary || "UNAVAILABLE：暂无归因。")}</p>
-    <p><strong>趋势</strong> ${escapeText(narrative.trendCommentary || "UNAVAILABLE：暂无趋势解读。")}</p>
-    <p><strong>风险与限制</strong> ${escapeText(narrative.riskNotes || "UNAVAILABLE：暂无风险说明。")}</p>
+  const items = [
+    ["总体结论", narrative.tierInterpretation || "UNAVAILABLE：暂无总体结论。"],
+    ["为什么得出这个结论", narrative.signalCommentary || "UNAVAILABLE：暂无归因。"],
+    ["经营变化怎么看", narrative.trendCommentary || "UNAVAILABLE：暂无趋势解读。"],
+    ["需要留意什么", narrative.riskNotes || "UNAVAILABLE：暂无风险说明。"],
+  ];
+  return `<section class="financial-narrative"><h4>分析结论</h4>
+    <div class="financial-narrative-list">${items.map(([label, text]) => `<div class="financial-narrative-item">
+      <strong>${escapeText(label)}</strong><p>${escapeText(text)}</p>
+    </div>`).join("")}</div>
+  </section>`;
+}
+
+function renderAnalysisOverview(report) {
+  const score = report.qualityScore || {};
+  const signals = Array.isArray(score.signals) ? score.signals : [];
+  const pass = signals.filter((signal) => signal.status === "PASS");
+  const fail = signals.filter((signal) => signal.status === "FAIL");
+  const unverified = signals.filter((signal) => signal.status === "UNVERIFIED");
+  const focus = fail.length ? `重点关注：${fail.map((signal) => signal.name).join("、")}`
+    : "当前没有未通过的财务质量信号";
+  return `<section class="financial-analysis-overview" aria-label="财务分析摘要">
+    <div class="financial-overview-conclusion">
+      <span>总体判断</span><strong>财务质量${escapeText(score.tier || "数据不足")}</strong>
+      <p>${escapeText(focus)}</p>
+    </div>
+    <div class="financial-overview-counts" aria-label="信号统计">
+      <span><strong>${pass.length}</strong> 项通过</span>
+      <span><strong>${fail.length}</strong> 项需关注</span>
+      ${unverified.length ? `<span><strong>${unverified.length}</strong> 项暂无法判断</span>` : ""}
+    </div>
+  </section>`;
+}
+
+function latestComparableValue(series) {
+  const values = Array.isArray(series?.yoyGrowthPercent) ? series.yoyGrowthPercent : [];
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    if (values[index] != null && Number.isFinite(Number(values[index]))) return Number(values[index]);
+  }
+  return null;
+}
+
+function renderTrendSnapshot(report) {
+  const seriesList = Array.isArray(report.trends?.series) ? report.trends.series : [];
+  const preferred = ["营业总收入", "归母净利润", "经营现金流", "资产负债率"];
+  const directionLabel = { RISING: "上升", FALLING: "下降", MIXED: "波动", INSUFFICIENT: "样本不足" };
+  const items = preferred.map((name) => seriesList.find((series) => series.name === name)).filter(Boolean);
+  if (!items.length) return "";
+  return `<section class="financial-trend-snapshot" aria-label="关键趋势摘要">
+    <div class="financial-section-heading"><h4>关键变化</h4><span>最新可比报告期</span></div>
+    <div class="financial-trend-snapshot-grid">${items.map((series) => {
+      const value = latestComparableValue(series);
+      const change = value == null ? "暂无同比" : series.unit === "%"
+        ? `同比变动 ${value >= 0 ? "+" : ""}${value.toFixed(1)} 个百分点`
+        : `同比 ${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+      return `<div class="trend-snapshot-item"><span>${escapeText(series.name)}</span>
+        <strong>${escapeText(change)}</strong><small>${escapeText(directionLabel[series.direction] || "样本不足")}</small></div>`;
+    }).join("")}</div>
+  </section>`;
+}
+
+function formatFinancialAmount(value) {
+  if (value == null || value === "") return "--";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "--";
+  const absolute = Math.abs(amount);
+  if (absolute >= 1e8) return `${(amount / 1e8).toFixed(1)} 亿`;
+  if (absolute >= 1e4) return `${(amount / 1e4).toFixed(1)} 万`;
+  return amount.toLocaleString("zh-CN");
+}
+
+function renderLatestPeriod(report) {
+  const section = report.latestPeriod || {};
+  const latest = section.payload;
+  if (!latest) {
+    return `<section class="financial-latest-period"><h4>最新一期财报</h4>
+      <p class="muted">UNAVAILABLE：最新一期财报明细不可用。</p></section>`;
+  }
+  const provenance = section.provenance || {};
+  const fields = [
+    ["营业总收入", latest.operatingRevenue, "累计"],
+    ["营业总成本", latest.operatingCost, "累计"],
+    ["净利润", latest.netProfit, "累计"],
+    ["归母净利润", latest.netProfitAttributable, "累计"],
+    ["经营现金流", latest.operatingCashFlow, "累计"],
+    ["总资产", latest.totalAssets, "期末"],
+    ["总负债", latest.totalLiabilities, "期末"],
+    ["流动资产", latest.currentAssets, "期末"],
+    ["流动负债", latest.currentLiabilities, "期末"],
+    ["归母权益", latest.equityAttributable, "期末"],
+    ["总股本", latest.shareCapital, "期末"],
+  ];
+  const metrics = fields.map(([label, value, caliber]) => `<div class="financial-period-metric">
+    <span>${escapeText(label)} <small>${escapeText(caliber)}</small></span>
+    <strong>${escapeText(formatFinancialAmount(value))}</strong>
+  </div>`).join("");
+  const sourceLabel = provenance.provider || "来源未知";
+  return `<section class="financial-latest-period">
+    <div class="financial-period-heading">
+      <div><h4>最新一期财报</h4><strong>${escapeText(latest.reportPeriod || "--")}</strong></div>
+      <span class="source-status" data-status="${escapeText(section.status || "UNVERIFIED")}"><span></span>${escapeText(sourceLabel)}</span>
+    </div>
+    <div class="financial-period-grid">${metrics}</div>
+    <p class="muted financial-note">利润表与现金流量表为年初至今累计口径；资产负债表为报告期末时点值。缺失字段显示为“--”。</p>
   </section>`;
 }
 
 function renderDiagnostic(diagnostic) {
   if (!diagnostic || !Object.keys(diagnostic).length) return "";
+  const issues = Array.isArray(diagnostic.validationIssues) && diagnostic.validationIssues.length
+    ? `<dt>校验问题</dt><dd>${escapeText(diagnostic.validationIssues.join(", "))}</dd>` : "";
   return `<details class="model-diagnostic"><summary>模型诊断 · ${escapeText(diagnostic.errorCode || "MODEL_FAILURE")}</summary>
     <dl><dt>阶段</dt><dd>${escapeText(diagnostic.failureStage || "--")}</dd>
     <dt>原因</dt><dd>${escapeText(diagnostic.message || "--")}</dd>
+    ${issues}
     <dt>模型</dt><dd>${escapeText(diagnostic.modelName || "--")}</dd>
     <dt>追踪 ID</dt><dd>${escapeText(diagnostic.traceId || "--")}</dd></dl></details>`;
 }
@@ -99,6 +201,9 @@ export function renderFinancialReport(report) {
         <dt>规则版本</dt><dd>${escapeText(report.ruleVersion || "--")}</dd>
       </dl>
     </header>
+    ${renderLatestPeriod(report)}
+    ${renderAnalysisOverview(report)}
+    ${renderTrendSnapshot(report)}
     <div class="financial-grid">
       ${renderScoreCard(report)}
       <div id="financial-trend-chart" class="financial-chart" aria-label="多期财务趋势图"></div>

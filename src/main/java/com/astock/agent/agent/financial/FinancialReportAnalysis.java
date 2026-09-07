@@ -4,12 +4,15 @@ import com.astock.agent.agent.report.GenerationMode;
 import com.astock.agent.agent.report.ModelDiagnostic;
 import com.astock.agent.analysis.financial.FinancialQualityScore;
 import com.astock.agent.analysis.financial.FinancialTrendResult;
+import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.FinancialPeriodStatement;
 
 /** 财报分析最终响应:评分、趋势、叙事、生成模式与诊断。 */
 public record FinancialReportAnalysis(
         String securityCode,
         String reportPeriodRange,
         int periodCount,
+        DataSection<FinancialPeriodStatement> latestPeriod,
         FinancialQualityScore qualityScore,
         FinancialTrendResult trends,
         FinancialNarrative narrative,

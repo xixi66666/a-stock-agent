@@ -2,6 +2,8 @@ package com.astock.agent.web;
 
 import com.astock.agent.analysis.ResearchAggregationService;
 import com.astock.agent.analysis.StockResearchSnapshot;
+import com.astock.agent.analysis.candlestick.CandlestickAnalysis;
+import com.astock.agent.analysis.candlestick.CandlestickAnalysisService;
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.technical.TechnicalAnalysisService;
@@ -35,21 +37,27 @@ public class StockController {
             new StockSearchResult("000858", "五粮液", "SHENZHEN"));
     private final Function<SecurityId, StockResearchSnapshot> research;
     private final TechnicalAnalysisService technicalService;
+    private final CandlestickAnalysisService candlestickService;
 
     @Autowired
-    public StockController(ResearchAggregationService research, TechnicalAnalysisService technicalService) {
-        this(research::research, technicalService);
+    public StockController(
+            ResearchAggregationService research,
+            TechnicalAnalysisService technicalService,
+            CandlestickAnalysisService candlestickService) {
+        this(research::research, technicalService, candlestickService);
     }
 
     StockController(Function<SecurityId, StockResearchSnapshot> research) {
-        this(research, null);
+        this(research, null, null);
     }
 
-    private StockController(
+    StockController(
             Function<SecurityId, StockResearchSnapshot> research,
-            TechnicalAnalysisService technicalService) {
+            TechnicalAnalysisService technicalService,
+            CandlestickAnalysisService candlestickService) {
         this.research = research;
         this.technicalService = technicalService;
+        this.candlestickService = candlestickService;
     }
 
     @GetMapping("/search")
@@ -88,6 +96,38 @@ public class StockController {
         return DataSection.healthy(
                 technicalService.analyze(snapshot.bars().payload().orElseThrow(), timeframe),
                 snapshot.bars().provenance().orElseThrow());
+    }
+
+    @GetMapping("/{code}/candlestick")
+    public DataSection<?> candlestick(
+            @PathVariable String code,
+            @RequestParam(defaultValue = "DAILY") Timeframe timeframe) {
+        StockResearchSnapshot snapshot = snapshot(code);
+        if (candlestickService == null) {
+            return DataSection.unavailable("Candlestick analysis service is unavailable");
+        }
+        if (snapshot.bars().payload().isEmpty() || snapshot.bars().provenance().isEmpty()) {
+            return DataSection.unavailable("Candlestick analysis requires K-line data for " + timeframe);
+        }
+        try {
+            CandlestickAnalysis analysis = candlestickService.analyze(
+                    snapshot.bars().payload().orElseThrow(), timeframe);
+            return derivedSection(snapshot.bars(), analysis);
+        } catch (IllegalArgumentException exception) {
+            return DataSection.unavailable("Candlestick analysis unavailable: " + exception.getMessage());
+        }
+    }
+
+    private static <T> DataSection<T> derivedSection(DataSection<?> source, T payload) {
+        var provenance = source.provenance().orElseThrow();
+        return switch (source.status()) {
+            case HEALTHY -> DataSection.healthy(payload, provenance);
+            case DEGRADED -> DataSection.degraded(payload, provenance, source.issues());
+            case STALE -> DataSection.stale(payload, provenance, source.issues());
+            case UNVERIFIED -> DataSection.unverified(payload, provenance, source.issues());
+            case UNAVAILABLE -> DataSection.unavailable(source.issues().isEmpty()
+                    ? "K-line data is unavailable" : source.issues().getFirst());
+        };
     }
 
     @GetMapping("/{code}/sources")

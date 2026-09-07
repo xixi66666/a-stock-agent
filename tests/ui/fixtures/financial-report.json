@@ -2,6 +2,32 @@
   "securityCode": "600519",
   "reportPeriodRange": "2023-06-30 - 2026-03-31",
   "periodCount": 12,
+  "latestPeriod": {
+    "status": "HEALTHY",
+    "payload": {
+      "reportPeriod": "2026-03-31",
+      "operatingRevenue": 57130000000,
+      "operatingCost": 4650000000,
+      "netProfit": 29530000000,
+      "netProfitAttributable": 29520000000,
+      "operatingCashFlow": 12400000000,
+      "totalAssets": 345900000000,
+      "totalLiabilities": 58900000000,
+      "currentAssets": 287400000000,
+      "currentLiabilities": 55200000000,
+      "shareCapital": 1256000000,
+      "equityAttributable": 286800000000
+    },
+    "provenance": {
+      "provider": "fixture",
+      "sourceUrl": "https://example.com/financials",
+      "providerTimestamp": "2026-04-29T00:00:00Z",
+      "fetchedAt": "2026-08-31T00:00:00Z",
+      "cached": false,
+      "fallbackProvider": null
+    },
+    "issues": []
+  },
   "qualityScore": {
     "total": 6,
     "tier": "良",

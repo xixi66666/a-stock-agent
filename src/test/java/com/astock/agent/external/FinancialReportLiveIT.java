@@ -28,6 +28,10 @@ class FinancialReportLiveIT {
         FinancialReportAnalysis analysis = service.generate("600519");
 
         assertThat(analysis.periodCount()).isGreaterThanOrEqualTo(8);
+        assertThat(analysis.latestPeriod().payload()).isPresent();
+        assertThat(analysis.latestPeriod().provenance()).isPresent();
+        assertThat(analysis.latestPeriod().payload().orElseThrow().reportPeriod())
+                .isEqualTo(analysis.trends().series().getFirst().points().getLast().period());
         assertThat(analysis.qualityScore().sufficientData()).isTrue();
         assertThat(analysis.qualityScore().signals()).hasSize(9);
         assertThat(analysis.trends().series()).hasSize(8);

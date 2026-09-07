@@ -39,6 +39,9 @@ export const stockApi = {
   technical(code, timeframe = "DAILY") {
     return request(`/api/stocks/${encodeURIComponent(code)}/technical?timeframe=${timeframe}`);
   },
+  candlestick(code, timeframe = "DAILY") {
+    return request(`/api/stocks/${encodeURIComponent(code)}/candlestick?timeframe=${encodeURIComponent(timeframe)}`);
+  },
   sources(code) {
     return request(`/api/stocks/${encodeURIComponent(code)}/sources`);
   },

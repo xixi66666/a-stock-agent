@@ -5,6 +5,7 @@
  * 数据源不可用状态,以及四种视口下无横向溢出。不访问真实行情 Provider 或大模型 API。
  */
 const { test, expect } = require("@playwright/test");
+const path = require("path");
 const baseSnapshot = require("./fixtures/partial-snapshot.json");
 const financialReport = require("./fixtures/financial-report.json");
 
@@ -18,6 +19,9 @@ const viewports = [
 async function mockApis(page) {
   await page.route("**/api/agent/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
   await page.route("**/api/stocks/600519/snapshot", (route) => route.fulfill({ json: baseSnapshot }));
+  await page.route("**/api/stocks/600519/candlestick**", (route) => route.fulfill({ json: {
+    status: "UNAVAILABLE", payload: null, provenance: null, issues: ["该测试不加载蜡烛图数据"],
+  } }));
   await page.route("**/api/stocks/search**", (route) => route.fulfill({ json: [{ code: "600519", name: "贵州茅台", exchange: "SHANGHAI" }] }));
   await page.route("**/api/agent/financial-report", (route) => route.fulfill({ json: financialReport }));
 }
@@ -39,14 +43,31 @@ for (const viewport of viewports) {
     await page.getByRole("button", { name: "生成财报分析" }).click();
 
     await expect(page.locator(".financial-score")).toHaveText("6");
+    await expect(page.locator(".financial-latest-period")).toContainText("2026-03-31");
+    await expect(page.locator(".financial-latest-period")).toContainText("营业总收入");
+    await expect(page.locator(".financial-latest-period")).toContainText("571.3 亿");
+    await expect(page.locator(".financial-latest-period .source-status")).toContainText("fixture");
+    await expect(page.locator(".financial-analysis-overview")).toContainText("6 项通过");
+    await expect(page.locator(".financial-analysis-overview")).toContainText("3 项需关注");
+    await expect(page.locator(".financial-trend-snapshot .trend-snapshot-item")).toHaveCount(4);
+    await expect(page.locator(".financial-trend-snapshot")).toContainText("营业总收入");
+    await expect(page.locator(".financial-trend-snapshot")).toContainText("同比 +11.1%");
     await expect(page.locator(".financial-signals li")).toHaveCount(9);
     await expect(page.locator("#financial-trend-chart canvas")).toBeVisible();
-    await expect(page.locator(".financial-narrative")).toContainText("良");
+    await expect(page.locator(".financial-narrative")).toContainText("总体结论");
+    await expect(page.locator(".financial-narrative")).toContainText("为什么得出这个结论");
+    await expect(page.locator(".financial-narrative")).toContainText("需要留意什么");
     await expect(page.locator(".report-disclaimer")).toContainText("仅供学习研究，不构成投资建议");
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
+    if (process.env.UI_CAPTURE_DIR) {
+      await page.screenshot({
+        path: path.resolve(process.env.UI_CAPTURE_DIR, `financial-${viewport.width}x${viewport.height}.png`),
+        fullPage: true,
+      });
+    }
   });
 }
 

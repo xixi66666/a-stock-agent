@@ -1,0 +1,347 @@
+[
+  {
+    "id": "nison-reversal",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第四章 反转形态",
+    "sourceLocator": "content/chapters/010-section-010.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "TECHNICAL",
+    "title": "反转警告与前置趋势",
+    "summary": "反转形态提示原趋势可能变化，后续也可能进入横盘，不能把形态名称直接解释为相反方向的新趋势。",
+    "application": "先确认形态前的趋势，再分别记录构成、位置、后续确认和失效条件。",
+    "requiredEvidence": [
+      "已完成且经过校验的 OHLC 序列",
+      "形态之前的趋势",
+      "后续完整周期"
+    ],
+    "limitations": [
+      "项目中的趋势窗口属于工程定义",
+      "形态不是确定性预测，也不代表胜率"
+    ],
+    "keywords": [
+      "反转",
+      "前置趋势",
+      "横盘",
+      "确认",
+      "锤子线",
+      "上吊线",
+      "吞没",
+      "刺透",
+      "乌云盖顶",
+      "reversal",
+      "engulfing"
+    ],
+    "patternIds": [
+      "HAMMER",
+      "HANGING_MAN",
+      "BULLISH_ENGULFING",
+      "BEARISH_ENGULFING",
+      "PIERCING_PATTERN",
+      "DARK_CLOUD_COVER"
+    ]
+  },
+  {
+    "id": "nison-harami",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第六章 其他反转形态",
+    "sourceLocator": "content/chapters/012-section-012.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "TECHNICAL",
+    "title": "孕线与十字孕线",
+    "summary": "前一根长实体包含后一根小实体，第二根颜色不限，影线可越界。第二根接近十字线时为十字孕线。它提示原趋势动能减弱，也可能仅转为横向整理。",
+    "application": "用实体关系识别；结合前置趋势判断方向，再观察后续完整收盘和形态极值。",
+    "requiredEvidence": [
+      "两根完整 OHLC",
+      "前置趋势",
+      "后续收市价"
+    ],
+    "limitations": [
+      "实体比例没有唯一的原书机械阈值",
+      "35% 实体比例和极值突破确认是项目工程约定",
+      "原书图例需用用户持有的版本核对"
+    ],
+    "keywords": [
+      "孕线",
+      "十字孕线",
+      "母子线",
+      "实体包裹",
+      "影线",
+      "harami",
+      "harami cross"
+    ],
+    "patternIds": [
+      "BULLISH_HARAMI",
+      "BEARISH_HARAMI",
+      "BULLISH_HARAMI_CROSS",
+      "BEARISH_HARAMI_CROSS"
+    ]
+  },
+  {
+    "id": "nison-window",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第七章 持续形态",
+    "sourceLocator": "content/chapters/013-section-013.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "TECHNICAL",
+    "title": "窗口、回补与收盘失效",
+    "summary": "窗口要求相邻完整价格区间之间存在缺口。向上窗口可作为支撑区域，向下窗口可作为阻挡区域；影线短暂穿越与收市价突破应区分。",
+    "application": "逐期检查形成后的收盘；一旦突破相反边界，将该历史窗口记为失效，重新建立结构需要新的证据。",
+    "requiredEvidence": [
+      "相邻两期最高价和最低价",
+      "窗口形成后的全部完整收盘"
+    ],
+    "limitations": [
+      "持续信号仍须结合市场背景",
+      "历史失效不自动因价格返回而撤销，这是项目保守状态规则"
+    ],
+    "keywords": [
+      "窗口",
+      "缺口",
+      "跳空",
+      "回补",
+      "支撑",
+      "阻挡",
+      "失效",
+      "window",
+      "gap"
+    ],
+    "patternIds": [
+      "UPWARD_WINDOW",
+      "DOWNWARD_WINDOW"
+    ]
+  },
+  {
+    "id": "nison-confluence",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十章 蜡烛图信号的汇聚",
+    "sourceLocator": "content/chapters/017-section-017.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "TECHNICAL",
+    "title": "汇聚与风险报偿的分离",
+    "summary": "多个形态集中在同一价格区域，可加强对支撑或阻挡的关注；即使反转信号明显，价格离形态极值过远时，风险报偿仍可能不理想。",
+    "application": "分别展示形态证据、价格位置和结构风险报偿，保留不一致的因子。",
+    "requiredEvidence": [
+      "形态所在价格区域",
+      "支撑阻挡",
+      "当前价格与失效位的距离"
+    ],
+    "limitations": [
+      "项目汇聚分不是历史胜率",
+      "不能仅凭形态推导完整价格目标"
+    ],
+    "keywords": [
+      "汇聚",
+      "风险报偿",
+      "风险收益",
+      "共振",
+      "confluence",
+      "risk reward"
+    ],
+    "patternIds": []
+  },
+  {
+    "id": "marks-credit",
+    "bookId": "marks",
+    "bookTitle": "周期：投资机会、风险、态度与市场周期",
+    "author": "霍华德·马克斯",
+    "chapter": "09 信贷周期",
+    "sourceLocator": "content/chapters/013-09.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "MARKET_CYCLE",
+    "title": "融资松紧与信贷周期",
+    "summary": "融资条件的变化会影响企业、投资者和资产价格，信贷的扩张与收缩又受到心理和经济活动的影响。",
+    "application": "在讨论周期背景时检查融资可得性、借款条件与违约压力，缺项时列出待补证据。",
+    "requiredEvidence": [
+      "融资条件及日期",
+      "信用利差或借款成本",
+      "违约或贷款标准数据"
+    ],
+    "limitations": [
+      "单只股票的 OHLCV 不足以判断信贷周期",
+      "本库不提供实时宏观观测，也不推断当前周期阶段"
+    ],
+    "keywords": [
+      "信贷",
+      "融资",
+      "贷款",
+      "信用利差",
+      "杠杆",
+      "credit",
+      "credit cycle"
+    ],
+    "patternIds": []
+  },
+  {
+    "id": "marks-risk",
+    "bookId": "marks",
+    "bookTitle": "周期：投资机会、风险、态度与市场周期",
+    "author": "霍华德·马克斯",
+    "chapter": "08 风险态度周期",
+    "sourceLocator": "content/chapters/012-08.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "MARKET_CYCLE",
+    "title": "风险态度与心理偏差",
+    "summary": "市场参与者对风险的容忍会随经历变化。乐观时忽视风险、低迷时只关注亏损，都会影响资产定价与判断。",
+    "application": "将风险态度当作待观察维度，同时核对估值、基本面和相反证据。",
+    "requiredEvidence": [
+      "估值与历史比较",
+      "可核验的风险偏好观测",
+      "基本面与压力情境"
+    ],
+    "limitations": [
+      "上涨本身不能证明风险低",
+      "情绪描述不是当前市场事实"
+    ],
+    "keywords": [
+      "风险态度",
+      "风险偏好",
+      "心理",
+      "乐观",
+      "恐惧",
+      "风险容忍",
+      "risk attitude"
+    ],
+    "patternIds": []
+  },
+  {
+    "id": "marks-position",
+    "bookId": "marks",
+    "bookTitle": "周期：投资机会、风险、态度与市场周期",
+    "author": "霍华德·马克斯",
+    "chapter": "13 如何应对市场周期",
+    "sourceLocator": "content/chapters/017-13.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "MARKET_CYCLE",
+    "title": "周期定位与预测边界",
+    "summary": "评估所处环境需要理解心理和估值的状态，而非依赖对未来事件和时点的精确预测。",
+    "application": "把已知、未知和相互矛盾的观测分开，说明判断的适用范围与更新条件。",
+    "requiredEvidence": [
+      "带时间的估值比较",
+      "心理和风险偏好证据",
+      "宏观与融资背景"
+    ],
+    "limitations": [
+      "无法从一本书或一个指标确定今天的周期位置",
+      "不提供精确顶部、底部或反转日期"
+    ],
+    "keywords": [
+      "周期位置",
+      "周期定位",
+      "预测",
+      "估值",
+      "进攻",
+      "防守",
+      "market cycle"
+    ],
+    "patternIds": []
+  },
+  {
+    "id": "naval-judgment",
+    "bookId": "naval",
+    "bookTitle": "The Almanack of Naval Ravikant",
+    "author": "Naval Ravikant；Eric Jorgenson 编",
+    "chapter": "Judgment",
+    "sourceLocator": "content/chapters/033-judgment.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "DECISION",
+    "title": "判断与长期后果",
+    "summary": "判断强调理解行动的长期后果；在杠杆作用下，选择方向会显著影响努力的结果。",
+    "application": "作为研究过程的自检：明确时间尺度、关键假设与判断错误时的后果。",
+    "requiredEvidence": [
+      "决策目标与时间尺度",
+      "关键假设",
+      "可能损失与可逆性"
+    ],
+    "limitations": [
+      "中文内容为项目概括，非逐字引文",
+      "属于一般决策参考，不参与个股技术评分"
+    ],
+    "keywords": [
+      "判断",
+      "长期后果",
+      "judgment",
+      "long term"
+    ],
+    "patternIds": []
+  },
+  {
+    "id": "naval-clear-thinking",
+    "bookId": "naval",
+    "bookTitle": "The Almanack of Naval Ravikant",
+    "author": "Naval Ravikant；Eric Jorgenson 编",
+    "chapter": "How to Think Clearly",
+    "sourceLocator": "content/chapters/034-how-to-think-clearly.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "DECISION",
+    "title": "清晰思考与事实核对",
+    "summary": "理解基础并从基础推导，有助于检验复杂观点；对结果的期待和先入为主可能妨碍看清事实。",
+    "application": "在分析中分别列出观察事实、推导过程和反证，避免用希望替代证据。",
+    "requiredEvidence": [
+      "原始事实",
+      "推导步骤",
+      "相反证据"
+    ],
+    "limitations": [
+      "属于认知检查，不是证券收益预测方法",
+      "中文为概括；章节含编纂的多来源材料，正式引文需核对原始出处"
+    ],
+    "keywords": [
+      "清晰思考",
+      "第一性原理",
+      "事实",
+      "反证",
+      "偏见",
+      "clear thinking"
+    ],
+    "patternIds": []
+  },
+  {
+    "id": "naval-decisions",
+    "bookId": "naval",
+    "bookTitle": "The Almanack of Naval Ravikant",
+    "author": "Naval Ravikant；Eric Jorgenson 编",
+    "chapter": "Learn the Skills of Decision-Making",
+    "sourceLocator": "content/chapters/036-learn-the-skills-of-decision-making.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-07",
+    "domain": "DECISION",
+    "title": "决策偏差与自利结论",
+    "summary": "习惯性的判断捷径可能引入偏差；对符合自身愿望的结论，应采用更严格的审查。",
+    "application": "为每个偏好的结论列出可能推翻它的证据，并检查其是否只是重复旧经验。",
+    "requiredEvidence": [
+      "结论依赖的假设",
+      "可推翻结论的观测",
+      "备选解释"
+    ],
+    "limitations": [
+      "一般决策原则，不自动给出股票方向",
+      "中文为项目概括，不归为作者逐字原话"
+    ],
+    "keywords": [
+      "决策",
+      "自利",
+      "偏差",
+      "自我欺骗",
+      "decision-making",
+      "bias"
+    ],
+    "patternIds": []
+  }
+]

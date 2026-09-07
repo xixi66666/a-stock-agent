@@ -125,6 +125,7 @@
                         <configuration>
                             <includes>
                                 <include>**/external/*LiveDataIT.java</include>
+                                <include>**/external/*ReportLiveIT.java</include>
                             </includes>
                         </configuration>
                     </plugin>

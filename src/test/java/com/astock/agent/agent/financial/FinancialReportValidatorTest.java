@@ -35,6 +35,20 @@ class FinancialReportValidatorTest {
     }
 
     @Test
+    void scoringBandsRequiredByPromptAreAcceptedAsDeterministicFacts() {
+        FinancialReportValidator.Validation validation = validator.validate(
+                new FinancialNarrativeDraft(
+                        "F-Score 为 6 分，档位 良（0-2 弱 / 3-5 中 / 6-7 良 / 8-9 优）。",
+                        "共评估 9 个信号。",
+                        "趋势方向为上升。",
+                        "仅作研究，不提供操作建议。",
+                        FinancialDeterministicComposer.REQUIRED_DISCLAIMER),
+                pack);
+
+        assertThat(validation.blocking()).isFalse();
+    }
+
+    @Test
     void fabricatedNumberIsRejected() {
         FinancialReportValidator.Validation validation = validator.validate(
                 new FinancialNarrativeDraft(

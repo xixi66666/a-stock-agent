@@ -20,7 +20,8 @@ public final class FinancialReportValidator {
             "(?:不建议|不推荐|不提供|不构成|不进行|不采取|不执行|不作出|不做|不含|不应|不宜|不能|不得|禁止|避免|并非|没有|暂无|未给出|未提供|未形成|不买入|不卖出|请勿|不可|无法|不允许|不涉及|不代表|不意味着)[^。！？；\\n]{0,8}$");
     private static final Pattern NEGATED_TRADE_SUFFIX = Pattern.compile(
             "^[^。！？；\\n]{0,8}(?:不可用|不可得|不提供|不构成|不代表|不属于|不存在|未提供|未形成|不适用|不涉及|并非|不是|无关)$");
-    private static final Pattern NUMBER = Pattern.compile("(?<![A-Za-z])[-+]?\\d+(?:\\.\\d+)?%?");
+    // 数字前若紧邻另一数字，则中间的 “-” 是区间连接符（如 0-2），不能解析成负数。
+    private static final Pattern NUMBER = Pattern.compile("(?<![A-Za-z\\d])[-+]?\\d+(?:\\.\\d+)?%?");
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
 
     public Validation validate(FinancialNarrativeDraft draft, FinancialEvidencePackage pack) {

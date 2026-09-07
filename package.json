@@ -2,7 +2,7 @@
   "name": "a-stock-agent-ui-tests",
   "private": true,
   "scripts": {
-    "test:ui": "playwright test tests/ui/dashboard.spec.js"
+    "test:ui": "playwright test tests/ui"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1"

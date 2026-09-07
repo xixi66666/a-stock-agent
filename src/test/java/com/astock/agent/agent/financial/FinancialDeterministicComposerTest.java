@@ -24,7 +24,9 @@ class FinancialDeterministicComposerTest {
                 new FinancialStatementHistory(new SecurityId("600519", Exchange.SHANGHAI), List.of()),
                 new FinancialQualityScore(6, "良", 9, List.of(
                         new FinancialQualityScore.SignalResult(1, "TTM ROA 为正",
-                                FinancialQualityScore.SignalStatus.PASS, "条件成立")), true),
+                                FinancialQualityScore.SignalStatus.PASS, "条件成立"),
+                        new FinancialQualityScore.SignalResult(6, "流动性改善",
+                                FinancialQualityScore.SignalStatus.FAIL, "流动比率下降")), true),
                 new FinancialTrendResult(List.of(new TrendSeries("营业总收入", "元", "CUMULATIVE",
                         List.of(new FinancialTrendResult.TrendPoint(LocalDate.parse("2026-06-30"), BigDecimal.valueOf(1))),
                         List.of(), "RISING", null, null)), 12),
@@ -33,7 +35,8 @@ class FinancialDeterministicComposerTest {
         FinancialNarrative narrative = composer.compose(pack);
 
         assertThat(narrative.tierInterpretation()).contains("6 分").contains("良");
-        assertThat(narrative.signalCommentary()).contains("通过");
+        assertThat(narrative.tierInterpretation()).contains("总体判断");
+        assertThat(narrative.signalCommentary()).contains("表现较好").contains("需要关注");
         assertThat(narrative.trendCommentary()).contains("上升");
         assertThat(narrative.riskNotes()).isNotEmpty();
     }

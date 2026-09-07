@@ -8,8 +8,10 @@
 import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
 import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
+import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js";
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 import { activateFinancialChart, renderFinancialReport, renderFinancialViewShell } from "./financial-view.js";
+import { activateBookKnowledge } from "./knowledge-view.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -21,6 +23,11 @@ const state = {
   snapshot: null,
   searchTimer: null,
   technicalController: null,
+  candlestickController: null,
+  candlestickTimeframe: "DAILY",
+  candlestickPhase: "idle",
+  candlestickSections: {},
+  candlestickRequestId: 0,
   overallReportPhase: "idle",
   overallModelsPhase: "idle",
   overallModels: [],
@@ -107,6 +114,8 @@ function renderCurrentView() {
   $("#workspace-state").hidden = true;
   state.technicalController?.dispose();
   state.technicalController = null;
+  state.candlestickController?.dispose();
+  state.candlestickController = null;
   state.financialController?.dispose();
   state.financialController = null;
   if (state.currentView === "financial") {
@@ -120,12 +129,23 @@ function renderCurrentView() {
     return;
   }
   if (state.currentView === "technical") {
-    content.innerHTML = renderTechnicalView(state.snapshot.technical);
+    const candlestick = state.candlestickSections[state.candlestickTimeframe] || null;
+    content.innerHTML = renderCandlestickWorkbench(candlestick, {
+      timeframe: state.candlestickTimeframe,
+      loading: state.candlestickPhase === "loading",
+    }) + renderTechnicalView(state.snapshot.technical);
   } else {
     content.innerHTML = renderGenericView(state.currentView, state.snapshot);
   }
   refreshIcons();
-  if (state.currentView === "technical") state.technicalController = activateTechnicalView(state.snapshot.technical, content);
+  if (state.currentView === "technical") {
+    const candlestick = state.candlestickSections[state.candlestickTimeframe] || null;
+    state.candlestickController = activateCandlestickWorkbench(candlestick, {
+      onTimeframeChange: (timeframe) => loadCandlestick(timeframe),
+    }, content);
+    state.technicalController = activateTechnicalView(state.snapshot.technical, content);
+    if (!candlestick && state.candlestickPhase !== "loading") loadCandlestick(state.candlestickTimeframe);
+  }
   if (state.currentView === "agent") {
     bindOverallModelControls();
     bindOverallReportAction();
@@ -540,6 +560,38 @@ function bindFinancialAction() {
   });
 }
 
+async function loadCandlestick(timeframe) {
+  // 周期切换只请求结构化研判；K 线来源仍由后端快照缓存统一提供，避免浏览器直接访问 Provider。
+  if (!state.currentCode || !["DAILY", "WEEKLY", "MONTHLY"].includes(timeframe)) return;
+  state.candlestickTimeframe = timeframe;
+  if (state.candlestickSections[timeframe]) {
+    state.candlestickPhase = "ready";
+    if (state.currentView === "technical") renderCurrentView();
+    return;
+  }
+  const code = state.currentCode;
+  const generation = state.loadGeneration;
+  const requestId = ++state.candlestickRequestId;
+  state.candlestickPhase = "loading";
+  if (state.currentView === "technical") renderCurrentView();
+  try {
+    const section = await stockApi.candlestick(code, timeframe);
+    if (state.currentCode !== code || state.loadGeneration !== generation || requestId !== state.candlestickRequestId) return;
+    state.candlestickSections[timeframe] = section;
+  } catch (error) {
+    if (state.currentCode !== code || state.loadGeneration !== generation || requestId !== state.candlestickRequestId) return;
+    state.candlestickSections[timeframe] = {
+      status: "UNAVAILABLE", payload: null, provenance: null,
+      issues: [error.message || "蜡烛图研判请求失败，请稍后重试"],
+    };
+  } finally {
+    if (state.currentCode === code && state.loadGeneration === generation && requestId === state.candlestickRequestId) {
+      state.candlestickPhase = "ready";
+      if (state.currentView === "technical") renderCurrentView();
+    }
+  }
+}
+
 function bindOverallModelControls() {
   const select = $("#overall-model-select");
   if (!select) return;
@@ -600,6 +652,7 @@ function bindOverallReportAction() {
 async function loadStock(code) {
   // 快照加载是页面状态机的根请求；其余视图都从同一份 snapshot 派生。
   if (!/^\d{6}$/.test(code)) return;
+  const newSecurity = state.currentCode !== code || !state.snapshot;
   state.loadGeneration += 1;
   state.overallReportRequestId += 1;
   state.currentCode = code;
@@ -610,12 +663,18 @@ async function loadStock(code) {
   state.institutionalReport = null;
   state.financialReportResult = null;
   state.financialReportRequestId += 1;
+  state.candlestickRequestId += 1;
+  state.candlestickTimeframe = "DAILY";
+  state.candlestickPhase = "idle";
+  state.candlestickSections = {};
   setPhase("loading", `正在获取 ${code} 的公开市场数据`);
   $("#workspace-state").hidden = true;
   $("#view-content").hidden = false;
   $("#view-content").innerHTML = renderLoading();
   $("#stock-query").value = code;
   closeResults();
+  // 从下方快捷入口选择股票后回到概览；同一股票的刷新保留阅读位置。
+  if (newSecurity) window.scrollTo(0, 0);
   try {
     const snapshot = await stockApi.snapshot(code);
     state.snapshot = snapshot;
@@ -701,3 +760,4 @@ $("#refresh-data").addEventListener("click", () => state.currentCode && loadStoc
 
 refreshIcons();
 loadAgentStatus();
+activateBookKnowledge($("#book-knowledge"));

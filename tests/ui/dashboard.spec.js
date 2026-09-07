@@ -52,6 +52,39 @@ function fundFlowSummarySection() {
   return structuredClone(snapshot().fundFlowSummary);
 }
 
+function candlestickSection(timeframe = "DAILY") {
+  return {
+    status: "HEALTHY",
+    provenance: { provider: "Tencent", sourceUrl: "https://web.ifzq.gtimg.cn", fetchedAt: "2026-08-25T07:10:00Z", cached: false },
+    issues: [],
+    payload: {
+      timeframe, asOf: "2026-08-25", analyzedBars: 260,
+      completion: { latestPeriodComplete: true, excludedDate: null, note: "分析序列中的最后一根 K 线已完成" },
+      trend: { shortTerm: "DOWN", primary: "UP", shortReturnPercent: -2.34, closeVsSma20Percent: -1.12, evidence: "短期按 5 期、主要趋势按 20 期收盘变化判定" },
+      signals: [{
+        id: "EVENING_STAR", name: "黄昏星形态", englishName: "Evening star", family: "星线反转", direction: "BEARISH",
+        startDate: "2026-08-23", endDate: "2026-08-25", evidenceScore: 92, evidenceGrade: "VERY_STRONG",
+        confirmationStatus: "CONFIRMED", idealGeometry: true,
+        constructionEvidence: ["第一根为上升趋势中的长白实体", "第二根小实体向上跳空", "第三根收市价跌破第一根实体中点"],
+        trendEvidence: "形态出现于短期上涨趋势之后", locationEvidence: "三根线在上涨段高位完成",
+        confirmationEvidence: "第三根蜡烛线收市后形态完成，并构成方向确认", invalidationPrice: 108,
+        invalidationRule: "收市价有效升破形态最高点，则看跌警告失效", sourceChapter: "第五章 星线",
+      }],
+      confluence: { direction: "BEARISH", score: 85, grade: "STRONG", conclusion: "共 4/5 类证据同向；分数不是成功概率", factors: [
+        { kind: "CANDLESTICK", label: "黄昏星形态", direction: "BEARISH", aligned: true, weight: 40, evidence: "三根线结构完成" },
+        { kind: "TREND", label: "短期趋势", direction: "BEARISH", aligned: true, weight: 15, evidence: "最近 5 期转弱" },
+        { kind: "MOMENTUM", label: "RSI 14", direction: "BEARISH", aligned: true, weight: 15, evidence: "RSI=72.40" },
+        { kind: "VOLUME", label: "20 期量比", direction: "BEARISH", aligned: true, weight: 15, evidence: "量比=1.42" },
+        { kind: "LEVEL", label: "形态阻挡", direction: "BEARISH", aligned: false, weight: 15, evidence: "等待复测" },
+      ] },
+      risk: { direction: "BEARISH", entryReference: 101.5, invalidationPrice: 108, riskPerShare: 6.5, targetReference: 90, rewardRiskRatio: 1.77, quality: "MARGINAL", notes: ["目标来自最近 20 期结构支撑，不是蜡烛图价格目标"] },
+      levels: [{ role: "RESISTANCE", lower: 108, upper: 108, origin: "黄昏星形态高点", status: "ACTIVE", validationRule: "以收市价是否升破判断有效性" }],
+      methodology: { ruleVersion: "NISON-CANDLESTICK-1.0", analysisSequence: ["前置趋势", "形态构成", "相对位置", "后续确认", "支撑阻挡与失效", "风险报偿", "其他技术信号"], bookReferences: [{ chapter: "第五章 星线", topic: "星线确认" }], transparentThresholds: { "十字线": "实体不超过全幅 5%" }, scoreMeaning: "0—100 分表示规则证据覆盖度，不是方向发生概率或历史胜率" },
+      limitations: ["反转形态表示原趋势可能变化的警告，不保证立即形成反向趋势", "本分析仅用于研究，不构成个性化投资建议"],
+    },
+  };
+}
+
 async function mockApis(page) {
   // 每个测试从同一份快照开始，单个测试只覆盖它关心的响应或请求路由。
   await page.route("**/api/agent/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
@@ -63,11 +96,44 @@ async function mockApis(page) {
     ],
   } }));
   await page.route("**/api/stocks/600519/snapshot", (route) => route.fulfill({ json: snapshot() }));
+  await page.route("**/api/stocks/600519/candlestick**", (route) => {
+    const timeframe = new URL(route.request().url()).searchParams.get("timeframe") || "DAILY";
+    return route.fulfill({ json: candlestickSection(timeframe) });
+  });
   await page.route("**/api/stocks/search**", (route) => route.fulfill({ json: [{ code: "600519", name: "贵州茅台", exchange: "SHANGHAI" }] }));
 }
 
+test("candlestick methodology links open the cited book note", async ({ page }) => {
+  await page.route("**/api/stocks/600519/candlestick**", route => {
+    const section = candlestickSection();
+    section.payload.methodology.knowledge = [{ id: "nison-reversal", title: "反转警告与前置趋势", chapter: "第四章 反转形态", summary: "形态提示趋势变化" }];
+    return route.fulfill({ json: section });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /贵州茅台/ }).click();
+  await page.getByText("方法、章节与限制", { exact: true }).click();
+  await page.getByRole("link", { name: "反转警告与前置趋势" }).click();
+  await expect(page.locator("#book-knowledge .knowledge-results")).toContainText("反转形态提示原趋势可能变化");
+});
+
 test.beforeEach(async ({ page }) => {
   await mockApis(page);
+});
+
+test("candlestick workbench renders evidence confirmation levels and methodology", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+
+  const workbench = page.locator(".candlestick-workbench");
+  await expect(workbench).toBeVisible();
+  await expect(workbench).toContainText("尼森蜡烛图研判");
+  await expect(workbench).toContainText("黄昏星形态");
+  await expect(workbench).toContainText("已确认");
+  await expect(workbench).toContainText("失效位");
+  await expect(workbench).toContainText("风险报偿");
+  await expect(workbench).toContainText("第五章 星线");
+  await expect(workbench.getByRole("button", { name: "日线" })).toHaveAttribute("aria-pressed", "true");
+  await expect(workbench.getByText("85", { exact: true })).toBeVisible();
 });
 
 test("quant report renders evidence-backed prose without scores", async ({ page }) => {

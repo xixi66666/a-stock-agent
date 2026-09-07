@@ -43,7 +43,7 @@ Copy-Item config/application-local.yml.example config/application-local.yml
 ```
 
 ```bash
-cp config/application-local.yml config/application-local.yml
+cp config/application-local.yml.example config/application-local.yml
 ```
 
 编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`institutional-report` 默认使用 `primary`，`overall-report` 默认使用 `deepseek`。总体报告页面会读取所有已启用且配置完整的命名模型，生成前可以选择具体模型；`overall-report` 角色只指定默认选项，旧客户端未提交 `modelId` 时仍使用该默认模型。修改模型、角色或密钥后请重启应用。
@@ -136,6 +136,17 @@ flowchart LR
 公开、脱敏的 `600519` 响应样本保存在 `src/test/resources/fixtures`。2026-07-15 验证样本中，贵州茅台最新价与收盘价为 `1251.06`，腾讯与百度的最近交易日收盘价一致。实时结果会随交易日变化，应以验证报告中的源时间为准。
 
 ## API
+
+页面的“书本知识库”支持按问题和书籍查询尼森、《周期》和《纳瓦尔宝典》的章节笔记，无需先加载股票或配置模型。
+首批包含 10 条经过章节核对的项目概括，并非三本书全文。笔记随 JAR 打包，不依赖开发者电脑的 skill、EPUB 路径或向量数据库。
+技术分析的“方法、章节与限制”可直接打开关联笔记；总体报告会检索方法上下文辅助解释，当前事实仍严格以行情快照为准。
+新增孕线/十字孕线与历史失效追踪规则，阈值、确认条件和局限可在接口中审计。
+部署和持续扩充步骤见 [书本方法知识库](docs/architecture/book-knowledge.md)。
+
+```http
+GET /api/knowledge/search?q=孕线&bookId=nison&limit=5
+GET /api/knowledge/entries/nison-harami
+```
 
 | 方法 | 路径 | 用途 |
 |---|---|---|

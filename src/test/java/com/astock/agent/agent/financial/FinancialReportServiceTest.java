@@ -54,7 +54,9 @@ class FinancialReportServiceTest {
 
         assertThat(analysis.generationMode()).isEqualTo(GenerationMode.DETERMINISTIC_FALLBACK);
         assertThat(analysis.qualityScore().sufficientData()).isTrue();
-        assertThat(analysis.narrative().tierInterpretation()).contains("良");
+        assertThat(analysis.narrative().tierInterpretation())
+                .contains("总体判断")
+                .contains(analysis.qualityScore().tier());
     }
 
     @Test
@@ -95,6 +97,28 @@ class FinancialReportServiceTest {
 
         assertThat(analysis.generationMode()).isEqualTo(GenerationMode.MODEL_ASSISTED);
         assertThat(analysis.diagnostic()).isNull();
+    }
+
+    @Test
+    void returnsLatestFinancialPeriodWithOriginalStatusAndProvenance() {
+        FinancialReportService service = new FinancialReportService(
+                gateway(history(12)),
+                tools(),
+                new NamedChatClientRegistry(Map.of(), Map.of()),
+                Caffeine.newBuilder().build(),
+                new FinancialReportValidator(),
+                new ModelFailureClassifier(),
+                named -> {
+                    throw new AssertionError("无模型时不得构造生成器");
+                });
+
+        FinancialReportAnalysis analysis = service.generate("600519");
+
+        assertThat(analysis.latestPeriod().status()).isEqualTo(com.astock.agent.marketdata.model.SectionStatus.HEALTHY);
+        assertThat(analysis.latestPeriod().payload()).isPresent();
+        assertThat(analysis.latestPeriod().payload().orElseThrow().reportPeriod())
+                .isEqualTo(LocalDate.of(2025, 12, 30));
+        assertThat(analysis.latestPeriod().provenance()).contains(SOURCE);
     }
 
     @Test

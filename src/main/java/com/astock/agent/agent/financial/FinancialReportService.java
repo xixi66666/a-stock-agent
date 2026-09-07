@@ -13,6 +13,7 @@ import com.astock.agent.analysis.financial.FinancialQualityScorer;
 import com.astock.agent.analysis.financial.FinancialTrendCalculator;
 import com.astock.agent.analysis.financial.FinancialTrendResult;
 import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.FinancialPeriodStatement;
 import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.SectionStatus;
 import com.astock.agent.marketdata.model.SecurityId;
@@ -95,7 +96,7 @@ public final class FinancialReportService {
         long started = System.nanoTime();
         Optional<NamedChatClientRegistry.NamedModel> model = registry.forRole(ROLE);
         if (model.isEmpty()) {
-            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, null, null);
+            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, null);
         }
         try {
             FinancialReportGenerator generator = generatorFactory.create(model.orElseThrow());
@@ -108,9 +109,9 @@ public final class FinancialReportService {
             if (validation.blocking()) {
                 ModelDiagnostic diagnostic = classifier.validation(validation.issues(),
                         generator.modelName(), elapsedMillis(started), traceId);
-                return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, null, diagnostic);
+                return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, diagnostic);
             }
-            return compose(GenerationMode.MODEL_ASSISTED, pack,
+            return compose(GenerationMode.MODEL_ASSISTED, pack, section,
                     new FinancialNarrative(draft.tierInterpretation(), draft.signalCommentary(),
                             draft.trendCommentary(), draft.riskNotes()), null);
         } catch (Exception failure) {
@@ -118,7 +119,7 @@ public final class FinancialReportService {
                     model.map(NamedChatClientRegistry.NamedModel::modelName)
                             .orElse("configured-financial-model"),
                     elapsedMillis(started), traceId);
-            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, null, diagnostic);
+            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, diagnostic);
         }
     }
 
@@ -141,19 +142,30 @@ public final class FinancialReportService {
     }
 
     private FinancialReportAnalysis compose(GenerationMode mode, FinancialEvidencePackage pack,
+            DataSection<FinancialStatementHistory> historySection,
             FinancialNarrative narrative, ModelDiagnostic diagnostic) {
         FinancialNarrative text = narrative != null ? narrative : composer.compose(pack);
         String range = pack.history().periodCount() == 0 ? "--"
                 : pack.history().periods().get(0).reportPeriod() + " - "
                 + pack.history().periods().get(pack.history().periodCount() - 1).reportPeriod();
+        DataSection<FinancialPeriodStatement> latestPeriod = latestPeriod(historySection, pack.history());
         return new FinancialReportAnalysis(
                 pack.securityCode(), range, pack.history().periodCount(),
+                latestPeriod,
                 pack.qualityScore(), pack.trends(), text, mode, diagnostic,
                 pack.financialIndustry(), Instant.now().toString(),
                 FinancialQualityScorer.RULE_VERSION,
                 mode == GenerationMode.MODEL_ASSISTED
                         ? SpringAiFinancialNarrativeGenerator.PROMPT_VERSION : "deterministic",
                 FinancialReportAnalysis.REQUIRED_DISCLAIMER);
+    }
+
+    private static DataSection<FinancialPeriodStatement> latestPeriod(
+            DataSection<FinancialStatementHistory> source,
+            FinancialStatementHistory history) {
+        FinancialPeriodStatement latest = history.periods().get(history.periodCount() - 1);
+        return new DataSection<>(source.status(), Optional.of(latest),
+                source.provenance(), source.issues());
     }
 
     private static long elapsedMillis(long started) {

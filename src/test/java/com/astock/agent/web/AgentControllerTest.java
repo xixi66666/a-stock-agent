@@ -23,7 +23,13 @@ import com.astock.agent.analysis.financial.FinancialQualityScore;
 import com.astock.agent.analysis.financial.FinancialTrendResult;
 import com.astock.agent.analysis.institutional.Direction;
 import com.astock.agent.analysis.institutional.EvidenceStatus;
+import com.astock.agent.marketdata.model.DataSection;
+import com.astock.agent.marketdata.model.FinancialPeriodStatement;
+import com.astock.agent.marketdata.model.Provenance;
+import java.math.BigDecimal;
+import java.net.URI;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
@@ -203,6 +209,16 @@ class AgentControllerTest {
         FinancialReportService service = mock(FinancialReportService.class);
         FinancialReportAnalysis analysis = new FinancialReportAnalysis(
                 "600519", "2023-06-30 - 2026-03-31", 12,
+                DataSection.healthy(new FinancialPeriodStatement(
+                                LocalDate.parse("2026-03-31"),
+                                BigDecimal.valueOf(57130000000L), BigDecimal.valueOf(4650000000L),
+                                BigDecimal.valueOf(29530000000L), BigDecimal.valueOf(29520000000L),
+                                BigDecimal.valueOf(12400000000L), BigDecimal.valueOf(345900000000L),
+                                BigDecimal.valueOf(58900000000L), BigDecimal.valueOf(287400000000L),
+                                BigDecimal.valueOf(55200000000L), BigDecimal.valueOf(1256000000L),
+                                BigDecimal.valueOf(286800000000L)),
+                        new Provenance("fixture", URI.create("https://example.com/financials"),
+                                null, Instant.parse("2026-04-29T00:00:00Z"), false, null)),
                 new FinancialQualityScore(6, "良", 9, List.of(), true),
                 new FinancialTrendResult(List.of(), 12),
                 new FinancialNarrative("F-Score 为 6 分，档位 良。", "信号正常。", "趋势正常。", "无风险。"),
@@ -221,6 +237,9 @@ class AgentControllerTest {
                 .andExpect(jsonPath("$.securityCode").value("600519"))
                 .andExpect(jsonPath("$.qualityScore.total").value(6))
                 .andExpect(jsonPath("$.qualityScore.tier").value("良"))
+                .andExpect(jsonPath("$.latestPeriod.status").value("HEALTHY"))
+                .andExpect(jsonPath("$.latestPeriod.payload.reportPeriod[0]").value(2026))
+                .andExpect(jsonPath("$.latestPeriod.provenance.provider").value("fixture"))
                 .andExpect(jsonPath("$.generationMode").value("DETERMINISTIC_FALLBACK"));
         verify(service).generate("600519");
     }

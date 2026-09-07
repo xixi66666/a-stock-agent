@@ -6,6 +6,8 @@
   <meta name="description" content="基于真实公开数据与 Spring AI 的 A 股研究工作台">
   <title>A 股智能研究台</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/candlestick.css?v=20260904-1">
+  <link rel="stylesheet" href="/knowledge.css">
 </head>
 <body>
   <a class="skip-link" href="#workspace">跳到研究内容</a>
@@ -87,6 +89,8 @@
       <button class="view-tab" role="tab" aria-selected="false" data-view="agent"><i data-lucide="sparkles"></i><span>Agent 分析</span></button>
     </nav>
 
+    <aside id="book-knowledge" class="book-knowledge" aria-label="书本知识查询"></aside>
+
     <section id="workspace-state" class="workspace-state" aria-live="polite">
       <div class="empty-state">
         <span class="empty-icon"><i data-lucide="line-chart" aria-hidden="true"></i></span>
@@ -110,6 +114,6 @@
   <!-- 第三方库只提供图表和图标能力，不参与数据获取或模型调用。 -->
   <script src="/webjars/echarts/6.1.0/dist/echarts.min.js"></script>
   <script src="/webjars/lucide/1.16.0/dist/umd/lucide.min.js"></script>
-  <script type="module" src="/js/app.js?v=20260831-1"></script>
+  <script type="module" src="/js/app.js?v=20260904-1"></script>
 </body>
 </html>

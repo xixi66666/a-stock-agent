@@ -10,6 +10,21 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class SpringAiOverallReportGeneratorTest {
+    @Test
+    void suppliesBookMethodologyInGenerationAndRepairWithoutExpandingMarketFactBoundary() throws Exception {
+        AtomicReference<String> system = new AtomicReference<>();
+        AtomicReference<String> user = new AtomicReference<>();
+        var generator = new SpringAiOverallReportGenerator((s, u) -> {
+            system.set(s); user.set(u); return validDraft();
+        }, "test-model");
+        var snapshot = StockResearchSnapshot.empty(SecurityId.parse("600519"));
+        generator.generate(snapshot);
+        assertThat(user.get()).contains("书本方法上下文", "nison-reversal", "marks-position", "naval-clear-thinking", "requiredEvidence");
+        assertThat(system.get()).contains("不是当前市场事实", "不得据此推断当前周期位置", "书名和章节");
+        generator.repair(snapshot, validDraft(), List.of("UNSUPPORTED_NUMBER"));
+        assertThat(user.get()).contains("书本方法上下文", "marks-position", "naval-clear-thinking");
+    }
+
 
     @Test
     void sendsCompleteSnapshotAndProfessionalConstraints() throws Exception {

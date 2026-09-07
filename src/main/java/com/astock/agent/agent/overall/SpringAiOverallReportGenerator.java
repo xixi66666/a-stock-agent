@@ -1,6 +1,8 @@
 package com.astock.agent.agent.overall;
 
 import com.astock.agent.analysis.StockResearchSnapshot;
+import com.astock.agent.knowledge.BookKnowledgeService;
+import com.astock.agent.knowledge.KnowledgeEntry;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -23,7 +25,7 @@ import org.springframework.ai.chat.client.ChatClient;
 public final class SpringAiOverallReportGenerator implements OverallReportGenerator {
 
     /** 提示词版本会写入最终报告，修改约束时应同步递增。 */
-    public static final String PROMPT_VERSION = "overall-v2";
+    public static final String PROMPT_VERSION = "overall-v3-books";
 
     /** 给模型的系统约束：事实边界、质量状态、分析结构、安全边界和 JSON 格式。 */
     public static final String SYSTEM_PROMPT = """
@@ -42,6 +44,13 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
             conflictsAndMissingData 必须列出所有冲突、缺失和不可用分区及其对结论的限制。
             sourceReferences 只能引用快照中存在的 section、provider、sourceUrl 和 fetchedAt，不能伪造来源。
 
+            书本方法上下文是经过章节核对的研究笔记，不是当前市场事实。
+            可以使用其原则检查推论，但不能用书本填补缺失行情、估值、信贷和情绪数据。
+            缺少 requiredEvidence 所列的观测时，须披露缺项，不得据此推断当前周期位置。
+            纳瓦尔内容只用于事实与偏见自检，不参与证券方向、技术分数或收益预测。
+            使用方法时在相应文字中标明书名和章节，不把概括写成原话；
+            书本出处不得写入市场数据 sourceReferences。笔记中的比例、版本、核对日期不是市场数据，不能照搬到事实结论。
+
             不得输出买入、卖出、加仓、减仓、仓位、止盈、止损、目标价、保证收益、收益保证、稳赚等交易指令或个性化投资建议；
             严禁输出直接交易指令或个性化投资建议，包括但不限于：买入、卖出、加仓、减仓、仓位、止盈、止损、
             目标价、保证收益、收益保证、稳赚，以及任何确定性收益或目标价格。不要把风险提示改写成交易动作。
@@ -57,7 +66,7 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
     private static final String REPAIR_SYSTEM_PROMPT = SYSTEM_PROMPT + """
 
             这是一次且仅一次的校验修复。只修复校验问题列表指出的字段，保留其余事实、来源和限制，
-            仍然只输出一个完整的 OverallReportDraft JSON，不得新增任何快照之外的信息。
+            仍然只输出一个完整的 OverallReportDraft JSON，不得新增任何快照之外的市场事实。
             """;
 
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
@@ -69,6 +78,7 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
 
     private final ModelInvoker invoker;
     private final String modelName;
+    private final List<KnowledgeEntry> methods = new BookKnowledgeService().forOverallReport();
 
     /** 生产构造器：使用 Spring AI 的结构化 entity 映射，不暴露 fluent API 给业务层。 */
     public SpringAiOverallReportGenerator(ChatClient client, String modelName) {
@@ -108,7 +118,7 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
                 + "\n\n确定性校验发现的问题列表：\n"
                 + MAPPER.writeValueAsString(safeIssues)
                 + "\n\n请只修复上述问题，返回完整且可解析的 OverallReportDraft JSON。"
-                + repairGuidance(safeIssues);
+                + repairGuidance(safeIssues) + methodologyPrompt();
         return invoker.invoke(REPAIR_SYSTEM_PROMPT, userPrompt);
     }
 
@@ -128,10 +138,15 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
         return guidance.isEmpty() ? "" : "\n\n针对校验问题的修复要求：\n- " + String.join("\n- ", guidance);
     }
 
-    private static String generationPrompt(StockResearchSnapshot snapshot)
+    private String generationPrompt(StockResearchSnapshot snapshot)
             throws JsonProcessingException {
         return "以下是证券 " + snapshot.security().code()
                 + " 的完整规范化研究快照。请严格按照系统约束生成 OverallReportDraft JSON：\n"
-                + MAPPER.writeValueAsString(snapshot);
+                + MAPPER.writeValueAsString(snapshot) + methodologyPrompt();
+    }
+
+    private String methodologyPrompt() throws JsonProcessingException {
+        return "\n\n书本方法上下文（方法原则，不是当前事实；不得扩大快照事实边界）：\n"
+                + MAPPER.writeValueAsString(methods);
     }
 }

@@ -6,6 +6,8 @@ import com.astock.agent.analysis.ProviderResearchGateway;
 import com.astock.agent.analysis.ResearchAggregationService;
 import com.astock.agent.analysis.ResearchGateway;
 import com.astock.agent.analysis.StockResearchSnapshot;
+import com.astock.agent.analysis.candlestick.CandlestickAnalysisService;
+import com.astock.agent.knowledge.BookKnowledgeService;
 import com.astock.agent.analysis.institutional.IndustryValuationCalculator;
 import com.astock.agent.analysis.institutional.IndustryValuationService;
 import com.astock.agent.marketdata.model.Announcement;
@@ -71,6 +73,10 @@ public class MarketDataConfiguration {
     @Bean BarSeriesFactory barSeriesFactory() { return new BarSeriesFactory(); }
     @Bean TechnicalAnalysisService technicalAnalysisService(BarSeriesFactory factory) {
         return new TechnicalAnalysisService(factory);
+    }
+    @Bean CandlestickAnalysisService candlestickAnalysisService(BarSeriesFactory factory, Clock clock,
+            BookKnowledgeService knowledge) {
+        return new CandlestickAnalysisService(factory, clock, knowledge);
     }
     @Bean DataQualityScorer dataQualityScorer() { return new DataQualityScorer(); }
     @Bean FundFlowSummaryCalculator fundFlowSummaryCalculator() { return new FundFlowSummaryCalculator(); }
