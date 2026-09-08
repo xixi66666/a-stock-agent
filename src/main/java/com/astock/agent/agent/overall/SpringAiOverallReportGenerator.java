@@ -25,7 +25,7 @@ import org.springframework.ai.chat.client.ChatClient;
 public final class SpringAiOverallReportGenerator implements OverallReportGenerator {
 
     /** 提示词版本会写入最终报告，修改约束时应同步递增。 */
-    public static final String PROMPT_VERSION = "overall-v3-books";
+    public static final String PROMPT_VERSION = "overall-v4-nison";
 
     /** 给模型的系统约束：事实边界、质量状态、分析结构、安全边界和 JSON 格式。 */
     public static final String SYSTEM_PROMPT = """
@@ -46,8 +46,7 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
 
             书本方法上下文是经过章节核对的研究笔记，不是当前市场事实。
             可以使用其原则检查推论，但不能用书本填补缺失行情、估值、信贷和情绪数据。
-            缺少 requiredEvidence 所列的观测时，须披露缺项，不得据此推断当前周期位置。
-            纳瓦尔内容只用于事实与偏见自检，不参与证券方向、技术分数或收益预测。
+            缺少 requiredEvidence 所列的观测时，须披露缺项，不得据此确认形态或推导交易结论。
             使用方法时在相应文字中标明书名和章节，不把概括写成原话；
             书本出处不得写入市场数据 sourceReferences。笔记中的比例、版本、核对日期不是市场数据，不能照搬到事实结论。
 

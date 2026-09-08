@@ -19,10 +19,14 @@ class SpringAiOverallReportGeneratorTest {
         }, "test-model");
         var snapshot = StockResearchSnapshot.empty(SecurityId.parse("600519"));
         generator.generate(snapshot);
-        assertThat(user.get()).contains("书本方法上下文", "nison-reversal", "marks-position", "naval-clear-thinking", "requiredEvidence");
-        assertThat(system.get()).contains("不是当前市场事实", "不得据此推断当前周期位置", "书名和章节");
+        assertThat(user.get()).contains("书本方法上下文", "nison-reversal", "nison-volume",
+                "nison-oscillator", "requiredEvidence")
+                .doesNotContain("nison-continuation-patterns", "marks-position", "naval-clear-thinking");
+        assertThat(system.get()).contains("不是当前市场事实", "书名和章节")
+                .doesNotContain("当前周期位置", "纳瓦尔");
         generator.repair(snapshot, validDraft(), List.of("UNSUPPORTED_NUMBER"));
-        assertThat(user.get()).contains("书本方法上下文", "marks-position", "naval-clear-thinking");
+        assertThat(user.get()).contains("书本方法上下文", "nison-reversal", "nison-volume")
+                .doesNotContain("nison-continuation-patterns", "marks-position", "naval-clear-thinking");
     }
 
 

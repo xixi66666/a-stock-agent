@@ -11,6 +11,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 /**
@@ -58,6 +59,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AgentExecutionException.class)
     ResponseEntity<ProblemDetail> agentFailure(AgentExecutionException exception) {
         return problem(HttpStatus.BAD_GATEWAY, "AGENT_EXECUTION_FAILED", "Agent 分析失败", exception.getMessage());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ProblemDetail> resourceNotFound(NoResourceFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "资源不存在", exception.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

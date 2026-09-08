@@ -33,7 +33,23 @@ class StaticResourceTest {
 
         assertThat(html)
                 .contains("A 股智能研究台")
-                .contains("data-view=\"technical\"");
+                .contains("data-view=\"technical\"")
+                .doesNotContain("book-knowledge");
+    }
+
+    @Test
+    void doesNotExposeBookKnowledgeQueryFeature() throws Exception {
+        mvc.perform(get("/api/knowledge/search").param("q", "孕线"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/knowledge/entries/nison-harami"))
+                .andExpect(status().isNotFound());
+
+        String script = mvc.perform(get("/js/app.js"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(script).doesNotContain("activateBookKnowledge");
     }
 
     @Test
@@ -94,5 +110,18 @@ class StaticResourceTest {
                 .contains("同行估值对比")
                 .contains("资金流窗口汇总")
                 .doesNotMatch("(?i)(api[-_]?key|authorization|bearer|token|secret)");
+    }
+
+    @Test
+    void labelsCandlestickOccurrenceDateSeparatelyFromAnalysisCutoff() throws Exception {
+        String script = mvc.perform(get("/js/candlestick-view.js"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("形态发生日：")
+                .contains("分析截止：");
     }
 }

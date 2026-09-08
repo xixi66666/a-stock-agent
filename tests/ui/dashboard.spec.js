@@ -59,6 +59,18 @@ function candlestickSection(timeframe = "DAILY") {
     issues: [],
     payload: {
       timeframe, asOf: "2026-08-25", analyzedBars: 260,
+      previousSession: {
+        bar: { date: "2026-09-07", open: 84, high: 91, low: 83.8, close: 84.6, volumeShares: 1200000 },
+        candleType: "阳线", shape: "长上影线", bodyLength: 0.6, upperShadow: 6.4, lowerShadow: 0.2,
+        bodyPercent: 8.33, upperShadowPercent: 88.89, lowerShadowPercent: 2.78,
+        changePercent: -4.94, volumeRatio: 1.24,
+        interpretation: "收盘未能保持日内高位，提示上方压力；结合所处位置观察压力能否被消化。",
+        trendEvidence: "此前 5 根日线收盘趋势向下",
+        locationEvidence: "此前 20 根日线区间 88.20—112.20 元；收盘位于区间下方",
+        followUp: "观察后续完整日线收盘能否突破 91.00 元或跌破 83.80 元，并结合成交量复核；单根高低点仅作观察边界。",
+        dateNote: "取上海日期 2026-09-08 之前数据中最近一根日线；复盘截至 2026-09-07，不含之后行情。",
+        signals: [],
+      },
       completion: { latestPeriodComplete: true, excludedDate: null, note: "分析序列中的最后一根 K 线已完成" },
       trend: { shortTerm: "DOWN", primary: "UP", shortReturnPercent: -2.34, closeVsSma20Percent: -1.12, evidence: "短期按 5 期、主要趋势按 20 期收盘变化判定" },
       signals: [{
@@ -103,7 +115,7 @@ async function mockApis(page) {
   await page.route("**/api/stocks/search**", (route) => route.fulfill({ json: [{ code: "600519", name: "贵州茅台", exchange: "SHANGHAI" }] }));
 }
 
-test("candlestick methodology links open the cited book note", async ({ page }) => {
+test("candlestick methodology shows the cited method note without a query entry", async ({ page }) => {
   await page.route("**/api/stocks/600519/candlestick**", route => {
     const section = candlestickSection();
     section.payload.methodology.knowledge = [{ id: "nison-reversal", title: "反转警告与前置趋势", chapter: "第四章 反转形态", summary: "形态提示趋势变化" }];
@@ -112,12 +124,29 @@ test("candlestick methodology links open the cited book note", async ({ page }) 
   await page.goto("/");
   await page.getByRole("button", { name: /贵州茅台/ }).click();
   await page.getByText("方法、章节与限制", { exact: true }).click();
-  await page.getByRole("link", { name: "反转警告与前置趋势" }).click();
-  await expect(page.locator("#book-knowledge .knowledge-results")).toContainText("反转形态提示原趋势可能变化");
+  await expect(page.getByText("反转警告与前置趋势", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "反转警告与前置趋势" })).toHaveCount(0);
 });
 
 test.beforeEach(async ({ page }) => {
   await mockApis(page);
+});
+
+test("candlestick distinguishes historical pattern date from current analysis cutoff", async ({ page }) => {
+  await page.route("**/api/stocks/600519/candlestick**", (route) => {
+    const section = candlestickSection();
+    section.payload.asOf = "2026-09-08";
+    section.payload.signals[0].startDate = "2026-09-01";
+    section.payload.signals[0].endDate = "2026-09-01";
+    return route.fulfill({ json: section });
+  });
+
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+
+  const detail = page.locator(".candlestick-signal-detail");
+  await expect(detail).toContainText("形态发生日：2026-09-01—2026-09-01");
+  await expect(detail).toContainText("分析截止：2026-09-08");
 });
 
 test("candlestick workbench renders evidence confirmation levels and methodology", async ({ page }) => {
@@ -134,6 +163,53 @@ test("candlestick workbench renders evidence confirmation levels and methodology
   await expect(workbench).toContainText("第五章 星线");
   await expect(workbench.getByRole("button", { name: "日线" })).toHaveAttribute("aria-pressed", "true");
   await expect(workbench.getByText("85", { exact: true })).toBeVisible();
+});
+
+test("previous session is prominent and distinguishes candle color from daily return", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  const review = page.getByRole("region", { name: "最近已收盘日线分析" });
+  await expect(review).toBeVisible();
+  await expect(review).toContainText("2026-09-07");
+  await expect(review).toContainText("阳线");
+  await expect(review).toContainText("-4.94%");
+  await expect(review).toContainText("未识别到截至该日完成的命名形态");
+  await expect(review.getByRole("img", { name: /日线结构/ })).toBeVisible();
+  await expect(review).toContainText("88.89%");
+  const positions = await page.evaluate(() => ({
+    review: document.querySelector(".previous-session").getBoundingClientRect().top,
+    history: document.querySelector(".candlestick-primary-grid").getBoundingClientRect().top,
+  }));
+  expect(positions.review).toBeLessThan(positions.history);
+});
+
+test("previous session keeps missing values and zero range honest", async ({ page }) => {
+  await page.route("**/api/stocks/600519/candlestick**", route => {
+    const section = candlestickSection();
+    const review = section.payload.previousSession;
+    Object.assign(review.bar, { open: 89, high: 89, low: 89, close: 89 });
+    Object.assign(review, { candleType: "开收持平", shape: "无振幅线", bodyPercent: null,
+      upperShadowPercent: null, lowerShadowPercent: null, changePercent: null, volumeRatio: null });
+    return route.fulfill({ json: section });
+  });
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  const review = page.locator(".previous-session");
+  await expect(review).toContainText("无振幅线");
+  await expect(review).toContainText("不可计算");
+  await expect(review).not.toContainText("NaN");
+  await expect(review).not.toContainText("Infinity");
+});
+
+test("candle remains bounded when its stylesheet is unavailable", async ({ page }) => {
+  await page.route("**/candlestick.css*", route => route.fulfill({ contentType: "text/css", body: "" }));
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  const candle = page.locator(".previous-session-candle");
+  await expect(candle).toBeVisible();
+  const bounds = await candle.boundingBox();
+  expect(bounds.width).toBeLessThanOrEqual(120);
+  expect(bounds.height).toBeLessThanOrEqual(180);
 });
 
 test("quant report renders evidence-backed prose without scores", async ({ page }) => {
@@ -415,6 +491,7 @@ for (const viewport of [
     await page.goto("/");
     await page.locator('[data-symbol="600519"]').click();
     await expect(page.locator(".indicator-card")).toHaveCount(38);
+    await expect(page.locator(".previous-session")).toBeVisible();
     const columns = await page.locator(".indicator-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
     expect(columns).toBe(viewport.columns);
     await expect(page.locator("#technical-chart canvas")).toBeVisible();
@@ -442,6 +519,13 @@ for (const viewport of [
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.viewportWidth);
     expect(layout.headerOverlap).toBe(false);
     expect(layout.overflowingButtons).toEqual([]);
+    const reviewOverflow = await page.locator(".previous-session").evaluate(element =>
+      [...element.querySelectorAll("p, dd, figcaption, time")].some(child => child.scrollWidth > child.clientWidth + 1));
+    expect(reviewOverflow).toBe(false);
+    // 元素截图会自动滚动；隐藏吸顶栏仅用于拍摄，避免它覆盖超长手机模块的截图。
+    await page.locator(".previous-session").screenshot({ path: `target/ui-screenshots/previous-session-${viewport.width}x${viewport.height}.png`,
+      style: ".app-header { visibility: hidden !important; }" });
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `target/ui-screenshots/dashboard-${viewport.width}x${viewport.height}.png`, fullPage: true });
 
     await page.getByRole("tab", { name: "Agent 分析" }).click();

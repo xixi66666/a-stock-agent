@@ -6,6 +6,7 @@
  * FORM: 现有技术页的 Operate 模式扩展；不改变全局视觉系统。
  */
 import { sectionIssues, sectionPayload } from "./api.js";
+import { renderPreviousSession } from "./previous-session-view.js?v=20260908-2";
 
 const directionLabels = { BULLISH: "看涨警告", BEARISH: "看跌警告", NEUTRAL: "暂无方向" };
 const trendLabels = { UP: "上升", DOWN: "下降", SIDEWAYS: "横向", INSUFFICIENT: "样本不足" };
@@ -47,7 +48,7 @@ function unavailablePanel(section, timeframe) {
 
 function signalButton(signal, selected) {
   return `<button type="button" class="candlestick-signal${selected ? " is-selected" : ""}" data-candlestick-signal="${escapeHtml(signal.id)}" aria-pressed="${selected}">
-    <span><strong>${escapeHtml(signal.name)}</strong><small>${escapeHtml(signal.family)} · ${escapeHtml(signal.endDate)}</small></span>
+    <span><strong>${escapeHtml(signal.name)}</strong><small>${escapeHtml(signal.family)} · 形态发生 ${escapeHtml(signal.endDate)}</small></span>
     <span class="candlestick-signal-meta">${escapeHtml(confirmationLabels[signal.confirmationStatus] || signal.confirmationStatus)}<b>${escapeHtml(signal.evidenceScore)}</b></span>
   </button>`;
 }
@@ -56,10 +57,10 @@ function evidenceItem(label, content, tone = "") {
   return `<div class="candlestick-evidence-item"${tone ? ` data-tone="${tone}"` : ""}><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(content || "--")}</dd></div>`;
 }
 
-function signalDetail(signal) {
+function signalDetail(signal, asOf) {
   if (!signal) return `<div class="candlestick-no-signal"><strong>没有满足规则阈值的近期形态</strong><p>这不是中性行情的保证；模块不会根据相似轮廓强行命名。</p></div>`;
   return `<article class="candlestick-signal-detail" data-active-candlestick-signal="${escapeHtml(signal.id)}">
-    <header><div>${direction(signal.direction)}<h3>${escapeHtml(signal.name)}</h3><p>${escapeHtml(signal.englishName)} · ${escapeHtml(signal.startDate)}—${escapeHtml(signal.endDate)}</p></div><span class="candlestick-grade"><b>${escapeHtml(signal.evidenceScore)}</b><small>证据分 / 非概率</small></span></header>
+    <header><div>${direction(signal.direction)}<h3>${escapeHtml(signal.name)}</h3><p>${escapeHtml(signal.englishName)} · 形态发生日：${escapeHtml(signal.startDate)}—${escapeHtml(signal.endDate)} · 分析截止：${escapeHtml(asOf || "--")}</p></div><span class="candlestick-grade"><b>${escapeHtml(signal.evidenceScore)}</b><small>证据分 / 非概率</small></span></header>
     <dl class="candlestick-evidence-grid">
       ${evidenceItem("前置趋势", signal.trendEvidence)}
       ${evidenceItem("相对位置", signal.locationEvidence)}
@@ -95,7 +96,7 @@ function riskAndLevels(analysis) {
 
 function methodology(analysis, provenance) {
   const method = analysis.methodology || {};
-  const notes = (method.knowledge || []).map(entry => `<li><a href="/?knowledge=${encodeURIComponent(entry.id)}#book-knowledge" data-knowledge-id="${escapeHtml(entry.id)}">${escapeHtml(entry.title)}</a><span>${escapeHtml(entry.chapter)} · ${escapeHtml(entry.summary)}</span></li>`).join("");
+  const notes = (method.knowledge || []).map(entry => `<li><strong>${escapeHtml(entry.title)}</strong><span>${escapeHtml(entry.chapter)} · ${escapeHtml(entry.summary)}</span></li>`).join("");
   return `<details class="candlestick-method"><summary><span><strong>方法、章节与限制</strong><small>${escapeHtml(method.ruleVersion || "--")} · ${escapeHtml(provenance?.provider || "未知来源")}</small></span><i data-lucide="chevron-down" aria-hidden="true"></i></summary>
     <div class="candlestick-method-body">
       <section><h4>七步分析顺序</h4><ol>${(method.analysisSequence || []).map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ol></section>
@@ -108,7 +109,7 @@ function methodology(analysis, provenance) {
 
 export function renderCandlestickWorkbench(section, { timeframe = "DAILY", loading = false } = {}) {
   const analysis = sectionPayload(section);
-  const body = loading ? loadingPanel(timeframe) : !analysis ? unavailablePanel(section, timeframe) : `${timeframeControls(timeframe)}${summary(analysis)}<div class="candlestick-primary-grid"><nav class="candlestick-signal-list" aria-label="近期蜡烛图形态">${(analysis.signals || []).map((signal, index) => signalButton(signal, index === 0)).join("") || '<p class="candlestick-inline-empty">近期无严格命名形态</p>'}</nav><div class="candlestick-detail-slot">${signalDetail(analysis.signals?.[0])}</div></div>${confluenceFactors(analysis)}${riskAndLevels(analysis)}${methodology(analysis, section?.provenance)}`;
+  const body = loading ? loadingPanel(timeframe) : !analysis ? unavailablePanel(section, timeframe) : `${timeframeControls(timeframe)}${renderPreviousSession(analysis.previousSession, section)}${summary(analysis)}<div class="candlestick-primary-grid"><nav class="candlestick-signal-list" aria-label="近期蜡烛图形态">${(analysis.signals || []).map((signal, index) => signalButton(signal, index === 0)).join("") || '<p class="candlestick-inline-empty">近期无严格命名形态</p>'}</nav><div class="candlestick-detail-slot">${signalDetail(analysis.signals?.[0], analysis.asOf)}</div></div>${confluenceFactors(analysis)}${riskAndLevels(analysis)}${methodology(analysis, section?.provenance)}`;
   return `<section class="candlestick-workbench" aria-labelledby="candlestick-title"><header class="candlestick-heading"><div><span>OHLCV · EVIDENCE FIRST</span><h2 id="candlestick-title">尼森蜡烛图研判</h2><p>形态是趋势变化的警告；结论必须经过位置、确认、结构与多技术证据复核。</p></div>${analysis?.completion?.latestPeriodComplete === false ? `<span class="candlestick-period-warning"><i data-lucide="clock-3" aria-hidden="true"></i>${escapeHtml(analysis.completion.note)}</span>` : ""}</header><div class="candlestick-body">${body}</div></section>`;
 }
 
@@ -125,7 +126,7 @@ export function activateCandlestickWorkbench(section, { onTimeframeChange } = {}
       item.setAttribute("aria-pressed", String(selected));
     });
     const slot = root.querySelector(".candlestick-detail-slot");
-    if (slot) slot.innerHTML = signalDetail(signal);
+    if (slot) slot.innerHTML = signalDetail(signal, analysis.asOf);
   }));
   return { dispose() {} };
 }

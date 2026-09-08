@@ -97,6 +97,37 @@ class ResearchAggregationServiceTest {
         assertThat(failedResult.fundFlowSummary().issues()).contains("provider failed");
     }
 
+    @Test
+    void usesFresherIndependentBarsWhenPrimaryKlineIsStale() {
+        ResearchGateway gateway = new StubGateway() {
+            @Override
+            public DataSection<List<DailyBar>> bars(SecurityId security) {
+                Provenance tencent = new Provenance("Tencent", URI.create("https://example.com/tencent-bars"), null,
+                        Instant.parse("2026-09-08T08:00:00Z"), false, null);
+                return DataSection.healthy(
+                        barsEndingOn(LocalDate.of(2026, 9, 3)), tencent);
+            }
+
+            @Override
+            public DataSection<List<DailyBar>> crossCheckBars(SecurityId security) {
+                Provenance baidu = new Provenance("Baidu", URI.create("https://example.com/baidu-bars"), null,
+                        Instant.parse("2026-09-08T08:00:00Z"), false, null);
+                return DataSection.healthy(barsEndingOn(LocalDate.of(2026, 9, 8)), baidu);
+            }
+        };
+
+        StockResearchSnapshot result = service(gateway).research(SecurityId.parse("600519"));
+
+        assertThat(result.bars().payload().orElseThrow().getLast().date())
+                .isEqualTo(LocalDate.of(2026, 9, 8));
+        assertThat(result.bars().status()).isEqualTo(SectionStatus.DEGRADED);
+        assertThat(result.bars().provenance().orElseThrow().provider()).isEqualTo("Baidu");
+        assertThat(result.bars().provenance().orElseThrow().fallbackProvider()).isEqualTo("Tencent");
+        assertThat(result.bars().issues()).anyMatch(issue -> issue.contains("fresher"));
+        assertThat(result.technical().payload().orElseThrow().calculatedAt())
+                .isEqualTo(LocalDate.of(2026, 9, 8));
+    }
+
     private static ResearchAggregationService service(ResearchGateway gateway) {
         return new ResearchAggregationService(
                 gateway,
@@ -108,7 +139,7 @@ class ResearchAggregationServiceTest {
 
     private static class StubGateway implements ResearchGateway {
         private final SecurityId id = SecurityId.parse("600519");
-        private final Provenance source = new Provenance("fixture", URI.create("https://example.com"), null,
+        protected final Provenance source = new Provenance("fixture", URI.create("https://example.com"), null,
                 Instant.parse("2026-07-15T08:00:00Z"), false, null);
 
         @Override
@@ -143,5 +174,13 @@ class ResearchAggregationServiceTest {
         @Override public DataSection<?> announcements(SecurityId security) { return DataSection.healthy(List.of(), source); }
 
         protected static BigDecimal bd(double value) { return BigDecimal.valueOf(value); }
+
+        protected static List<DailyBar> barsEndingOn(LocalDate end) {
+            return IntStream.range(0, 320).mapToObj(index -> {
+                double close = 100 + index * 0.1;
+                return new DailyBar(end.minusDays(319L - index), bd(close - 0.1), bd(close + 0.8),
+                        bd(close - 0.8), bd(close), bd(1_000_000), bd(close * 1_000_000));
+            }).toList();
+        }
     }
 }

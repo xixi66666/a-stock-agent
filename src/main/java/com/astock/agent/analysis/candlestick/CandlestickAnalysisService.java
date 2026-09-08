@@ -89,7 +89,89 @@ public final class CandlestickAnalysisService {
                 confluence, risk, levels, methodology(signals),
                 List.of("反转形态表示原趋势可能变化的警告，不保证立即形成反向趋势",
                         "形态阈值是可审计的工程化近似，不等同于书中给出的机械交易系统",
-                        "本分析仅用于研究，不构成个性化投资建议"));
+                        "本分析仅用于研究，不构成个性化投资建议"), previousSession(dailyBars));
+    }
+
+    private CandlestickAnalysis.SessionReview previousSession(List<DailyBar> dailyBars) {
+        ZonedDateTime now = ZonedDateTime.now(clock).withZoneSameInstant(CHINA);
+        LocalDate today = now.toLocalDate();
+        boolean includeToday = !now.toLocalTime().isBefore(DAILY_CLOSE_SAFETY_TIME);
+        // 收盘安全时间后纳入当天日线；未来日期永不纳入，供应商缺失时保留真实日期。
+        List<DailyBar> history = dailyBars.stream().filter(bar -> bar.date().isBefore(today)
+                        || (includeToday && bar.date().equals(today)))
+                .sorted(Comparator.comparing(DailyBar::date)).toList();
+        if (history.isEmpty()) return null;
+        DailyBar bar = history.getLast();
+        BigDecimal range = bar.high().subtract(bar.low());
+        BigDecimal realBody = body(bar);
+        BigDecimal upper = bar.high().subtract(bodyHigh(bar));
+        BigDecimal lower = bodyLow(bar).subtract(bar.low());
+        BigDecimal bodyRatio = sharePercent(realBody, range);
+        BigDecimal upperRatio = sharePercent(upper, range);
+        BigDecimal lowerRatio = sharePercent(lower, range);
+        String type = bullish(bar) ? "阳线" : bearish(bar) ? "阴线" : "开收持平";
+        String shape;
+        String interpretation;
+        if (range.signum() == 0) {
+            shape = "无振幅线";
+            interpretation = "开高低收相同，无法从实体与影线比例判断力量变化；需结合成交与交易状态。";
+        } else if (bodyRatio.doubleValue() <= 5) {
+            shape = "十字线轮廓";
+            interpretation = "开收接近，日内波动未转为明显实体，反映犹疑；是否具有反转意义需结合前置趋势和后续收盘。";
+        } else if (upperRatio.doubleValue() >= 60) {
+            shape = "长上影线";
+            interpretation = "收盘未能保持日内高位，提示上方压力；结合所处位置观察压力能否被消化。";
+        } else if (lowerRatio.doubleValue() >= 60) {
+            shape = "长下影线";
+            interpretation = "收盘脱离日内低点，提示下探后有所承接；后续能否守住低点仍需验证。";
+        } else if (bodyRatio.doubleValue() >= 70) {
+            shape = "实体主导";
+            interpretation = bullish(bar) ? "实体占当日振幅较大，收盘明显高于开盘，该日买方较占优势。"
+                    : "实体占当日振幅较大，收盘明显低于开盘，该日卖方较占优势。";
+        } else if (bodyRatio.doubleValue() <= 30) {
+            shape = "小实体线";
+            interpretation = "开收差相对当日振幅较小，方向推进有限；可能是动能收缩，也可能只是整理。";
+        } else {
+            shape = "普通实体线";
+            interpretation = "实体与影线共同构成当日波动，单根轮廓没有突出特征，需结合趋势与量价继续观察。";
+        }
+        List<DailyBar> prior = history.subList(Math.max(0, history.size() - 21), history.size() - 1);
+        BigDecimal change = prior.isEmpty() || prior.getLast().close().signum() == 0 ? null
+                : percent(bar.close(), prior.getLast().close());
+        BigDecimal volumeRatio = null;
+        if (prior.size() == 20) {
+            BigDecimal total = prior.stream().map(DailyBar::volumeShares).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (total.signum() > 0) volumeRatio = bar.volumeShares().multiply(BigDecimal.valueOf(20))
+                    .divide(total, 2, RoundingMode.HALF_UP);
+        }
+        String trend = switch (trendBefore(history, history.size() - 1, 5)) {
+            case UP -> "此前 5 根日线收盘趋势向上";
+            case DOWN -> "此前 5 根日线收盘趋势向下";
+            case SIDEWAYS -> "此前 5 根日线收盘趋势横向";
+            case INSUFFICIENT -> "此前日线不足 5 根，前置趋势不可判定";
+        };
+        String location = "此前价格区间样本不足";
+        if (!prior.isEmpty()) {
+            BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
+            BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
+            location = "此前 " + prior.size() + " 根日线区间 " + money(low) + "—" + money(high) + " 元；"
+                    + (bar.close().compareTo(high) > 0 ? "收盘位于区间上方"
+                    : bar.close().compareTo(low) < 0 ? "收盘位于区间下方" : "收盘仍在区间内");
+        }
+        List<PatternSignal> matches = detectPatterns(history).stream()
+                .filter(signal -> signal.endDate().equals(bar.date())).toList();
+        return new CandlestickAnalysis.SessionReview(bar, type, shape, realBody, upper, lower,
+                bodyRatio, upperRatio, lowerRatio, change, volumeRatio, interpretation, trend, location,
+                "观察后续完整日线收盘能否突破 " + money(bar.high()) + " 元或跌破 " + money(bar.low())
+                        + " 元，并结合成交量复核；单根高低点仅作观察边界。",
+                "按上海时间 15:05 判断日线完成；" + (includeToday ? "已过安全时间，可纳入当天收盘日线" : "尚未到安全时间，排除当天日线")
+                        + "。复盘截至 " + bar.date()
+                        + "，不含之后行情。休市、停牌或数据滞后均可能使日期提前，请核对来源时效。", matches);
+    }
+
+    private static BigDecimal sharePercent(BigDecimal value, BigDecimal range) {
+        return range.signum() == 0 ? null : value.multiply(BigDecimal.valueOf(100))
+                .divide(range, 2, RoundingMode.HALF_UP);
     }
 
     private boolean isCurrentPeriodIncomplete(LocalDate barDate, Timeframe timeframe) {

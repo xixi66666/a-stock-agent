@@ -76,7 +76,7 @@ public final class ProviderResearchGateway implements ResearchGateway {
 
     @Override
     public DataSection<List<DailyBar>> crossCheckBars(SecurityId security) {
-        // 交叉 K 线用于一致性核验，不直接替换主 K 线；两者的身份和日期由校验层比较。
+        // 交叉 K 线用于一致性核验；聚合层只有在主源明显滞后时才允许更新的来源接管分析输入。
         var result = baidu.fetchDailyBars(security);
         return DataSection.healthy(result.bars(), result.provenance());
     }

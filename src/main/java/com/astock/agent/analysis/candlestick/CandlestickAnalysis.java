@@ -24,7 +24,8 @@ public record CandlestickAnalysis(
         RiskAssessment risk,
         List<PriceLevel> levels,
         Methodology methodology,
-        List<String> limitations) {
+        List<String> limitations,
+        SessionReview previousSession) {
 
     public CandlestickAnalysis {
         signals = List.copyOf(signals);
@@ -40,6 +41,18 @@ public record CandlestickAnalysis(
     public enum EvidenceKind { CANDLESTICK, TREND, LOCATION, MOMENTUM, VOLUME, LEVEL }
 
     public record CompletionStatus(boolean latestPeriodComplete, LocalDate excludedDate, String note) {}
+
+    /** 最近已收盘日线复盘；previousSession 字段保留以兼容客户端，比例无定义时为 null。 */
+    public record SessionReview(
+            com.astock.agent.marketdata.model.DailyBar bar,
+            String candleType, String shape,
+            BigDecimal bodyLength, BigDecimal upperShadow, BigDecimal lowerShadow,
+            BigDecimal bodyPercent, BigDecimal upperShadowPercent, BigDecimal lowerShadowPercent,
+            BigDecimal changePercent, BigDecimal volumeRatio,
+            String interpretation, String trendEvidence, String locationEvidence,
+            String followUp, String dateNote, List<PatternSignal> signals) {
+        public SessionReview { signals = List.copyOf(signals); }
+    }
 
     public record TrendContext(
             Trend shortTerm,

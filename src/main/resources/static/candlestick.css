@@ -118,6 +118,53 @@
 .candlestick-method-body dt { color: var(--muted); font-size: 9px; }
 .candlestick-method-body dd, .candlestick-method-body p { margin: 1px 0 0; color: var(--body); font-size: 9px; }
 
+/* 单日复盘继承研究台的细分隔线，桌面左图右读，手机自然纵排。 */
+.previous-session { margin-bottom: 24px; padding: 16px 0; border-top: 1px solid var(--hairline-strong); color: var(--body); }
+.previous-session-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.previous-session-heading h3 { margin: 0; color: var(--ink); font-size: 16px; }
+.previous-session-heading p { margin: 4px 0 0; font-size: 12px; }
+.previous-session-heading time { padding: 5px 8px; background: var(--purple-soft); color: var(--purple); border-radius: 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.previous-session-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 24px; margin-top: 16px; }
+.previous-session-figure { margin: 0; padding: 8px; background: var(--canvas-soft); text-align: center; }
+.previous-session-candle { display: block; width: 120px; height: 180px; margin: auto; color: var(--body); }
+.previous-session-candle[data-tone="up"] { color: var(--up); }
+.previous-session-candle[data-tone="down"] { color: var(--down); }
+.previous-session-figure figcaption { font-size: 11px; }
+.previous-session-reading { min-width: 0; }
+.previous-session-verdict { display: flex; align-items: baseline; gap: 10px; }
+.previous-session-verdict strong { font-size: 18px; color: var(--ink); }
+.previous-session-verdict span { font-size: 12px; }
+.previous-session-interpretation { margin: 6px 0 14px; max-width: 75ch; font-size: 13px; line-height: 1.7; }
+.previous-session-prices, .previous-session-metrics { display: grid; margin: 0; gap: 12px; font-variant-numeric: tabular-nums; }
+.previous-session-prices { grid-template-columns: repeat(4, minmax(0, 1fr)); padding-bottom: 12px; }
+.previous-session-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); padding-top: 12px; border-top: 1px solid var(--hairline); }
+.previous-session dt { font-size: 11px; }
+.previous-session dd { margin: 4px 0 0; }
+.previous-session-prices dd { font-size: 16px; font-weight: 650; color: var(--ink); }
+.previous-session-prices small { font-size: 10px; font-weight: 400; color: var(--body); }
+.previous-session-metrics dd { color: var(--ink); font-size: 13px; }
+.previous-session-context { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin: 16px 0 0; padding: 14px 0; border-top: 1px solid var(--hairline); }
+.previous-session-context dt { font-weight: 650; color: var(--ink); font-size: 12px; }
+.previous-session-context dd { font-size: 12px; line-height: 1.7; }
+.previous-session-matches { display: flex; gap: 12px; font-size: 12px; }
+.previous-session-matches strong { flex-shrink: 0; color: var(--ink); }
+.previous-session-notes { margin-top: 12px; font-size: 11px; }
+.previous-session-notes summary { width: fit-content; cursor: pointer; }
+.previous-session-notes p { max-width: 100ch; line-height: 1.7; overflow-wrap: anywhere; }
+@media (max-width: 820px) {
+  .previous-session-layout { grid-template-columns: 140px minmax(0, 1fr); gap: 16px; }
+  .previous-session-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .previous-session-layout, .previous-session-context { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .previous-session-candle { height: 130px; }
+  .previous-session-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .previous-session-prices { gap: 8px; }
+  .previous-session-prices dd { font-size: 14px; }
+  .previous-session-matches { display: block; }
+  .previous-session-matches span { display: block; margin-top: 4px; }
+}
+
 @media (max-width: 1180px) {
   .candlestick-summary { grid-template-columns: minmax(280px, 1fr) 130px minmax(330px, 1.2fr); }
   .candlestick-factor-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }

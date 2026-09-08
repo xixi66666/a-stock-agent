@@ -283,6 +283,88 @@ class CandlestickAnalysisServiceTest {
         return analysis.signals().stream().filter(item -> item.id().equals(id)).findFirst().orElseThrow();
     }
 
+    @Test
+    void latestSessionReviewsYesterdayBeforeCloseWithoutFutureConfirmation() {
+        var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
+                Clock.fixed(Instant.parse("2026-09-08T06:00:00Z"), ZoneOffset.UTC));
+        var bars = decliningBarsEndingOn(LocalDate.parse("2026-09-04"), 24);
+        bars.add(bar("2026-09-07", 84, 91, 83.8, 84.3, 1_200_000));
+        bars.add(bar("2026-09-08", 85, 89, 84.8, 88, 1_600_000));
+        var json = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules()
+                .valueToTree(reviewService.analyze(bars, Timeframe.DAILY));
+        var review = json.path("previousSession");
+        assertThat(review.path("bar").path("close").decimalValue()).isEqualByComparingTo("84.3");
+        assertThat(review.path("bodyLength").decimalValue()).isEqualByComparingTo("0.3");
+        assertThat(review.path("upperShadow").decimalValue()).isEqualByComparingTo("6.7");
+        assertThat(review.path("lowerShadow").decimalValue()).isEqualByComparingTo("0.2");
+        assertThat(review.path("volumeRatio").decimalValue()).isEqualByComparingTo("1.28");
+        assertThat(review.path("candleType").asText()).isEqualTo("阳线");
+        assertThat(review.path("changePercent").decimalValue()).isNegative();
+        assertThat(review.path("signals").toString()).contains("INVERTED_HAMMER", "AWAITING_CONFIRMATION");
+        assertThat(review.path("signals").toString()).doesNotContain("2026-09-08");
+    }
+
+    @Test
+    void previousSessionUsesFridayOnMondayAndHandlesFlatCandleWithoutFakeRatios() {
+        var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
+                Clock.fixed(Instant.parse("2026-09-07T02:00:00Z"), ZoneOffset.UTC));
+        var bars = decliningBarsEndingOn(LocalDate.parse("2026-09-03"), 24);
+        bars.add(bar("2026-09-04", 89, 89, 89, 89, 0));
+        bars.add(bar("2026-09-07", 85, 89, 84, 88, 100));
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        var review = mapper.valueToTree(reviewService.analyze(bars, Timeframe.DAILY)).path("previousSession");
+        assertThat(review.path("bar").path("date").asText()).isEqualTo("2026-09-04");
+        assertThat(review.path("shape").asText()).isEqualTo("无振幅线");
+        assertThat(review.path("bodyPercent").isNull()).isTrue();
+        assertThat(review.path("signals").isEmpty()).isTrue();
+        assertThat(review.path("interpretation").asText()).contains("无法");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "2026-09-08T07:04:59Z,2026-09-07",
+            "2026-09-08T07:05:00Z,2026-09-08",
+            "2026-09-08T08:00:00Z,2026-09-08"})
+    void latestCompletedSessionSwitchesAtCloseSafetyTime(String instant, String expectedDate) {
+        var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
+                Clock.fixed(Instant.parse(instant), ZoneOffset.UTC));
+        var bars = decliningBarsEndingOn(LocalDate.parse("2026-09-04"), 24);
+        bars.add(bar("2026-09-07", 85, 90, 84, 88, 1_000_000));
+        bars.add(bar("2026-09-08", 88, 93, 87, 91, 1_300_000));
+        // 即使供应商误带未来日期，也不能用它代替当天已收盘数据。
+        bars.add(bar("2026-09-09", 91, 95, 90, 94, 1_500_000));
+        var review = reviewService.analyze(bars, Timeframe.DAILY).previousSession();
+        assertThat(review.bar().date()).isEqualTo(LocalDate.parse(expectedDate));
+        assertThat(review.dateNote()).contains("15:05", expectedDate);
+    }
+
+    @Test
+    void afterCloseWithMissingTodayKeepsActualAvailableDate() {
+        var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
+                Clock.fixed(Instant.parse("2026-09-08T08:00:00Z"), ZoneOffset.UTC));
+        var bars = decliningBarsEndingOn(LocalDate.parse("2026-09-07"), 24);
+        assertThat(reviewService.analyze(bars, Timeframe.DAILY).previousSession().bar().date())
+                .isEqualTo(LocalDate.parse("2026-09-07"));
+    }
+
+    @Test
+    void previousSessionStaysDailyWhenWeeklySelectedAndRetainsUnnamedCandle() {
+        var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
+                Clock.fixed(Instant.parse("2026-09-08T02:00:00Z"), ZoneOffset.UTC));
+        var bars = new ArrayList<DailyBar>();
+        LocalDate end = LocalDate.parse("2026-09-07");
+        for (int i = 159; i >= 0; i--) bars.add(bar(end.minusDays(i).toString(), 99.7, 101, 99, 100, 0));
+        var daily = reviewService.analyze(bars, Timeframe.DAILY).previousSession();
+        var weekly = reviewService.analyze(bars, Timeframe.WEEKLY).previousSession();
+        assertThat(weekly).isEqualTo(daily);
+        assertThat(daily.bar().date()).isEqualTo(end);
+        assertThat(daily.shape()).isEqualTo("小实体线");
+        assertThat(daily.signals()).isEmpty();
+        assertThat(daily.volumeRatio()).isNull();
+        assertThat(daily.interpretation()).isNotBlank();
+    }
+
     private static List<DailyBar> decliningBars(int count) {
         List<DailyBar> bars = new ArrayList<>();
         LocalDate start = LocalDate.parse("2026-08-01");

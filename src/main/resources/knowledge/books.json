@@ -41,7 +41,8 @@
       "BEARISH_ENGULFING",
       "PIERCING_PATTERN",
       "DARK_CLOUD_COVER"
-    ]
+    ],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
     "id": "nison-harami",
@@ -80,7 +81,8 @@
       "BEARISH_HARAMI",
       "BULLISH_HARAMI_CROSS",
       "BEARISH_HARAMI_CROSS"
-    ]
+    ],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
     "id": "nison-window",
@@ -117,7 +119,8 @@
     "patternIds": [
       "UPWARD_WINDOW",
       "DOWNWARD_WINDOW"
-    ]
+    ],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
     "id": "nison-confluence",
@@ -149,199 +152,470 @@
       "confluence",
       "risk reward"
     ],
-    "patternIds": []
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
-    "id": "marks-credit",
-    "bookId": "marks",
-    "bookTitle": "周期：投资机会、风险、态度与市场周期",
-    "author": "霍华德·马克斯",
-    "chapter": "09 信贷周期",
-    "sourceLocator": "content/chapters/013-09.md",
+    "id": "nison-candle-anatomy",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第三章 蜡烛图的绘制方法",
+    "sourceLocator": "content/chapters/009-section-009.md",
     "revision": "1.0",
-    "reviewedOn": "2026-09-07",
-    "domain": "MARKET_CYCLE",
-    "title": "融资松紧与信贷周期",
-    "summary": "融资条件的变化会影响企业、投资者和资产价格，信贷的扩张与收缩又受到心理和经济活动的影响。",
-    "application": "在讨论周期背景时检查融资可得性、借款条件与违约压力，缺项时列出待补证据。",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "实体、影线与开高低收",
+    "summary": "蜡烛图用开盘价、最高价、最低价和收盘价表达一个周期；实体体现开收盘的方向与幅度，影线体现周期内的价格试探。",
+    "application": "先校验完整 OHLC，再分别记录实体、上下影线和全幅区间；不以单根蜡烛脱离趋势和位置作方向判断。",
     "requiredEvidence": [
-      "融资条件及日期",
-      "信用利差或借款成本",
-      "违约或贷款标准数据"
+      "完整的开盘、最高、最低、收盘价",
+      "周期是否已经收市",
+      "前置趋势和相对位置"
     ],
     "limitations": [
-      "单只股票的 OHLCV 不足以判断信贷周期",
-      "本库不提供实时宏观观测，也不推断当前周期阶段"
+      "实体和影线的工程阈值不是原书唯一机械定义",
+      "单根蜡烛只能提供结构事实，不能独立预测后续方向"
     ],
     "keywords": [
-      "信贷",
-      "融资",
-      "贷款",
-      "信用利差",
-      "杠杆",
-      "credit",
-      "credit cycle"
+      "开盘价",
+      "最高价",
+      "最低价",
+      "收盘价",
+      "实体",
+      "影线",
+      "纺锤线",
+      "OHLC",
+      "body",
+      "shadow"
     ],
-    "patternIds": []
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
-    "id": "marks-risk",
-    "bookId": "marks",
-    "bookTitle": "周期：投资机会、风险、态度与市场周期",
-    "author": "霍华德·马克斯",
-    "chapter": "08 风险态度周期",
-    "sourceLocator": "content/chapters/012-08.md",
+    "id": "nison-stars",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第五章 星线",
+    "sourceLocator": "content/chapters/011-section-011.md",
     "revision": "1.0",
-    "reviewedOn": "2026-09-07",
-    "domain": "MARKET_CYCLE",
-    "title": "风险态度与心理偏差",
-    "summary": "市场参与者对风险的容忍会随经历变化。乐观时忽视风险、低迷时只关注亏损，都会影响资产定价与判断。",
-    "application": "将风险态度当作待观察维度，同时核对估值、基本面和相反证据。",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "星线、启明星与黄昏星",
+    "summary": "星线强调小实体与前一根实体之间的关系；启明星和黄昏星由三根蜡烛构成，必须结合前置趋势、位置和第三根收市确认。",
+    "application": "识别启明星、黄昏星、流星和倒锤子线时，分别记录小实体、跳空关系、第三根收市和失效极值。",
     "requiredEvidence": [
-      "估值与历史比较",
-      "可核验的风险偏好观测",
-      "基本面与压力情境"
+      "连续完整的两根或三根 OHLC",
+      "明确的前置上涨或下跌趋势",
+      "第三根收市确认和形态极值"
     ],
     "limitations": [
-      "上涨本身不能证明风险低",
-      "情绪描述不是当前市场事实"
+      "项目使用小实体和影线比例作为可复现近似",
+      "现实形态允许变体，图例细节需回到用户持有的版本核对"
     ],
     "keywords": [
-      "风险态度",
-      "风险偏好",
-      "心理",
-      "乐观",
-      "恐惧",
-      "风险容忍",
-      "risk attitude"
+      "星线",
+      "启明星",
+      "黄昏星",
+      "流星",
+      "倒锤子",
+      "morning star",
+      "evening star",
+      "shooting star",
+      "inverted hammer"
     ],
-    "patternIds": []
+    "patternIds": [
+      "INVERTED_HAMMER",
+      "SHOOTING_STAR",
+      "MORNING_STAR",
+      "EVENING_STAR"
+    ],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
-    "id": "marks-position",
-    "bookId": "marks",
-    "bookTitle": "周期：投资机会、风险、态度与市场周期",
-    "author": "霍华德·马克斯",
-    "chapter": "13 如何应对市场周期",
-    "sourceLocator": "content/chapters/017-13.md",
+    "id": "nison-doji",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第八章 神奇的十字线",
+    "sourceLocator": "content/chapters/014-section-014.md",
     "revision": "1.0",
-    "reviewedOn": "2026-09-07",
-    "domain": "MARKET_CYCLE",
-    "title": "周期定位与预测边界",
-    "summary": "评估所处环境需要理解心理和估值的状态，而非依赖对未来事件和时点的精确预测。",
-    "application": "把已知、未知和相互矛盾的观测分开，说明判断的适用范围与更新条件。",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "十字线与趋势位置",
+    "summary": "十字线表示开收盘接近，反映市场犹疑；它在上涨高位或下跌低位的意义不同，仍需要后续价格行为和其他证据确认。",
+    "application": "区分高位十字线和低位十字线，记录出现前趋势、形态高低点和下一期收市方向。",
     "requiredEvidence": [
-      "带时间的估值比较",
-      "心理和风险偏好证据",
-      "宏观与融资背景"
+      "完整 OHLC 和当期价格全幅",
+      "十字线出现前的趋势",
+      "后续完整收市价"
     ],
     "limitations": [
-      "无法从一本书或一个指标确定今天的周期位置",
-      "不提供精确顶部、底部或反转日期"
+      "5% 实体比例是项目工程阈值",
+      "横盘中的十字线不自动形成反转证据"
     ],
     "keywords": [
-      "周期位置",
-      "周期定位",
-      "预测",
-      "估值",
-      "进攻",
-      "防守",
-      "market cycle"
+      "十字线",
+      "十字星",
+      "高位十字",
+      "低位十字",
+      "墓碑十字",
+      "蜻蜓十字",
+      "doji"
     ],
-    "patternIds": []
+    "patternIds": [
+      "DOJI_TOP",
+      "DOJI_BOTTOM"
+    ],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
-    "id": "naval-judgment",
-    "bookId": "naval",
-    "bookTitle": "The Almanack of Naval Ravikant",
-    "author": "Naval Ravikant；Eric Jorgenson 编",
-    "chapter": "Judgment",
-    "sourceLocator": "content/chapters/033-judgment.md",
+    "id": "nison-context-confirmation",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第九章 蜡烛图技术汇总",
+    "sourceLocator": "content/chapters/015-section-015.md",
     "revision": "1.0",
-    "reviewedOn": "2026-09-07",
-    "domain": "DECISION",
-    "title": "判断与长期后果",
-    "summary": "判断强调理解行动的长期后果；在杠杆作用下，选择方向会显著影响努力的结果。",
-    "application": "作为研究过程的自检：明确时间尺度、关键假设与判断错误时的后果。",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "总体环境、确认与失效",
+    "summary": "蜡烛图信号不能脱离主要趋势、位置和市场环境；形态完成后仍应观察确认信号、支撑阻挡和失效条件。",
+    "application": "把前置趋势、形态构成、相对位置、确认、失效和反证分开返回，禁止仅凭形态名称生成方向结论。",
     "requiredEvidence": [
-      "决策目标与时间尺度",
-      "关键假设",
-      "可能损失与可逆性"
+      "主要趋势和短期趋势",
+      "形态位置及结构位",
+      "后续收市和反向失效条件"
     ],
     "limitations": [
-      "中文内容为项目概括，非逐字引文",
-      "属于一般决策参考，不参与个股技术评分"
+      "证据覆盖度不是历史胜率或方向概率",
+      "没有完整后续周期时只能返回候选或待确认状态"
     ],
     "keywords": [
-      "判断",
-      "长期后果",
-      "judgment",
-      "long term"
+      "总体环境",
+      "主要趋势",
+      "确认",
+      "失效",
+      "反转警告",
+      "收市价",
+      "context",
+      "confirmation"
     ],
-    "patternIds": []
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
-    "id": "naval-clear-thinking",
-    "bookId": "naval",
-    "bookTitle": "The Almanack of Naval Ravikant",
-    "author": "Naval Ravikant；Eric Jorgenson 编",
-    "chapter": "How to Think Clearly",
-    "sourceLocator": "content/chapters/034-how-to-think-clearly.md",
+    "id": "nison-support-resistance",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十一章 蜡烛图与趋势线",
+    "sourceLocator": "content/chapters/018-section-018.md",
     "revision": "1.0",
-    "reviewedOn": "2026-09-07",
-    "domain": "DECISION",
-    "title": "清晰思考与事实核对",
-    "summary": "理解基础并从基础推导，有助于检验复杂观点；对结果的期待和先入为主可能妨碍看清事实。",
-    "application": "在分析中分别列出观察事实、推导过程和反证，避免用希望替代证据。",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "趋势线、支撑阻挡与极性转换",
+    "summary": "形态所在的支撑、阻挡和趋势线位置会影响信号意义；突破后的收市价可以改变结构位的角色，但影线短暂越界不等于确认突破。",
+    "application": "返回形态极值、窗口结构位及其收市失效状态，并把结构目标与蜡烛图形态本身分开。",
     "requiredEvidence": [
-      "原始事实",
-      "推导步骤",
-      "相反证据"
+      "历史高低点和窗口区间",
+      "形态极值",
+      "形成后的完整收市价"
     ],
     "limitations": [
-      "属于认知检查，不是证券收益预测方法",
-      "中文为概括；章节含编纂的多来源材料，正式引文需核对原始出处"
+      "当前 Java 实现的是结构高低点和窗口，不是完整人工趋势线绘制",
+      "支撑阻挡不是价格必然反转的位置"
     ],
     "keywords": [
-      "清晰思考",
-      "第一性原理",
-      "事实",
-      "反证",
-      "偏见",
-      "clear thinking"
+      "趋势线",
+      "支撑",
+      "阻挡",
+      "极性转换",
+      "突破",
+      "收市价突破",
+      "support",
+      "resistance"
     ],
-    "patternIds": []
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
   },
   {
-    "id": "naval-decisions",
-    "bookId": "naval",
-    "bookTitle": "The Almanack of Naval Ravikant",
-    "author": "Naval Ravikant；Eric Jorgenson 编",
-    "chapter": "Learn the Skills of Decision-Making",
-    "sourceLocator": "content/chapters/036-learn-the-skills-of-decision-making.md",
+    "id": "nison-moving-average",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十三章 蜡烛图与移动平均线",
+    "sourceLocator": "content/chapters/020-section-020.md",
     "revision": "1.0",
-    "reviewedOn": "2026-09-07",
-    "domain": "DECISION",
-    "title": "决策偏差与自利结论",
-    "summary": "习惯性的判断捷径可能引入偏差；对符合自身愿望的结论，应采用更严格的审查。",
-    "application": "为每个偏好的结论列出可能推翻它的证据，并检查其是否只是重复旧经验。",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "移动平均线的趋势参照",
+    "summary": "移动平均线可作为趋势和支撑阻挡的辅助参照，不能替代蜡烛图形态、价格位置和收市确认。",
+    "application": "当前分析以 20 期收盘均值作为主要趋势参照，并披露这是工程指标，不把均线方向写成独立交易信号。",
     "requiredEvidence": [
-      "结论依赖的假设",
-      "可推翻结论的观测",
-      "备选解释"
+      "足够长度的完整收盘序列",
+      "均线窗口和计算口径",
+      "当前收盘价与均线的相对位置"
     ],
     "limitations": [
-      "一般决策原则，不自动给出股票方向",
-      "中文为项目概括，不归为作者逐字原话"
+      "当前实现只提供 SMA20 参照，不代表完整均线系统",
+      "均线滞后且不能单独确认反转"
     ],
     "keywords": [
-      "决策",
-      "自利",
-      "偏差",
-      "自我欺骗",
-      "decision-making",
-      "bias"
+      "移动平均线",
+      "均线",
+      "SMA",
+      "趋势参照",
+      "均线支撑",
+      "均线阻挡",
+      "moving average"
     ],
-    "patternIds": []
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
+  },
+  {
+    "id": "nison-oscillator",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十四章 蜡烛图与摆动指数",
+    "sourceLocator": "content/chapters/021-section-021.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "摆动指标与反转确认",
+    "summary": "RSI 等摆动指标可以作为蜡烛图信号的辅助验证，超买超卖不是价格必然反转的充分条件。",
+    "application": "当前以 RSI14 作为独立汇聚因子，单独返回其方向、阈值和与蜡烛图是否同向的状态。",
+    "requiredEvidence": [
+      "完整且按日期排序的收盘序列",
+      "指标周期和计算方法",
+      "蜡烛图信号与指标的同一观察窗口"
+    ],
+    "limitations": [
+      "当前实现 RSI14，不包含完整随机指数、MACD 或背离识别",
+      "30/70 阈值是工程约定，不是反转保证"
+    ],
+    "keywords": [
+      "摆动指标",
+      "RSI",
+      "超买",
+      "超卖",
+      "背离",
+      "momentum",
+      "oscillator"
+    ],
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
+  },
+  {
+    "id": "nison-volume",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十五章 蜡烛图与交易量",
+    "sourceLocator": "content/chapters/022-section-022.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "交易量对形态的验证",
+    "summary": "成交量可以帮助判断价格行为是否得到参与度支持；量价不一致应作为反证保留，而不是被方向结论覆盖。",
+    "application": "当前比较最新成交量与近 20 期均量，并将量比、量价方向和是否与形态同向作为独立因子返回。",
+    "requiredEvidence": [
+      "完整成交量序列",
+      "成交量单位和复权口径",
+      "形态形成日及其前置均量"
+    ],
+    "limitations": [
+      "1.2 倍均量是工程阈值，不是原书唯一标准",
+      "成交量放大不等于方向正确，也不等于后续收益"
+    ],
+    "keywords": [
+      "成交量",
+      "交易量",
+      "量比",
+      "量价",
+      "成交量确认",
+      "volume confirmation",
+      "volume"
+    ],
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
+  },
+  {
+    "id": "nison-price-target-boundary",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十六章 测算价格目标",
+    "sourceLocator": "content/chapters/023-section-023.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "价格目标与风险报偿的边界",
+    "summary": "蜡烛图形态本身不提供完整价格目标；目标需要来自独立的结构或西方技术分析工具，并与失效位一起评估风险报偿。",
+    "application": "当前目标参考只取最近 20 期结构支撑阻挡，风险报偿单独展示，并明确它不是蜡烛图给出的预测价格。",
+    "requiredEvidence": [
+      "形态失效位",
+      "结构支撑和阻挡",
+      "当前收盘价与结构位距离"
+    ],
+    "limitations": [
+      "当前未实现箱体、旗形、三角形等完整价格目标测算",
+      "风险报偿比是图表结构描述，不是收益承诺"
+    ],
+    "keywords": [
+      "价格目标",
+      "测算",
+      "风险报偿",
+      "风险收益",
+      "箱体",
+      "对等运动",
+      "旗形",
+      "price target",
+      "risk reward"
+    ],
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
+  },
+  {
+    "id": "nison-western-confirmation",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十七章 东西方技术珠联璧合",
+    "sourceLocator": "content/chapters/024-section-024.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "多技术相互验证",
+    "summary": "蜡烛图信号与趋势、支撑阻挡、摆动指标和交易量在相近位置相互验证时，证据覆盖更充分；不一致信号必须保留。",
+    "application": "将蜡烛图、趋势、RSI、成交量和结构位拆成独立因子，以固定权重计算证据覆盖度而不是历史胜率。",
+    "requiredEvidence": [
+      "同一观察窗口中的蜡烛图信号",
+      "趋势、指标、成交量和结构位",
+      "同向与反向证据"
+    ],
+    "limitations": [
+      "当前汇聚分不是回测胜率或概率",
+      "不同技术信号未必真正独立，不能简单相加成确定结论"
+    ],
+    "keywords": [
+      "相互验证",
+      "汇聚",
+      "共同参照",
+      "多技术",
+      "趋势线",
+      "confluence",
+      "confirmation"
+    ],
+    "patternIds": [],
+    "implementationStatus": "IMPLEMENTED"
+  },
+  {
+    "id": "nison-continuation-patterns",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第七章 持续形态",
+    "sourceLocator": "content/chapters/013-section-013.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "窗口之外的持续形态",
+    "summary": "持续形态用于观察原趋势延续的可能，包括跳空并列阴阳线、上升三法、下降三法和分手线等；仍需结合趋势和收市确认。",
+    "application": "作为后续 Java 规则扩展的章节索引，当前只提供书本方法参考，不把这些形态返回为已识别信号。",
+    "requiredEvidence": [
+      "连续完整的多根 OHLC",
+      "持续形态形成前的趋势",
+      "后续收市和失效边界"
+    ],
+    "limitations": [
+      "当前 Java 尚未识别上升三法、下降三法、分手线和跳空并列阴阳线",
+      "该笔记不是当前接口的信号结果"
+    ],
+    "keywords": [
+      "持续形态",
+      "跳空并列阴阳线",
+      "上升三法",
+      "下降三法",
+      "分手线",
+      "tasuki",
+      "three methods",
+      "separating lines"
+    ],
+    "patternIds": [],
+    "implementationStatus": "REFERENCE_ONLY"
+  },
+  {
+    "id": "nison-other-reversals",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第六章 其他反转形态",
+    "sourceLocator": "content/chapters/012-section-012.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "其他多根反转形态",
+    "summary": "其他反转章节还讨论平头顶部、平头底部、捉腰带、两只乌鸦、三只乌鸦、白色三兵和反击线等形态。",
+    "application": "保存术语、章节和所需确认条件，作为后续形态扩展的知识入口。",
+    "requiredEvidence": [
+      "形态要求的完整多根 OHLC",
+      "前置趋势和价格位置",
+      "后续收市确认或失效"
+    ],
+    "limitations": [
+      "当前 Java 尚未识别这些形态",
+      "不能从知识笔记推导当前股票的形态结论"
+    ],
+    "keywords": [
+      "平头顶部",
+      "平头底部",
+      "捉腰带",
+      "两只乌鸦",
+      "三只乌鸦",
+      "白色三兵",
+      "三山",
+      "三川",
+      "反击线",
+      "圆形",
+      "塔形"
+    ],
+    "patternIds": [],
+    "implementationStatus": "REFERENCE_ONLY"
+  },
+  {
+    "id": "nison-retracement",
+    "bookId": "nison",
+    "bookTitle": "日本蜡烛图技术",
+    "author": "史蒂夫·尼森",
+    "chapter": "第十二章 蜡烛图与百分比回撤水平",
+    "sourceLocator": "content/chapters/019-section-019.md",
+    "revision": "1.0",
+    "reviewedOn": "2026-09-08",
+    "domain": "TECHNICAL",
+    "title": "百分比回撤与形态位置",
+    "summary": "百分比回撤可以作为形态位置和支撑阻挡的辅助参照，但需要明确波段起止点、周期和计算口径。",
+    "application": "作为后续回撤计算的知识入口；当前接口不把百分比回撤作为蜡烛图汇聚因子。",
+    "requiredEvidence": [
+      "可复核的波段高点和低点",
+      "回撤计算方向和比例",
+      "与形态日期一致的价格序列"
+    ],
+    "limitations": [
+      "当前 Java 尚未实现百分比回撤计算",
+      "不同波段选择会产生不同回撤水平，不能脱离上下文使用"
+    ],
+    "keywords": [
+      "百分比回撤",
+      "回撤水平",
+      "回调",
+      "斐波那契",
+      "retracement",
+      "support"
+    ],
+    "patternIds": [],
+    "implementationStatus": "REFERENCE_ONLY"
   }
 ]

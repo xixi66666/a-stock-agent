@@ -3,36 +3,23 @@
 ## 定位与数据边界
 
 `src/main/resources/knowledge/books.json` 保存经原文章节核对的项目研究笔记，随 JAR 打包。
-首批 10 条：尼森 4 条、马克斯 3 条、纳瓦尔 3 条。它是可扩展的方法库，并非三本书的全文搜索或完整实现。
+当前包含 17 条尼森方法笔记，其中 14 条已接入当前分析、3 条仅作为后续扩展参考。它是分析内部的方法元数据，不提供面向用户的书本查询功能，也不是《日本蜡烛图技术》的全文搜索或完整实现。
 不复制 EPUB、整章正文或本机 skill；不需要本机绝对路径、数据库、Embedding 服务或 API Key。
 
-每条笔记包含稳定 id、书名、作者、章节、书内相对定位、修订版本、核对日期、摘要、项目应用、所需证据、局限和检索别名。
+每条笔记包含稳定 id、书名、作者、章节、书内相对定位、修订版本、核对日期、摘要、项目应用、所需证据、局限、方法别名和 `implementationStatus`。
 `summary` 是项目概括，`application` 是工程应用，均不是逐字引文。书内定位用于回到读者自己的版本核对，不是服务端文件读取入口。
-尼森和马克斯参考用户提供的中文版抽取章节；纳瓦尔参考官方英文 EPUB 抽取章节，中文内容为项目概括。
+尼森笔记参考用户提供的中文版抽取章节。
 方法笔记不是行情数据；行情仍保留原来的 `Provenance`、状态和时间，不以书籍来源替代。
 
-## 检索
-
-`GET /api/knowledge/search?q=孕线的影线可以越界吗&bookId=nison&limit=5`
-
-- `q` 必填，1—200 个字符；`limit` 默认为 5，范围 1—10。
-- `bookId` 可省略，允许 `nison`、`marks`、`naval`。
-- `200` 返回 `{status: "MATCHED" | "NO_MATCH", matches: [{entry, relevanceScore, matchedTerms}]}`。
-- 参数无效返回 `400` Problem Details，代码 `INVALID_KNOWLEDGE_QUERY`。
-- `GET /api/knowledge/entries/{id}` 返回完整笔记，未知 id 返回 `404`。
-
-索引采用中英别名、中文二字片段与英文词的确定性加权匹配，排序同分时按 id 固定。
-`relevanceScore` 只用于排序，不是语义概率、投资信心或分析胜率。无匹配不补造内容。
-它适用于当前的小型方法库；不把已有学习演示中的确定性向量实现包装成生产级语义检索。
+`implementationStatus` 为 `IMPLEMENTED` 时，笔记可以随当前蜡烛图结果的 `methodology.knowledge` 返回；为 `REFERENCE_ONLY` 时只保留在内部方法库中，不表示 Java 已经能够自动识别该形态。
 
 ## 分析接入
 
-蜡烛图结果的 `methodology.knowledge` 返回趋势边界、汇聚原则以及与已识别形态对应的笔记。
-技术分析仅附加尼森方法；马克斯需要融资、估值和风险偏好的当前证据，纳瓦尔属于决策自检，两者均不参与技术分数。
-知识检索入口与实时行情请求独立，行情供应商不可用时仍可查询书本方法。
-总体报告的生成和修复会按固定研究主题检索尼森反转/风险报偿、马克斯周期定位、纳瓦尔清晰思考笔记，作为单独的书本方法上下文传入。
+蜡烛图结果的 `methodology.knowledge` 返回趋势边界、汇聚原则以及与已识别形态对应的笔记摘要；前端只展示这些随分析返回的依据，不再提供书本查询面板或笔记跳转接口。
+技术分析仅附加尼森方法；当前返回 14 条已接入分析的方法卡，参考-only 条目不会混入技术评分或形态结果。
+总体报告的生成和修复会按固定研究任务加载已实现的尼森方法卡，作为单独的书本方法上下文传入。
 提示词要求在使用原则的文字中标明书名和章节；书籍不得充当行情来源，也不得填补实时观测。该接入不改变市场来源校验器。
-模型调用仍需原来的本地模型配置；检索本身完全离线。提示词约束不等于模型质量已经通过真实调用评估。
+模型调用仍需原来的本地模型配置。提示词约束不等于模型质量已经通过真实调用评估。
 
 ## 本轮 Java 规则
 
@@ -50,7 +37,7 @@
 1. 从相关原文章节核对概念、确认和反例；为新笔记分配稳定 id，填写出处与局限。
 2. 添加到 `books.json`，补中英常用别名；形态笔记用 `patternIds` 关联 Java 信号 id。
 3. 先运行失败测试：正例、镜像、边界、无趋势、未完成周期、确认和失效生命周期。
-4. 再实现 Java 规则，更新 `methodology.transparentThresholds` 和规则版本，运行通过测试。
+4. 再实现 Java 规则，把条目的 `implementationStatus` 从 `REFERENCE_ONLY` 改为 `IMPLEMENTED`，更新 `methodology.transparentThresholds` 和规则版本，运行通过测试。
 5. 修改资源后重新打包、重启；新主机直接获得已提交的笔记，无需同步 skill。
 
 后续可逐项扩展平头、三法、三兵等形态，再以带日期和复权口径的历史数据做走步验证。
@@ -63,7 +50,7 @@
 ```powershell
 $env:JAVA_HOME = (Resolve-Path '.tools/jdk-21').Path
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
-.\mvnw.cmd '-Dmaven.repo.local=.m2/repository' '-Dtest=CandlestickAnalysisServiceTest,KnowledgeControllerTest' test
+.\mvnw.cmd '-Dmaven.repo.local=.m2/repository' '-Dtest=CandlestickAnalysisServiceTest,BookKnowledgeServiceTest' test
 .\mvnw.cmd '-Dmaven.repo.local=.m2/repository' clean test
 npm.cmd run test:ui
 ```
@@ -71,4 +58,4 @@ npm.cmd run test:ui
 测试默认离线。新主机用 `start.cmd` / `./start.sh` 准备工具链并启动；模型凭据仍只放忽略的本地配置。
 
 2026-09-07 验证：JDK 21 下 `clean test` 共 208 项通过；Edge 下完整 UI 回归 38 项通过，检查了四种视口截图、图表像素、横向溢出和固定页头遮挡。
-打包后在不加载本地模型凭据的实例验证健康检查、三本书检索和笔记链接。未执行实盘回测或真实大模型效果评估。
+打包后在不加载本地模型凭据的实例验证健康检查和蜡烛图方法上下文。未执行实盘回测或真实大模型效果评估。

@@ -14,6 +14,7 @@ import com.astock.agent.technical.TechnicalSnapshot;
 import com.astock.agent.technical.Timeframe;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -74,13 +75,14 @@ public final class ResearchAggregationService {
             Future<DataSection<?>> announcementsFuture = submit(executor, () -> gateway.announcements(security));
 
             DataSection<Quote> quote = quoteFuture.get();
-            DataSection<List<DailyBar>> bars = barsFuture.get();
+            DataSection<List<DailyBar>> primaryBars = barsFuture.get();
+            DataSection<List<DailyBar>> cross = crossFuture.get();
+            DataSection<List<DailyBar>> bars = preferFresherBars(primaryBars, cross);
             if (!usable(quote) && !usable(bars)) {
                 throw new ResearchUnavailableException("No core quote or K-line source is available for " + security.code());
             }
-            DataSection<List<DailyBar>> cross = crossFuture.get();
             DataSection<TechnicalSnapshot> technical = technical(bars);
-            boolean consistent = consistent(bars, cross);
+            boolean consistent = consistent(primaryBars, cross);
             boolean complete = quote.payload().isPresent()
                     && bars.payload().map(values -> values.size() >= 260).orElse(false)
                     && usable(technical);
@@ -218,6 +220,54 @@ public final class ResearchAggregationService {
         double relative = Math.abs(left.close().doubleValue() - right.close().doubleValue())
                 / Math.max(0.01, left.close().doubleValue());
         return relative <= 0.005;
+    }
+
+    /**
+     * 主 K 线源出现滞后时，允许更新的独立核验源接管分析输入；来源和降级原因必须保留。
+     * 同一交易日仍以腾讯主源为准，避免仅因价格微小差异改变主数据口径。
+     */
+    private static DataSection<List<DailyBar>> preferFresherBars(
+            DataSection<List<DailyBar>> primary, DataSection<List<DailyBar>> crossCheck) {
+        if (!hasBars(primary) && hasBars(crossCheck)) {
+            return recoveredBars(primary, crossCheck,
+                    "Primary K-line source is unavailable; using independent K-line source");
+        }
+        if (!hasBars(primary) || !hasBars(crossCheck)) {
+            return primary;
+        }
+        LocalDate primaryLatest = latestDate(primary);
+        LocalDate crossLatest = latestDate(crossCheck);
+        if (crossLatest.isAfter(primaryLatest)) {
+            return recoveredBars(primary, crossCheck,
+                    "Primary K-line latest date is " + primaryLatest
+                            + "; using fresher " + crossCheck.provenance().orElseThrow().provider()
+                            + " K-line dated " + crossLatest);
+        }
+        return primary;
+    }
+
+    private static DataSection<List<DailyBar>> recoveredBars(
+            DataSection<List<DailyBar>> primary,
+            DataSection<List<DailyBar>> replacement,
+            String issue) {
+        Provenance source = replacement.provenance().orElseThrow();
+        Provenance recovered = new Provenance(
+                source.provider(), source.sourceUrl(), source.providerTimestamp(), source.fetchedAt(),
+                source.cached(), primary.provenance().map(Provenance::provider).orElse(null));
+        List<String> issues = new ArrayList<>(replacement.issues());
+        issues.add(issue);
+        return DataSection.degraded(replacement.payload().orElseThrow(), recovered, issues);
+    }
+
+    private static boolean hasBars(DataSection<List<DailyBar>> section) {
+        return usable(section) && section.payload().map(values -> !values.isEmpty()).orElse(false);
+    }
+
+    private static LocalDate latestDate(DataSection<List<DailyBar>> section) {
+        return section.payload().orElseThrow().stream()
+                .map(DailyBar::date)
+                .max(LocalDate::compareTo)
+                .orElseThrow();
     }
 
     private static boolean usable(DataSection<?> section) {

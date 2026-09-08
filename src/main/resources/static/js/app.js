@@ -8,10 +8,9 @@
 import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
 import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
-import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js";
+import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js?v=20260908-2";
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 import { activateFinancialChart, renderFinancialReport, renderFinancialViewShell } from "./financial-view.js";
-import { activateBookKnowledge } from "./knowledge-view.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -760,4 +759,3 @@ $("#refresh-data").addEventListener("click", () => state.currentCode && loadStoc
 
 refreshIcons();
 loadAgentStatus();
-activateBookKnowledge($("#book-knowledge"));
