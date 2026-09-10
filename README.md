@@ -1,5 +1,7 @@
 # A 股智能研究 Agent
 
+新增独立的“周期研究”标签：Agent 直接加载霍华德·马克斯原始 skill，检索原书并综合研究证据。配置、接口与边界见 [周期研究模块](docs/cycle-research.md)。
+
 一个用于学习 Agent 工程实践的 Spring AI 股票研究项目。它从多个公开数据源获取真实 A 股行情与研究数据，先完成归一化、校验和技术指标计算，再把有来源证据的数据交给可选的 Spring AI Agent。未配置模型时，行情、技术分析和全部 REST API 仍可独立运行。
 
 ![A 股智能研究台](docs/assets/dashboard.png)

@@ -11,6 +11,7 @@ import { activateTechnicalView, renderTechnicalView } from "./technical-view.js"
 import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js?v=20260908-2";
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 import { activateFinancialChart, renderFinancialReport, renderFinancialViewShell } from "./financial-view.js";
+import { activateCycleView } from "./cycle-view.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -40,6 +41,7 @@ const state = {
   financialReportResult: null,
   financialReportRequestId: 0,
   financialController: null,
+  cycleController: null,
   loadGeneration: 0,
 };
 
@@ -117,6 +119,12 @@ function renderCurrentView() {
   state.candlestickController = null;
   state.financialController?.dispose();
   state.financialController = null;
+  state.cycleController?.dispose();
+  state.cycleController = null;
+  if (state.currentView === "cycle") {
+    state.cycleController = activateCycleView(content, state.currentCode);
+    return;
+  }
   if (state.currentView === "financial") {
     content.innerHTML = renderFinancialViewShell();
     bindFinancialAction();
@@ -653,6 +661,11 @@ async function loadStock(code) {
   if (!/^\d{6}$/.test(code)) return;
   const newSecurity = state.currentCode !== code || !state.snapshot;
   state.loadGeneration += 1;
+  const generation = state.loadGeneration;
+  const isCurrent = () => generation === state.loadGeneration && code === state.currentCode;
+  state.snapshot = null;
+  state.cycleController?.dispose();
+  state.cycleController = null;
   state.overallReportRequestId += 1;
   state.currentCode = code;
   state.overallReportPhase = "idle";
@@ -676,12 +689,14 @@ async function loadStock(code) {
   if (newSecurity) window.scrollTo(0, 0);
   try {
     const snapshot = await stockApi.snapshot(code);
+    if (!isCurrent()) return;
     state.snapshot = snapshot;
     renderOverview(snapshot);
     renderCurrentView();
     const partial = isPartialSnapshot(snapshot);
     setPhase(partial ? "partial" : "success", partial ? `${code} 已加载，部分数据源降级` : `${code} 数据加载完成`);
   } catch (error) {
+    if (!isCurrent()) return;
     state.snapshot = null;
     $("#workspace-state").hidden = true;
     $("#view-content").hidden = false;

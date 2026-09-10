@@ -30,6 +30,13 @@ async function request(path, options = {}) {
 }
 
 export const stockApi = {
+  cycleModels(signal) { return request('/api/agent/cycle/models', { signal }); },
+  latestCycle(code, signal) { return request(`/api/agent/cycle/latest/${encodeURIComponent(code)}`, { signal }); },
+  cycleTask(id, signal) { return request(`/api/agent/cycle/tasks/${encodeURIComponent(id)}`, { signal }); },
+  startCycle(code, modelId, signal) {
+    return request('/api/agent/cycle/tasks', { method: 'POST', signal,
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, modelId }) });
+  },
   search(query) {
     return request(`/api/stocks/search?q=${encodeURIComponent(query)}`);
   },

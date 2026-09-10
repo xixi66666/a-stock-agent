@@ -39,6 +39,7 @@ app:
       institutional-report: primary
       overall-report: deepseek
       financial-report: deepseek
+      cycle-report: deepseek
   agent:
     learning:
       enabled: false

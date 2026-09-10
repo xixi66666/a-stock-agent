@@ -6,6 +6,7 @@ node_modules/
 test-results/
 playwright-report/
 config/application-local.yml
+data/cycle-reports/
 .idea/
 .worktrees/
 *.iml

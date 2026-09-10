@@ -37,6 +37,13 @@ app:
     roles:
       institutional-report: primary
       overall-report: deepseek
+      cycle-report: deepseek
+  cycle:
+    # 原始技能和书库仅在本机读取，不打包到应用或提交原文。
+    skill-path: "D:/codex-book/skills/howard-marks-cycle"
+    book-path: "D:/codex-book/books/howard-marks-market-cycle"
+    python: "python"
+    report-path: "data/cycle-reports"
 
 # Agent 学习闭环默认由 application.yml 关闭；离线运行无需 API Key。
 # app:
