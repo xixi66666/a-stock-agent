@@ -6,7 +6,7 @@
  * FORM: 现有技术页的 Operate 模式扩展；不改变全局视觉系统。
  */
 import { sectionIssues, sectionPayload } from "./api.js";
-import { renderPreviousSession } from "./previous-session-view.js?v=20260908-2";
+import { renderPreviousSession } from "./previous-session-view.js?v=20260911-quotes";
 
 const directionLabels = { BULLISH: "看涨警告", BEARISH: "看跌警告", NEUTRAL: "暂无方向" };
 const trendLabels = { UP: "上升", DOWN: "下降", SIDEWAYS: "横向", INSUFFICIENT: "样本不足" };

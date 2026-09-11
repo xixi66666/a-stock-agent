@@ -50,8 +50,12 @@ public record CandlestickAnalysis(
             BigDecimal bodyPercent, BigDecimal upperShadowPercent, BigDecimal lowerShadowPercent,
             BigDecimal changePercent, BigDecimal volumeRatio,
             String interpretation, String trendEvidence, String locationEvidence,
-            String followUp, String dateNote, List<PatternSignal> signals) {
-        public SessionReview { signals = List.copyOf(signals); }
+            String followUp, String dateNote, List<PatternSignal> signals,
+            List<com.astock.agent.knowledge.BookExcerpt> bookExcerpts) {
+        public SessionReview {
+            signals = List.copyOf(signals);
+            bookExcerpts = List.copyOf(bookExcerpts);
+        }
     }
 
     public record TrendContext(

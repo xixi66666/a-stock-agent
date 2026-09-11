@@ -8,7 +8,7 @@
 import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
 import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
-import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js?v=20260908-2";
+import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js?v=20260911-quotes";
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 import { activateFinancialChart, renderFinancialReport, renderFinancialViewShell } from "./financial-view.js";
 import { activateCycleView } from "./cycle-view.js";

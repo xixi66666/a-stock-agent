@@ -64,10 +64,14 @@ function candlestickSection(timeframe = "DAILY") {
         candleType: "阳线", shape: "长上影线", bodyLength: 0.6, upperShadow: 6.4, lowerShadow: 0.2,
         bodyPercent: 8.33, upperShadowPercent: 88.89, lowerShadowPercent: 2.78,
         changePercent: -4.94, volumeRatio: 1.24,
-        interpretation: "收盘未能保持日内高位，提示上方压力；结合所处位置观察压力能否被消化。",
+        interpretation: "收盘未能保持日内高位；此前 5 根日线收盘趋势向下。此前 20 根日线前高 112.20 元，当日最高 91.00 元、收盘 84.60 元：收盘跌破此前区间低点 88.20 元，区间支撑失守，当前结构偏弱，上方压力尚未消化。成交量为此前 20 日均量的 1.24 倍，达到放量阈值（1.20 倍），但放量本身不代表压力已消化。当日上影压力仍未获后续收盘突破确认，截至 2026-09-07 尚无后续完整日线，不能判定未来能否消化。",
+        bookExcerpts: [{ bookTitle: "日本蜡烛图技术", author: "史蒂夫·尼森", chapter: "第五章 星线",
+          text: "同一种形状的蜡烛线既可以是看涨的，也可以是看跌的，取决于在其出现之前的趋势方向",
+          sourceLocator: "content/chapters/011-section-011.md",
+          scope: "节选自倒锤子线与流星线的比较；长上影轮廓本身不等于这两种命名形态。" }],
         trendEvidence: "此前 5 根日线收盘趋势向下",
         locationEvidence: "此前 20 根日线区间 88.20—112.20 元；收盘位于区间下方",
-        followUp: "观察后续完整日线收盘能否突破 91.00 元或跌破 83.80 元，并结合成交量复核；单根高低点仅作观察边界。",
+        followUp: "截至 2026-09-07 尚无后续完整日线，跨日确认状态为未确认。价格边界判据：后续完整日线收盘严格高于 91.00 元记为向上突破；收盘严格低于 83.80 元记为向下破位；收盘处于两者之间或等于边界，记为未突破。该判据不等同于趋势反转。",
         dateNote: "取上海日期 2026-09-08 之前数据中最近一根日线；复盘截至 2026-09-07，不含之后行情。",
         signals: [],
       },
@@ -176,11 +180,23 @@ test("previous session is prominent and distinguishes candle color from daily re
   await expect(review).toContainText("未识别到截至该日完成的命名形态");
   await expect(review.getByRole("img", { name: /日线结构/ })).toBeVisible();
   await expect(review).toContainText("88.89%");
+  await expect(review).toContainText("区间支撑失守，当前结构偏弱，上方压力尚未消化");
+  await expect(review).not.toContainText("结合所处位置观察");
   const positions = await page.evaluate(() => ({
     review: document.querySelector(".previous-session").getBoundingClientRect().top,
     history: document.querySelector(".candlestick-primary-grid").getBoundingClientRect().top,
   }));
   expect(positions.review).toBeLessThan(positions.history);
+});
+
+test("previous session shows original book text immediately after system interpretation", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  const review = page.locator(".previous-session");
+  await expect(review.locator(".previous-session-interpretation + .previous-session-excerpts")).toBeVisible();
+  await expect(review.locator("blockquote")).toContainText("取决于在其出现之前的趋势方向");
+  await expect(review.locator("cite")).toContainText("史蒂夫·尼森《日本蜡烛图技术》 · 第五章 星线");
+  await expect(review.locator(".previous-session-excerpts")).toContainText("长上影轮廓本身不等于");
 });
 
 test("previous session keeps missing values and zero range honest", async ({ page }) => {
@@ -199,6 +215,34 @@ test("previous session keeps missing values and zero range honest", async ({ pag
   await expect(review).toContainText("不可计算");
   await expect(review).not.toContainText("NaN");
   await expect(review).not.toContainText("Infinity");
+});
+
+test("previous session preserves the 600115 upper shadow and body proportions", async ({ page }) => {
+  await page.route("**/api/stocks/600519/candlestick**", route => {
+    const section = candlestickSection();
+    Object.assign(section.payload.previousSession, {
+      bar: { date: "2026-09-10", open: 3.48, high: 3.51, low: 3.47, close: 3.47 },
+      candleType: "阴线", bodyPercent: 25, upperShadowPercent: 75, lowerShadowPercent: 0,
+    });
+    return route.fulfill({ json: section });
+  });
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  const candle = page.locator(".previous-session-candle");
+  await expect(candle).toHaveAttribute("data-tone", "down");
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    const geometry = await candle.evaluate(svg => {
+      const wick = svg.querySelector("line").getBoundingClientRect();
+      const body = svg.querySelector("rect").getBoundingClientRect();
+      return { upper: (body.top - wick.top) / wick.height,
+        body: body.height / wick.height, lower: (wick.bottom - body.bottom) / wick.height };
+    });
+    expect(geometry.upper).toBeCloseTo(0.75, 5);
+    expect(geometry.body).toBeCloseTo(0.25, 5);
+    expect(geometry.lower).toBeCloseTo(0, 5);
+    await candle.screenshot({ path: `target/ui-screenshots/candle-600115-${viewport.width}.png` });
+  }
 });
 
 test("candle remains bounded when its stylesheet is unavailable", async ({ page }) => {

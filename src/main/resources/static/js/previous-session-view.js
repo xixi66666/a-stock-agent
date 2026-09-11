@@ -6,6 +6,13 @@ const numeric = value => value !== null && value !== undefined && value !== "" &
 const format = (value, suffix = "") => numeric(value)
   ? `${Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix}` : "不可计算";
 
+function bookExcerpts(excerpts) {
+  if (!Array.isArray(excerpts) || !excerpts.length) return "";
+  return `<div class="previous-session-excerpts"><strong>书中原文（节选）</strong>${excerpts.map(excerpt => `
+    <blockquote><p>${escape(excerpt.text)}</p><cite>${escape(excerpt.author)}《${escape(excerpt.bookTitle)}》 · ${escape(excerpt.chapter)}</cite></blockquote>
+    <p class="previous-session-excerpt-scope">引用说明：${escape(excerpt.scope)}</p>`).join("")}</div>`;
+}
+
 function candleDiagram(bar) {
   if (![bar.open, bar.high, bar.low, bar.close].every(numeric)) return "<p>缺少完整价格，无法绘图</p>";
   const [open, high, low, close] = [bar.open, bar.high, bar.low, bar.close].map(Number);
@@ -34,6 +41,7 @@ export function renderPreviousSession(review, section) {
       <div class="previous-session-reading">
         <div class="previous-session-verdict"><strong>${escape(review.shape)}</strong><span>${escape(review.candleType)}</span></div>
         <p class="previous-session-interpretation">${escape(review.interpretation)}</p>
+        ${bookExcerpts(review.bookExcerpts)}
         <dl class="previous-session-prices">${[["开盘", bar.open], ["最高", bar.high], ["最低", bar.low], ["收盘", bar.close]].map(([label, value]) => `<div><dt>${label}</dt><dd>${format(value)} <small>元</small></dd></div>`).join("")}</dl>
         <dl class="previous-session-metrics">${[["实体 / 振幅", review.bodyPercent, "%"], ["上影 / 振幅", review.upperShadowPercent, "%"], ["下影 / 振幅", review.lowerShadowPercent, "%"], ["涨跌 / 前收", review.changePercent, "%"], ["成交量 / 前20日均量", review.volumeRatio, " 倍"]].map(([label, value, unit]) => `<div><dt>${label}</dt><dd>${format(value, unit)}</dd></div>`).join("")}</dl>
       </div>

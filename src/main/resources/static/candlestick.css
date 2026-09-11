@@ -135,6 +135,12 @@
 .previous-session-verdict strong { font-size: 18px; color: var(--ink); }
 .previous-session-verdict span { font-size: 12px; }
 .previous-session-interpretation { margin: 6px 0 14px; max-width: 75ch; font-size: 13px; line-height: 1.7; }
+.previous-session-excerpts { max-width: 75ch; margin: 0 0 16px; padding-top: 10px; border-top: 1px solid var(--hairline); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.previous-session-excerpts > strong { color: var(--ink); }
+.previous-session-excerpts blockquote { margin: 6px 0; }
+.previous-session-excerpts blockquote p { margin: 0 0 4px; }
+.previous-session-excerpts cite { font-style: normal; }
+.previous-session-excerpt-scope { margin: 6px 0 0; }
 .previous-session-prices, .previous-session-metrics { display: grid; margin: 0; gap: 12px; font-variant-numeric: tabular-nums; }
 .previous-session-prices { grid-template-columns: repeat(4, minmax(0, 1fr)); padding-bottom: 12px; }
 .previous-session-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); padding-top: 12px; border-top: 1px solid var(--hairline); }

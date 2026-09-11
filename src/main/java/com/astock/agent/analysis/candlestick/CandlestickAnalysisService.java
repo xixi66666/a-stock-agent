@@ -114,26 +114,26 @@ public final class CandlestickAnalysisService {
         String interpretation;
         if (range.signum() == 0) {
             shape = "无振幅线";
-            interpretation = "开高低收相同，无法从实体与影线比例判断力量变化；需结合成交与交易状态。";
+            interpretation = "开高低收相同，无法从实体与影线比例判断力量变化；仅凭无振幅不能判断停牌或涨跌停。";
         } else if (bodyRatio.doubleValue() <= 5) {
             shape = "十字线轮廓";
-            interpretation = "开收接近，日内波动未转为明显实体，反映犹疑；是否具有反转意义需结合前置趋势和后续收盘。";
+            interpretation = "开收接近，日内波动未转为明显实体，该日方向推进不足；十字轮廓本身不构成反转确认。";
         } else if (upperRatio.doubleValue() >= 60) {
             shape = "长上影线";
-            interpretation = "收盘未能保持日内高位，提示上方压力；结合所处位置观察压力能否被消化。";
+            interpretation = "收盘未能保持日内高位，提示上方压力。";
         } else if (lowerRatio.doubleValue() >= 60) {
             shape = "长下影线";
-            interpretation = "收盘脱离日内低点，提示下探后有所承接；后续能否守住低点仍需验证。";
+            interpretation = "收盘脱离日内低点，提示下探后有所承接。";
         } else if (bodyRatio.doubleValue() >= 70) {
             shape = "实体主导";
             interpretation = bullish(bar) ? "实体占当日振幅较大，收盘明显高于开盘，该日买方较占优势。"
                     : "实体占当日振幅较大，收盘明显低于开盘，该日卖方较占优势。";
         } else if (bodyRatio.doubleValue() <= 30) {
             shape = "小实体线";
-            interpretation = "开收差相对当日振幅较小，方向推进有限；可能是动能收缩，也可能只是整理。";
+            interpretation = "开收差相对当日振幅较小，该日方向推进有限；单日小实体不足以判定相对历史的动能收缩。";
         } else {
             shape = "普通实体线";
-            interpretation = "实体与影线共同构成当日波动，单根轮廓没有突出特征，需结合趋势与量价继续观察。";
+            interpretation = "实体与影线共同构成当日波动，单根轮廓没有突出特征。";
         }
         List<DailyBar> prior = history.subList(Math.max(0, history.size() - 21), history.size() - 1);
         BigDecimal change = prior.isEmpty() || prior.getLast().close().signum() == 0 ? null
@@ -160,13 +160,97 @@ public final class CandlestickAnalysisService {
         }
         List<PatternSignal> matches = detectPatterns(history).stream()
                 .filter(signal -> signal.endDate().equals(bar.date())).toList();
+        if ("长上影线".equals(shape)) {
+            interpretation = upperShadowInterpretation(bar, prior, trend, volumeRatio);
+        } else if ("长下影线".equals(shape)) {
+            interpretation = lowerShadowInterpretation(bar, prior, trend, volumeRatio);
+        } else {
+            interpretation += sessionContext(bar, prior, trend, location, volumeRatio);
+        }
         return new CandlestickAnalysis.SessionReview(bar, type, shape, realBody, upper, lower,
                 bodyRatio, upperRatio, lowerRatio, change, volumeRatio, interpretation, trend, location,
-                "观察后续完整日线收盘能否突破 " + money(bar.high()) + " 元或跌破 " + money(bar.low())
-                        + " 元，并结合成交量复核；单根高低点仅作观察边界。",
+                "截至 " + bar.date() + " 尚无后续完整日线，跨日确认状态为未确认。价格边界判据：后续完整日线收盘严格高于 "
+                        + money(bar.high()) + " 元记为向上突破；收盘严格低于 " + money(bar.low())
+                        + " 元记为向下破位；收盘处于两者之间或等于边界，记为未突破。该判据不等同于趋势反转。",
                 "按上海时间 15:05 判断日线完成；" + (includeToday ? "已过安全时间，可纳入当天收盘日线" : "尚未到安全时间，排除当天日线")
                         + "。复盘截至 " + bar.date()
-                        + "，不含之后行情。休市、停牌或数据滞后均可能使日期提前，请核对来源时效。", matches);
+                        + "，不含之后行情。休市、停牌或数据滞后均可能使日期提前，请核对来源时效。", matches,
+                knowledge.forSessionShape(shape));
+    }
+
+    /** 用复盘日之前的区间定义前高，避免把当日高点混入比较基准。 */
+    private static String upperShadowInterpretation(DailyBar bar, List<DailyBar> prior,
+            String trend, BigDecimal volumeRatio) {
+        if (prior.isEmpty()) return "收盘未能保持日内高位；此前日线缺失，无法判定区间位置与压力状态。";
+        BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
+        BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
+        String assessment;
+        if (bar.close().compareTo(high) > 0) {
+            assessment = "收盘已突破前高，已有越过原区间上沿的证据，但单日突破不等于持续站稳";
+        } else if (bar.close().compareTo(low) < 0) {
+            assessment = "收盘跌破此前区间低点 " + money(low) + " 元，区间支撑失守，当前结构偏弱，上方压力尚未消化";
+        } else if (bar.high().compareTo(high) >= 0) {
+            assessment = "冲高未站稳前高，按收盘突破判据，前高压力尚未消化";
+        } else {
+            assessment = "日内最高价尚未触及前高，收盘仍在此前区间内；本次上影反映区间内上冲回落，不能归因为前高受阻";
+        }
+        String volume = volumeRatio == null ? "此前 20 日均量不可用，量能证据不足"
+                : "成交量为此前 20 日均量的 " + volumeRatio + " 倍，"
+                        + (volumeRatio.compareTo(new BigDecimal("1.20")) >= 0
+                        ? "达到放量阈值（1.20 倍），但放量本身不代表压力已消化"
+                        : "未达到放量阈值（1.20 倍）");
+        return "收盘未能保持日内高位；" + trend + "。此前 " + prior.size() + " 根日线前高 "
+                + money(high) + " 元，当日最高 " + money(bar.high()) + " 元、收盘 " + money(bar.close())
+                + " 元：" + assessment + "。"
+                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根日线，不足 20 根，区间判断样本有限。" : "")
+                + volume + "。当日上影压力仍未获后续收盘突破确认，"
+                + "截至 " + bar.date() + " 尚无后续完整日线，不能判定未来能否消化。";
+    }
+
+    private static String lowerShadowInterpretation(DailyBar bar, List<DailyBar> prior,
+            String trend, BigDecimal volumeRatio) {
+        if (prior.isEmpty()) return "收盘脱离日内低点，但此前日线缺失，支撑位置不可判定。";
+        BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
+        BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
+        String assessment;
+        if (bar.close().compareTo(low) < 0) {
+            assessment = "收盘仍低于前低，原区间支撑已失守；下影仅表示盘中回收，未修复破位";
+        } else if (bar.close().compareTo(low) == 0) {
+            assessment = "收盘仅回到前低，尚未收回其上方，支撑修复证据不足";
+        } else if (bar.close().compareTo(high) > 0) {
+            assessment = "收盘已突破前高，日内回收同时形成区间向上突破，尚不等于持续站稳";
+        } else if (bar.low().compareTo(low) <= 0) {
+            assessment = "下探前低后收回，前低获得当日收盘层面的承接证据，尚不构成跨日守稳或反转确认";
+        } else {
+            assessment = "最低价未触及前低，属于区间内回落后的承接，不能据此认定前低支撑已获验证";
+        }
+        return trend + "。此前 " + prior.size() + " 根日线区间 " + money(low) + "—" + money(high)
+                + " 元；当日最低 " + money(bar.low()) + " 元，收盘 " + money(bar.close()) + " 元："
+                + assessment + "。" + sessionVolumeEvidence(volumeRatio)
+                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根日线，不足 20 根，区间判断样本有限。" : "");
+    }
+
+    private static String sessionContext(DailyBar bar, List<DailyBar> prior, String trend,
+            String location, BigDecimal volumeRatio) {
+        String conclusion = "此前日线缺失，无法判定区间突破";
+        if (!prior.isEmpty()) {
+            BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
+            BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
+            conclusion = bar.close().compareTo(high) > 0 ? "收盘已突破此前区间上沿，形成当日向上突破"
+                    : bar.close().compareTo(low) < 0 ? "收盘跌破此前区间下沿，原区间支撑失守"
+                    : "收盘仍在此前区间内，未形成区间突破";
+        }
+        return trend + "；" + location + "。当前结论：收盘 " + money(bar.close()) + " 元，"
+                + conclusion + "；单日区间状态不等同于趋势反转。" + sessionVolumeEvidence(volumeRatio)
+                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根日线，不足 20 根，区间判断样本有限。" : "");
+    }
+
+    private static String sessionVolumeEvidence(BigDecimal volumeRatio) {
+        if (volumeRatio == null) return "此前 20 日均量不可用，量能证据不足。";
+        return "成交量为此前 20 日均量的 " + volumeRatio + " 倍，"
+                + (volumeRatio.compareTo(new BigDecimal("1.20")) >= 0
+                ? "达到放量阈值（1.20 倍），成交活跃但不能单凭成交量确认支撑或反转。"
+                : "未达到放量阈值（1.20 倍），缺少放量配合。");
     }
 
     private static BigDecimal sharePercent(BigDecimal value, BigDecimal range) {

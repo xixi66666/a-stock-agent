@@ -365,6 +365,111 @@ class CandlestickAnalysisServiceTest {
         assertThat(daily.interpretation()).isNotBlank();
     }
 
+    @Test
+    void upperShadowExplainsFailedBreakoutUsingPriorRangeAndVolume() {
+        var bars = risingBars(24);
+        bars.add(bar("2026-08-25", 102, 110, 101, 103, 1_600_000));
+        var review = service.analyze(bars, Timeframe.DAILY).previousSession();
+        assertThat(review.shape()).isEqualTo("长上影线");
+        assertThat(review.interpretation()).contains("103.80", "110.00", "103.00",
+                "冲高未站稳前高", "压力尚未消化", "此前 5 根日线收盘趋势向上", "倍", "放量")
+                .doesNotContain("结合所处位置观察");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "104,112,103,105,收盘已突破前高",
+            "102,110,101,103.8,冲高未站稳前高",
+            "101,103.8,100,101.3,冲高未站稳前高",
+            "96,102,95,97,尚未触及前高",
+            "80,88,79,81,收盘跌破此前区间低点"})
+    void upperShadowDistinguishesClosingPosition(double open, double high, double low,
+            double close, String assessment) {
+        var bars = risingBars(24);
+        bars.add(bar("2026-08-25", open, high, low, close, 900_000));
+        var review = service.analyze(bars, Timeframe.DAILY).previousSession();
+        assertThat(review.shape()).isEqualTo("长上影线");
+        assertThat(review.interpretation()).contains(assessment, "未达到放量阈值", "尚无后续完整日线");
+        if (close > 103.8) assertThat(review.interpretation()).doesNotContain("前高压力尚未消化");
+    }
+
+    @Test
+    void upperShadowDisclosesShortHistoryAndUnavailableVolume() {
+        var bars = risingBars(19);
+        bars.add(bar("2026-08-25", 97, 105, 96, 98, 0));
+        var review = service.analyze(bars, Timeframe.DAILY).previousSession();
+        assertThat(review.interpretation()).contains("仅有 19 根", "不足 20 根", "量能证据不足");
+        assertThat(review.volumeRatio()).isNull();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "88,90,80,89,下探前低后收回",
+            "85,87,78,86,收盘仍低于前低",
+            "87.2,89,80,88.2,收盘仅回到前低",
+            "96,98,89,97,区间内回落后的承接",
+            "110,114,95,112,收盘已突破前高"})
+    void lowerShadowAssessesSupportFromActualClosingPosition(double open, double high,
+            double low, double close, String conclusion) {
+        var bars = decliningBars(24);
+        bars.add(bar("2026-08-25", open, high, low, close, 1_600_000));
+        var review = service.analyze(bars, Timeframe.DAILY).previousSession();
+        assertThat(review.shape()).isEqualTo("长下影线");
+        assertThat(review.interpretation()).contains(conclusion, "88.20", "109.20",
+                "此前 5 根日线收盘趋势向下", "倍", "放量")
+                .doesNotContain("后续能否守住低点仍需验证");
+        assertThat(review.followUp()).contains("收盘严格高于", "收盘严格低于", "尚无后续完整日线")
+                .doesNotContain("观察后续", "结合成交量复核");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "100,100,100,100,无振幅线",
+            "100,105,95,100,十字线轮廓",
+            "100,105,95,101,小实体线",
+            "98,105,95,102,普通实体线",
+            "96,105,95,104,实体主导"})
+    void everySessionShapeIncludesItsComputedContext(double open, double high, double low,
+            double close, String shape) {
+        var bars = decliningBars(24);
+        bars.add(bar("2026-08-25", open, high, low, close, 900_000));
+        var review = service.analyze(bars, Timeframe.DAILY).previousSession();
+        assertThat(review.shape()).isEqualTo(shape);
+        assertThat(review.interpretation()).contains("此前 5 根日线收盘趋势向下", "88.20", "109.20",
+                "区间内", "倍", "当前结论")
+                .doesNotContain("需结合", "继续观察", "也可能只是", "仍需验证");
+    }
+
+    @Test
+    void lowerShadowWithShortHistoryDoesNotInventVolumeConfirmation() {
+        var bars = decliningBars(19);
+        bars.add(bar("2026-08-25", 92.2, 95, 80, 93.2, 0));
+        var review = service.analyze(bars, Timeframe.DAILY).previousSession();
+        assertThat(review.interpretation()).contains("收盘仅回到前低", "仅有 19 根", "量能证据不足");
+        assertThat(review.volumeRatio()).isNull();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "100,100,100,100,第三章", "100,105,95,100,第三章",
+            "100,105,95,101,第三章", "98,105,95,102,第三章",
+            "96,105,95,104,第三章", "102,110,101,103,第五章",
+            "88,90,80,89,第四章"})
+    void sessionProvidesOriginalBookExcerptSeparatelyFromItsInterpretation(double open,
+            double high, double low, double close, String chapter) {
+        var bars = decliningBars(24);
+        bars.add(bar("2026-08-25", open, high, low, close, 900_000));
+        var review = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules()
+                .valueToTree(service.analyze(bars, Timeframe.DAILY)).path("previousSession");
+        var excerpts = review.path("bookExcerpts");
+        assertThat(excerpts.isArray()).isTrue();
+        assertThat(excerpts.size()).isEqualTo(1);
+        assertThat(excerpts.get(0).path("chapter").asText()).contains(chapter);
+        assertThat(excerpts.get(0).path("text").asText()).isNotBlank();
+        assertThat(excerpts.get(0).path("sourceLocator").asText()).startsWith("content/chapters/");
+        assertThat(excerpts.get(0).path("scope").asText()).isNotBlank();
+    }
+
     private static List<DailyBar> decliningBars(int count) {
         List<DailyBar> bars = new ArrayList<>();
         LocalDate start = LocalDate.parse("2026-08-01");
