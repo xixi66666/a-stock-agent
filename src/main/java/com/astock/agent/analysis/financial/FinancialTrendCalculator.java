@@ -76,11 +76,12 @@ public final class FinancialTrendCalculator {
     }
 
     private static BigDecimal yoyGrowth(List<FinancialTrendResult.TrendPoint> points, int index) {
-        if (index < 4) {
-            return null;
-        }
         BigDecimal current = points.get(index).value();
-        BigDecimal prior = points.get(index - 4).value();
+        var priorDate = points.get(index).period().minusYears(1);
+        BigDecimal prior = null;
+        for (var point : points) {
+            if (point.period().equals(priorDate)) { prior = point.value(); break; }
+        }
         if (current == null || prior == null || prior.signum() == 0) {
             return null;
         }

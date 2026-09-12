@@ -36,6 +36,17 @@ test.beforeEach(async ({ page }) => {
   await mockApis(page);
 });
 
+test("financial chart uses the sunset accent for its primary series", async ({ page }) => {
+  await openFinancialTab(page);
+  await page.getByRole("button", { name: "生成财报分析" }).click();
+  await expect(page.locator("#financial-trend-chart canvas")).toBeVisible();
+  const colors = await page.evaluate(() => ({
+    accent: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(),
+    chart: window.echarts.getInstanceByDom(document.querySelector("#financial-trend-chart")).getOption().series[0].itemStyle.color,
+  }));
+  expect(colors.chart).toBe(colors.accent);
+});
+
 for (const viewport of viewports) {
   test(`renders score, signals and chart at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);

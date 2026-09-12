@@ -524,6 +524,30 @@ test("model catalog failure does not disable institutional report generation", a
   await expect(page.getByRole("button", { name: "生成研究报告" })).toBeEnabled();
 });
 
+test("landing opens the research layout only after choosing a stock", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".security-overview")).toBeHidden();
+  await expect(page.getByRole("tablist", { name: "研究维度" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "选择一只股票开始研究" })).toBeVisible();
+  await page.locator('[data-symbol="600519"]').click();
+  await expect(page.locator(".security-overview")).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "研究维度" })).toBeVisible();
+  await expect(page.locator("#security-name")).toHaveText("贵州茅台");
+  await expect(page.locator(".indicator-card")).toHaveCount(38);
+});
+
+test("technical chart follows the interface accent when switching indicators", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-symbol="600519"]').click();
+  await page.locator('[data-indicator-id="RSI_6"]').click();
+  await expect(page.locator("#detail-name")).toHaveText("RSI 6");
+  const colors = await page.evaluate(() => ({
+    accent: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(),
+    chart: window.echarts.getInstanceByDom(document.querySelector("#technical-chart")).getOption().series[0].lineStyle.color,
+  }));
+  expect(colors.chart).toBe(colors.accent);
+});
+
 for (const viewport of [
   { width: 1440, height: 1000, columns: 4 },
   { width: 1024, height: 768, columns: 3 },
@@ -536,6 +560,9 @@ for (const viewport of [
     await page.locator('[data-symbol="600519"]').click();
     await expect(page.locator(".indicator-card")).toHaveCount(38);
     await expect(page.locator(".previous-session")).toBeVisible();
+    // Wait for the reading overlay to settle before inspecting the final canvas.
+    await expect.poll(() => page.locator(".ambient-background").evaluate((element) =>
+      getComputedStyle(element, "::after").backgroundColor)).toBe("rgba(255, 255, 255, 0.24)");
     const columns = await page.locator(".indicator-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
     expect(columns).toBe(viewport.columns);
     await expect(page.locator("#technical-chart canvas")).toBeVisible();

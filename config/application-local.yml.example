@@ -1,3 +1,9 @@
+# Optional HiThink annual financial fallback and valuation snapshots.
+# Real credentials belong only in ignored config/application-local.yml.
+hithink:
+  enabled: false
+  api-key: "replace-with-hithink-api-key"
+
 spring:
   ai:
     # 关闭 Spring AI 的单模型自动配置，由 app.ai.models 管理多个命名模型。

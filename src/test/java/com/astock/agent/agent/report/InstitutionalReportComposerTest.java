@@ -17,6 +17,7 @@ import com.astock.agent.marketdata.model.PeerSelectionReason;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.SecurityId;
+import com.astock.agent.marketdata.model.ValuationSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -56,6 +57,23 @@ class InstitutionalReportComposerTest {
 
         String json = writeJson(report);
         assertThat(json).contains("\"facts\"").contains("最新价").contains("100");
+    }
+
+    @Test
+    void standaloneValuationIsIncludedInFactsAndSourceCitations() {
+        StockResearchSnapshot base = snapshot();
+        Provenance source = new Provenance("HiThink Finance", URI.create("https://example.com/valuation"),
+                Instant.parse("2026-09-12T00:00:00Z"), Instant.now(), false, null);
+        StockResearchSnapshot snapshot = base.withValuation(DataSection.unverified(
+                new ValuationSnapshot(base.security(), bd(19.5), bd(20), bd(3.2), null, bd(12)),
+                source, List.of("snapshot")));
+
+        InstitutionalResearchReport report = composer.fallback(snapshot, new ResearchJudgementEngine().assess(snapshot), "offline");
+
+        assertThat(report.valuationAndIndustry().facts()).extracting(ReportFact::label)
+                .contains("同花顺PE TTM", "同花顺PB MRQ", "同花顺PCF TTM");
+        assertThat(report.sources()).anyMatch(citation -> citation.section().equals("valuation")
+                && citation.provider().equals("HiThink Finance"));
     }
 
     @Test

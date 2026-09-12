@@ -16,7 +16,15 @@ import java.util.function.Function;
  */
 public final class FinancialQualityScorer {
 
-    public static final String RULE_VERSION = "financial-fscore-v1";
+    public static final String RULE_VERSION = "financial-fscore-v2-date-alignment";
+
+    private static int previousYearIndex(List<FinancialPeriodStatement> periods, int index) {
+        var date = periods.get(index).reportPeriod().minusYears(1);
+        for (int i = 0; i < index; i++) {
+            if (periods.get(i).reportPeriod().equals(date)) return i;
+        }
+        return -1;
+    }
 
     public FinancialQualityScore score(FinancialStatementHistory history, boolean financialIndustry) {
         List<FinancialPeriodStatement> periods = history.periods();
@@ -71,11 +79,11 @@ public final class FinancialQualityScorer {
     }
 
     private static Boolean deltaTtmRoa(List<FinancialPeriodStatement> periods, int index) {
-        if (index - 4 < 0) {
+        if (previousYearIndex(periods, index) < 0) {
             return null;
         }
         BigDecimal current = ttmRoa(periods, index);
-        BigDecimal prior = ttmRoa(periods, index - 4);
+        BigDecimal prior = ttmRoa(periods, previousYearIndex(periods, index));
         if (current == null || prior == null) {
             return null;
         }
@@ -98,11 +106,11 @@ public final class FinancialQualityScorer {
 
     private static Boolean pointInTimeLower(List<FinancialPeriodStatement> periods, int index,
             Function<FinancialPeriodStatement, BigDecimal> ratio) {
-        if (index - 4 < 0) {
+        if (previousYearIndex(periods, index) < 0) {
             return null;
         }
         BigDecimal current = ratio.apply(periods.get(index));
-        BigDecimal prior = ratio.apply(periods.get(index - 4));
+        BigDecimal prior = ratio.apply(periods.get(previousYearIndex(periods, index)));
         if (current == null || prior == null) {
             return null;
         }
@@ -111,11 +119,11 @@ public final class FinancialQualityScorer {
 
     private static Boolean pointInTimeHigher(List<FinancialPeriodStatement> periods, int index,
             Function<FinancialPeriodStatement, BigDecimal> ratio) {
-        if (index - 4 < 0) {
+        if (previousYearIndex(periods, index) < 0) {
             return null;
         }
         BigDecimal current = ratio.apply(periods.get(index));
-        BigDecimal prior = ratio.apply(periods.get(index - 4));
+        BigDecimal prior = ratio.apply(periods.get(previousYearIndex(periods, index)));
         if (current == null || prior == null) {
             return null;
         }
@@ -123,11 +131,11 @@ public final class FinancialQualityScorer {
     }
 
     private static Boolean noDilution(List<FinancialPeriodStatement> periods, int index) {
-        if (index - 4 < 0) {
+        if (previousYearIndex(periods, index) < 0) {
             return null;
         }
         BigDecimal current = periods.get(index).shareCapital();
-        BigDecimal prior = periods.get(index - 4).shareCapital();
+        BigDecimal prior = periods.get(previousYearIndex(periods, index)).shareCapital();
         if (current == null || prior == null) {
             return null;
         }
@@ -135,11 +143,11 @@ public final class FinancialQualityScorer {
     }
 
     private static Boolean deltaTtmGrossMargin(List<FinancialPeriodStatement> periods, int index) {
-        if (index - 4 < 0) {
+        if (previousYearIndex(periods, index) < 0) {
             return null;
         }
         BigDecimal current = ttmGrossMargin(periods, index);
-        BigDecimal prior = ttmGrossMargin(periods, index - 4);
+        BigDecimal prior = ttmGrossMargin(periods, previousYearIndex(periods, index));
         if (current == null || prior == null) {
             return null;
         }
@@ -147,11 +155,11 @@ public final class FinancialQualityScorer {
     }
 
     private static Boolean deltaTtmAssetTurnover(List<FinancialPeriodStatement> periods, int index) {
-        if (index - 4 < 0) {
+        if (previousYearIndex(periods, index) < 0) {
             return null;
         }
         BigDecimal current = ttmAssetTurnover(periods, index);
-        BigDecimal prior = ttmAssetTurnover(periods, index - 4);
+        BigDecimal prior = ttmAssetTurnover(periods, previousYearIndex(periods, index));
         if (current == null || prior == null) {
             return null;
         }
@@ -173,11 +181,11 @@ public final class FinancialQualityScorer {
     }
 
     private static BigDecimal averageAssets(List<FinancialPeriodStatement> periods, int index) {
-        if (index - 4 < 0) {
+        if (previousYearIndex(periods, index) < 0) {
             return null;
         }
         BigDecimal current = periods.get(index).totalAssets();
-        BigDecimal prior = periods.get(index - 4).totalAssets();
+        BigDecimal prior = periods.get(previousYearIndex(periods, index)).totalAssets();
         if (current == null || prior == null) {
             return null;
         }

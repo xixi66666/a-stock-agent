@@ -9,6 +9,9 @@ import com.astock.agent.marketdata.model.SecurityId;
 import java.util.List;
 
 public interface ResearchGateway {
+    default DataSection<com.astock.agent.marketdata.model.ValuationSnapshot> valuation(SecurityId security) {
+        return DataSection.unavailable("估值供应商未配置");
+    }
     DataSection<Quote> quote(SecurityId security);
     DataSection<List<DailyBar>> bars(SecurityId security);
     DataSection<List<DailyBar>> crossCheckBars(SecurityId security);

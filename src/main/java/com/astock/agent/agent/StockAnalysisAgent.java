@@ -244,6 +244,7 @@ public final class StockAnalysisAgent {
         Map<String, DataSection<?>> sections = new LinkedHashMap<>();
         sections.put("quote", snapshot.quote());
         sections.put("bars", snapshot.bars());
+        sections.put("valuation", snapshot.valuation());
         sections.put("technical", snapshot.technical());
         sections.put("sectors", snapshot.sectors());
         sections.put("fundFlow", snapshot.fundFlow());

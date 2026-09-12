@@ -137,6 +137,7 @@ public class StockController {
         result.put("quality", snapshot.quality());
         result.put("quote", snapshot.quote());
         result.put("bars", snapshot.bars());
+        result.put("valuation", snapshot.valuation());
         result.put("technical", snapshot.technical());
         result.put("sectors", snapshot.sectors());
         result.put("industryValuation", snapshot.industryValuation());

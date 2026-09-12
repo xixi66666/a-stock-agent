@@ -233,6 +233,13 @@ public final class InstitutionalReportComposer {
             add(facts, "个股PE(TTM)", quote.peTtm(), "quote");
             add(facts, "个股PB", quote.pb(), "quote");
         });
+        snapshot.valuation().payload().ifPresent(valuation -> {
+            add(facts, "同花顺PE TTM", valuation.peTtm(), "valuation");
+            add(facts, "同花顺PE MRQ", valuation.peMrq(), "valuation");
+            add(facts, "同花顺PB MRQ", valuation.pbMrq(), "valuation");
+            add(facts, "同花顺PS TTM", valuation.psTtm(), "valuation");
+            add(facts, "同花顺PCF TTM", valuation.pcfTtm(), "valuation");
+        });
         Object payload = snapshot.industryValuation().payload().orElse(null);
         if (payload instanceof IndustryValuationData data) {
             add(facts, "行业名称", data.industryName(), "industryValuation");
@@ -385,6 +392,15 @@ public final class InstitutionalReportComposer {
                     "样本" + bars.size() + "根，最新收盘" + bars.getLast().close().stripTrailingZeros().toPlainString(),
                     "bars", snapshot.bars()));
         });
+        snapshot.valuation().payload().ifPresent(valuation -> {
+            String details = valuationFacts(snapshot).stream()
+                    .filter(fact -> fact.sourceId().equals("valuation"))
+                    .map(fact -> fact.label() + "=" + fact.value())
+                    .reduce((left, right) -> left + "；" + right)
+                    .orElse("估值指标缺失");
+            catalog.put("valuation-snapshot", itemEvidence("valuation-snapshot", "同花顺估值快照",
+                    details, "valuation", snapshot.valuation()));
+        });
     }
 
     private static void addModuleEvidence(Map<String, ReportEvidence> catalog, ModuleAnalysis module) {
@@ -420,6 +436,7 @@ public final class InstitutionalReportComposer {
         sections.put("fundFlow", snapshot.fundFlow()); sections.put("fundFlowSummary", snapshot.fundFlowSummary());
         sections.put("capital", snapshot.capital()); sections.put("fundamentals", snapshot.fundamentals());
         sections.put("research", snapshot.research()); sections.put("news", snapshot.news()); sections.put("announcements", snapshot.announcements());
+        sections.put("valuation", snapshot.valuation());
         sections.put("industryValuation", snapshot.industryValuation()); return sections;
     }
 

@@ -21,6 +21,7 @@ public final class ProviderHttpClient {
 
     private static final Set<String> SENSITIVE_MARKERS = Set.of("key", "token", "secret", "authorization");
     private final HttpClient client;
+    private final HttpClient authenticatedClient;
     private final Duration requestTimeout;
     private final int maxRetries;
     private final ProviderThrottle throttle;
@@ -39,6 +40,8 @@ public final class ProviderHttpClient {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
         this.requestTimeout = requestTimeout;
+        this.authenticatedClient = HttpClient.newBuilder().connectTimeout(connectTimeout)
+                .followRedirects(HttpClient.Redirect.NEVER).build();
         this.maxRetries = Math.max(0, Math.min(maxRetries, 2));
         this.throttle = throttle;
         this.healthRegistry = healthRegistry;
@@ -53,6 +56,11 @@ public final class ProviderHttpClient {
             }
             return builder.build();
         });
+    }
+
+    /** Internal provider boundary only; credentials never enter URLs or exception messages. */
+    public ProviderResponse getWithApiKey(ProviderId provider, URI uri, String apiKey) {
+        return send(provider, uri, () -> baseRequest(uri).header("X-api-key", apiKey).GET().build());
     }
 
     public ProviderResponse post(ProviderId provider, URI uri, String contentType, byte[] body, String referer) {
@@ -86,8 +94,10 @@ public final class ProviderHttpClient {
             ProviderId provider, URI uri, Supplier<HttpRequest> requestFactory) {
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             try {
-                HttpResponse<byte[]> response = client.send(
-                        requestFactory.get(), HttpResponse.BodyHandlers.ofByteArray());
+                HttpRequest request = requestFactory.get();
+                HttpClient transport = request.headers().firstValue("X-api-key").isPresent()
+                        ? authenticatedClient : client;
+                HttpResponse<byte[]> response = transport.send(request, HttpResponse.BodyHandlers.ofByteArray());
                 int status = response.statusCode();
                 if (status >= 200 && status < 300) {
                     healthRegistry.recordSuccess(provider, clock.instant());

@@ -74,6 +74,7 @@ class FinancialReportServiceTest {
                 named -> new FinancialReportGenerator() {
                     @Override
                     public FinancialNarrativeDraft generate(FinancialEvidencePackage pack) {
+                        assertThat(pack.provenance()).isEqualTo(SOURCE);
                         return new FinancialNarrativeDraft(
                                 "F-Score 为 " + pack.qualityScore().total() + " 分，档位 "
                                         + pack.qualityScore().tier() + "。",

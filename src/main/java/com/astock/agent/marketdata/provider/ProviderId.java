@@ -1,6 +1,7 @@
 package com.astock.agent.marketdata.provider;
 
 public enum ProviderId {
+    HITHINK("HiThink Finance"),
     TENCENT("Tencent Finance"),
     BAIDU("Baidu Stock"),
     EASTMONEY("Eastmoney"),

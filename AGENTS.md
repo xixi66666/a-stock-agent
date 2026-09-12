@@ -13,7 +13,7 @@ This repository is an evidence-first A-share research application. Preserve the 
 
 ## Market Data Rules
 
-- Prefer Tencent or mootdx-style non-blocking sources for quotes and K-lines. Use Eastmoney only for data not available from the preferred sources.
+- Prefer HiThink Financial-API for supported capabilities, including quotes, forward-adjusted daily bars, benchmark bars, financial statements and valuation snapshots. Preserve Tencent/mootdx-style sources as market-data fallbacks and independent cross-checks. Use Eastmoney for capabilities not covered by HiThink; never substitute a superficially similar field with a different meaning.
 - Every Eastmoney request must pass through the shared `ProviderThrottle`. Requests are globally serialized with at least a one-second interval and jitter. Never add parallel Eastmoney loops.
 - Preserve `Provenance` through parsing, fallback, caching, aggregation, API serialization, and UI rendering.
 - Treat empty success, provider failure, stale data, unverified data, and unavailable data as different states. Do not fabricate replacement values.

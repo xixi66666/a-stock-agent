@@ -3,6 +3,7 @@
  * 如果技术分区不可用，组件显示原因；不会为了画图把缺失值填成 0。
  */
 import { sectionIssues, sectionPayload } from "./api.js";
+import { chartTheme } from "./chart-theme.js";
 
 const stateLabels = {
   STRONG: "偏强", WEAK: "偏弱", NEUTRAL: "中性", OVERBOUGHT: "超买",
@@ -55,13 +56,14 @@ function chartOptions(card) {
   // 图表数据来自当前指标卡的 series，颜色遵循研究台语义 token，不改变指标状态。
   const values = (card.series || []).map(Number).filter(Number.isFinite);
   const data = values.length ? values : [Number(card.value) || 0];
+  const theme = chartTheme();
   return {
     animationDuration: 220,
     grid: { left: 52, right: 18, top: 22, bottom: 34 },
-    tooltip: { trigger: "axis", backgroundColor: "#26251e", borderWidth: 0, textStyle: { color: "#ffffff", fontSize: 12 } },
-    xAxis: { type: "category", boundaryGap: false, data: data.map((_, index) => String(index + 1)), axisLine: { lineStyle: { color: "#cfcdc4" } }, axisTick: { show: false }, axisLabel: { color: "#807d72", interval: Math.max(1, Math.floor(data.length / 6)) } },
-    yAxis: { type: "value", scale: true, splitNumber: 4, axisLabel: { color: "#807d72" }, splitLine: { lineStyle: { color: "#e6e5e0" } } },
-    series: [{ name: card.name, type: "line", data, showSymbol: false, smooth: false, lineStyle: { color: "#7158d9", width: 2 }, areaStyle: { color: "rgba(113,88,217,.08)" } }],
+    tooltip: { trigger: "axis", backgroundColor: theme.ink, borderWidth: 0, textStyle: { color: theme.surface, fontSize: 12 } },
+    xAxis: { type: "category", boundaryGap: false, data: data.map((_, index) => String(index + 1)), axisLine: { lineStyle: { color: theme.strongHairline } }, axisTick: { show: false }, axisLabel: { color: theme.muted, interval: Math.max(1, Math.floor(data.length / 6)) } },
+    yAxis: { type: "value", scale: true, splitNumber: 4, axisLabel: { color: theme.muted }, splitLine: { lineStyle: { color: theme.hairline } } },
+    series: [{ name: card.name, type: "line", data, showSymbol: false, smooth: false, lineStyle: { color: theme.accent, width: 2 }, areaStyle: { color: theme.accentFill } }],
   };
 }
 

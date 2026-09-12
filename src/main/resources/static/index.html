@@ -10,6 +10,11 @@
   <link rel="stylesheet" href="/cycle.css?v=20260910">
 </head>
 <body>
+  <div class="ambient-background" aria-hidden="true">
+    <video class="ambient-video" muted loop playsinline preload="none"
+           poster="/media/sunset-2168-poster.jpg" data-src="/media/sunset-2168.mp4" tabindex="-1"
+           disablepictureinpicture disableremoteplayback></video>
+  </div>
   <a class="skip-link" href="#workspace">跳到研究内容</a>
   <!--
     页面骨架只负责布局和可访问的容器；数据由 app.js 加载，报告由 views.js 渲染。
@@ -28,7 +33,7 @@
         <input id="stock-query" name="q" type="search" inputmode="search"
                placeholder="股票代码 / 名称" maxlength="20" aria-autocomplete="list"
                aria-controls="search-results" aria-expanded="false">
-        <button id="search-submit" class="primary-command" type="submit">
+        <button id="search-submit" class="primary-command" type="submit" aria-label="研究股票" title="研究股票">
           <span>研究</span><i data-lucide="arrow-right" aria-hidden="true"></i>
         </button>
         <div id="search-results" class="search-results" role="listbox" hidden></div>
@@ -36,6 +41,10 @@
 
       <div class="header-status">
         <span id="agent-status" class="status-chip" data-tone="muted"><span class="status-dot"></span>Agent 未配置</span>
+        <button id="background-toggle" class="icon-button background-toggle" type="button"
+                aria-label="播放动态背景" title="播放动态背景" hidden>
+          <i data-lucide="play" aria-hidden="true"></i>
+        </button>
         <button id="refresh-data" class="icon-button" type="button" aria-label="刷新当前股票" title="刷新当前股票" disabled>
           <i data-lucide="refresh-cw" aria-hidden="true"></i>
         </button>
@@ -114,5 +123,6 @@
   <script src="/webjars/echarts/6.1.0/dist/echarts.min.js"></script>
   <script src="/webjars/lucide/1.16.0/dist/umd/lucide.min.js"></script>
   <script type="module" src="/js/app.js?v=20260911-quotes"></script>
+  <script type="module" src="/js/ambient-background.js"></script>
 </body>
 </html>

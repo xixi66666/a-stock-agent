@@ -16,10 +16,12 @@ const escapeHtml = (value) => {
 };
 
 const format = (value, digits = 2) => {
+  if (value == null || value === "") return "--";
   const number = Number(value);
   return Number.isFinite(number) ? number.toLocaleString("zh-CN", { maximumFractionDigits: digits, minimumFractionDigits: digits }) : "--";
 };
 const money = (value) => {
+  if (value == null || value === "") return "--";
   const number = Number(value);
   if (!Number.isFinite(number)) return "--";
   if (Math.abs(number) >= 1e8) return `${format(number / 1e8)} 亿`;
@@ -66,6 +68,17 @@ function renderCapital(snapshot) {
     ${renderFundFlowSummary(snapshot.fundFlowSummary)}
     <div class="data-columns"><section><h3>融资融券</h3>${renderSimpleTable(capital?.marginHistory, [["日期","date"],["融资余额","financingBalanceYuan",money],["两融余额","totalBalanceYuan",money]], "暂无融资融券记录")}</section><section><h3>大宗交易</h3>${renderSimpleTable(capital?.blockTrades, [["日期","date"],["成交价","price",format],["溢价率","premiumPercent",(v)=>`${format(v)}%`]], "暂无大宗交易记录")}</section></div>
     <div class="data-columns"><section><h3>股东户数变化</h3>${renderSimpleTable(capital?.shareholderChanges, [["日期","date"],["股东户数","holderCount",(v)=>format(v,0)],["环比","changePercent",(v)=>`${format(v)}%`]], "暂无股东户数记录")}</section><section><h3>限售解禁</h3>${renderSimpleTable(capital?.unlocks, [["日期","date"],["类型","type"],["占总股本","totalShareRatio",(v)=>`${format(v)}%`]], "暂无近期解禁记录")}</section></div>
+    ${capital?.components?.dividends ? `<section class="capital-dividends"><h3>分红与送股（同花顺优先）</h3>
+      <p class="section-description">${escapeHtml(capital.components.dividends.provenance?.provider || "来源缺失")} · ${statusLabel(capital.components.dividends.status)}</p>
+      ${renderSimpleTable(capital.dividends, [["除权除息日","exDate"],["每股现金（税前元）","cashPerShareYuan",format],["每十股送股","bonusPerTenShares",format],["每十股转增","transferPerTenShares",format]], "查询窗口内无分红送股事件")}
+      <p class="section-description">${(capital.components.dividends.issues || []).map(escapeHtml).join("；")}</p>
+      <p class="section-description">其余筹码来源：${escapeHtml(capital.components.legacyCapital?.provenance?.provider || "不可用")} · ${statusLabel(capital.components.legacyCapital?.status)}</p>
+    </section>` : ""}
+    ${capital?.components?.dragonTiger ? `<section class="capital-dragon-tiger"><h3>龙虎榜（同花顺优先）</h3>
+      <p class="section-description">${escapeHtml(capital.components.dragonTiger.provenance?.provider || "来源缺失")} · ${statusLabel(capital.components.dragonTiger.status)}</p>
+      ${renderSimpleTable(capital.dragonTigerRecords, [["交易日","date"],["原因","reason"],["净买入（元）","netBuyYuan",money],["换手率","turnoverPercent",(v)=>v == null ? "--" : `${format(v)}%`]], "最新交易日不在龙虎榜")}
+      <p class="section-description">${(capital.components.dragonTiger.issues || []).map(escapeHtml).join("；")}</p>
+    </section>` : ""}
   </section>`;
 }
 
@@ -93,7 +106,21 @@ function renderValuation(snapshot) {
     pb: quote.pb,
     totalMarketValueYuan: quote.totalMarketValueYuan,
   };
-  return `<section>${heading(`${statusLabel(snapshot.research?.status)} · 市场与机构口径`, "估值与机构预期", snapshot.research)}<div class="metric-grid">${metrics.map(([label,value])=>`<div class="metric-tile"><span>${label}</span><strong>${value}</strong></div>`).join("")}</div>${renderPeerValuationTable(snapshot.industryValuation, target)}<section class="table-section"><h3>最新机构研报</h3>${renderSimpleTable(research, [["发布日期","publishedAt"],["机构","organization"],["评级","rating"],["标题","title"],["下年 EPS","nextYearEps",format]], "暂无近期机构研报")}</section></section>`;
+  return `<section>${heading(`${statusLabel(snapshot.research?.status)} · 市场与机构口径`, "估值与机构预期", snapshot.research)}<div class="metric-grid">${metrics.map(([label,value])=>`<div class="metric-tile"><span>${label}</span><strong>${value}</strong></div>`).join("")}</div>${renderHithinkValuation(snapshot.valuation)}${renderPeerValuationTable(snapshot.industryValuation, target)}<section class="table-section"><h3>最新机构研报</h3>${renderSimpleTable(research, [["发布日期","publishedAt"],["机构","organization"],["评级","rating"],["标题","title"],["下年 EPS","nextYearEps",format]], "暂无近期机构研报")}</section></section>`;
+}
+
+function renderHithinkValuation(section) {
+  if (!section) return "";
+  const data = sectionPayload(section);
+  if (!data) return `<section class="hithink-valuation table-section"><h3>同花顺估值快照</h3>${emptyRow(sectionIssues(section)[0] || "估值暂不可用")}</section>`;
+  const source = section.provenance || {};
+  const fields = [["市盈率 TTM", "peTtm"], ["市盈率 MRQ", "peMrq"], ["市净率 MRQ", "pbMrq"], ["市销率 TTM", "psTtm"], ["市现率 TTM", "pcfTtm"]];
+  return `<section class="hithink-valuation table-section"><h3>同花顺估值快照</h3>
+    <p>${escapeHtml(source.provider || "来源未知")} · ${escapeHtml(statusLabel(section.status))} · ${source.cached ? "缓存" : "本次获取"}</p>
+    <div class="metric-grid">${fields.map(([label,key]) => `<div class="metric-tile"><span>${label}</span><strong>${data[key] == null ? "--" : format(data[key])}</strong></div>`).join("")}</div>
+    <p class="muted">源时间 ${escapeHtml(source.providerTimestamp || "未提供")} · 获取时间 ${escapeHtml(source.fetchedAt || "未提供")}</p>
+    <p class="muted">TTM 为滚动十二个月，MRQ 为最近季度口径；源时间是返回指标中的最新有效时间，不代表所有指标同时更新。负值原样保留，缺失项显示 --。</p>
+    ${sectionIssues(section).map(issue => `<p class="muted">${escapeHtml(issue)}</p>`).join("")}</section>`;
 }
 
 function renderEvents(snapshot) {
@@ -103,7 +130,7 @@ function renderEvents(snapshot) {
 }
 
 function renderSources(snapshot) {
-  const keys = [["quote","实时行情"],["bars","K 线"],["technical","技术指标"],["sectors","行业概念"],["fundFlow","资金流"],["capital","筹码事件"],["fundamentals","财务报表"],["research","机构研报"],["news","新闻资讯"],["announcements","公司公告"]];
+  const keys = [["quote","实时行情"],["bars","K 线"],["technical","技术指标"],["sectors","行业概念"],["fundFlow","资金流"],["capital","筹码事件"],["fundamentals","财务报表"],["valuation","同花顺估值"],["research","机构研报"],["news","新闻资讯"],["announcements","公司公告"]];
   const quality = snapshot.quality || {};
   return `<section>${heading(`总分 ${quality.total ?? "--"} / 100`, "数据来源与质量", snapshot.quote)}<div class="quality-components">${[["新鲜度",quality.freshness,30],["一致性",quality.consistency,30],["完整度",quality.completeness,25],["权威性",quality.authority,15]].map(([label,value,max])=>`<div><span>${label}</span><strong>${value ?? "--"} / ${max}</strong><progress max="${max}" value="${value || 0}"></progress></div>`).join("")}</div><div class="source-list">${keys.map(([key,label])=>{const section=snapshot[key]||{};const source=section.provenance;return `<article><span class="source-status" data-status="${section.status || "UNAVAILABLE"}"><span></span>${statusLabel(section.status)}</span><div><strong>${label}</strong><p>${escapeHtml(source?.provider || sectionIssues(section)[0] || "无可用来源")}</p></div><div class="source-time"><span>${source?.cached ? "缓存" : "实时请求"}</span><time>${source?.fetchedAt ? new Date(source.fetchedAt).toLocaleString("zh-CN",{hour12:false}) : "--"}</time></div></article>`;}).join("")}</div></section>`;
 }

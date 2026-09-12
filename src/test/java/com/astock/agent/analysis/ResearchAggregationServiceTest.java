@@ -24,6 +24,25 @@ import org.junit.jupiter.api.Test;
 
 class ResearchAggregationServiceTest {
 
+    @Test void recognizesOfficialHithinkAndPreservesStaleStatusInDerivedTechnicalData() {
+        var official = new Provenance("HiThink Finance",URI.create("https://fuyao.aicubes.cn/"),null,Instant.now(),false,null);
+        ResearchGateway gateway = new StubGateway() {
+            @Override public DataSection<Quote> quote(SecurityId security) {
+                return DataSection.unverified(super.quote(security).payload().orElseThrow(),official,List.of("成交时间缺失"));
+            }
+            @Override public DataSection<List<DailyBar>> bars(SecurityId security) {
+                return DataSection.stale(super.bars(security).payload().orElseThrow(),official,List.of("陈旧日线"));
+            }
+            @Override public DataSection<List<DailyBar>> crossCheckBars(SecurityId security) {
+                return DataSection.unavailable("offline");
+            }
+        };
+        var result = service(gateway).research(SecurityId.parse("600519"));
+        assertThat(result.authoritativeSources()).isTrue();
+        assertThat(result.technical().status()).isEqualTo(SectionStatus.STALE);
+        assertThat(result.technical().issues()).contains("陈旧日线");
+    }
+
     @Test
     void newsFailureDoesNotDiscardQuoteOrTechnicalData() {
         ResearchGateway gateway = new StubGateway();

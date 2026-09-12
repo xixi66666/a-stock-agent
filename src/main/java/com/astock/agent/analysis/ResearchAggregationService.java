@@ -65,6 +65,12 @@ public final class ResearchAggregationService {
             Future<DataSection<List<DailyBar>>> barsFuture = executor.submit(() -> safeBars(security));
             Future<DataSection<List<DailyBar>>> crossFuture = executor.submit(() -> safeCrossBars(security));
             Future<DataSection<?>> sectorsFuture = submit(executor, () -> gateway.sectors(security));
+            var valuationFuture = executor.submit(() -> {
+                try { return gateway.valuation(security); }
+                catch (RuntimeException failure) {
+                    return DataSection.<com.astock.agent.marketdata.model.ValuationSnapshot>unavailable("估值请求失败");
+                }
+            });
             Future<DataSection<IndustryValuationData>> industryValuationFuture =
                     executor.submit(() -> safeIndustryValuation(security));
             Future<DataSection<?>> flowFuture = submit(executor, () -> gateway.fundFlow(security));
@@ -88,7 +94,7 @@ public final class ResearchAggregationService {
                     && usable(technical);
             boolean authoritative = quote.provenance()
                     .map(Provenance::provider)
-                    .map(name -> name.contains("Tencent"))
+                    .map(name -> name.contains("Tencent") || name.equals("HiThink Finance"))
                     .orElse(false);
             DataSection<?> fundFlow = flowFuture.get();
             DataSection<FundFlowSummary> fundFlowSummary = summarizeFlow(fundFlow);
@@ -105,7 +111,7 @@ public final class ResearchAggregationService {
                     snapshot.sectors(), snapshot.industryValuation(), snapshot.fundFlow(), snapshot.fundFlowSummary(),
                     snapshot.capital(), snapshot.fundamentals(),
                     snapshot.research(), snapshot.news(), snapshot.announcements(), quality,
-                    consistent, complete, authoritative, snapshot.fetchedAt());
+                    consistent, complete, authoritative, snapshot.fetchedAt(), valuationFuture.get());
         } catch (ResearchUnavailableException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -200,7 +206,9 @@ public final class ResearchAggregationService {
         }
         try {
             Provenance source = bars.provenance().orElseThrow();
-            return DataSection.healthy(technicalService.analyze(bars.payload().orElseThrow(), Timeframe.DAILY), source);
+            return new DataSection<>(bars.status(), java.util.Optional.of(
+                    technicalService.analyze(bars.payload().orElseThrow(), Timeframe.DAILY)),
+                    java.util.Optional.of(source), bars.issues());
         } catch (Exception exception) {
             return DataSection.unavailable("Technical analysis failed: " + exception.getMessage());
         }
@@ -224,7 +232,7 @@ public final class ResearchAggregationService {
 
     /**
      * 主 K 线源出现滞后时，允许更新的独立核验源接管分析输入；来源和降级原因必须保留。
-     * 同一交易日仍以腾讯主源为准，避免仅因价格微小差异改变主数据口径。
+     * 同一交易日仍以配置的优先来源为准，避免仅因价格微小差异改变主数据口径。
      */
     private static DataSection<List<DailyBar>> preferFresherBars(
             DataSection<List<DailyBar>> primary, DataSection<List<DailyBar>> crossCheck) {

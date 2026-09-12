@@ -17,7 +17,21 @@ public record FinancialEvidencePackage(
         int failCount,
         int unverifiedCount,
         int signalCount,
-        List<ScoreBand> scoreBands) {
+        List<ScoreBand> scoreBands,
+        com.astock.agent.marketdata.model.Provenance provenance,
+        List<String> dataIssues) {
+
+    public FinancialEvidencePackage(String securityCode, FinancialStatementHistory history,
+            FinancialQualityScore qualityScore, FinancialTrendResult trends, boolean financialIndustry,
+            int passCount, int failCount, int unverifiedCount, int signalCount, List<ScoreBand> scoreBands) {
+        this(securityCode,history,qualityScore,trends,financialIndustry,passCount,failCount,unverifiedCount,
+                signalCount,scoreBands,null,List.of());
+    }
+
+    public FinancialEvidencePackage withSource(com.astock.agent.marketdata.model.DataSection<?> source) {
+        return new FinancialEvidencePackage(securityCode,history,qualityScore,trends,financialIndustry,
+                passCount,failCount,unverifiedCount,signalCount,scoreBands,source.provenance().orElse(null),source.issues());
+    }
 
     public FinancialEvidencePackage(String securityCode,
             FinancialStatementHistory history,
@@ -33,6 +47,7 @@ public record FinancialEvidencePackage(
     }
 
     public FinancialEvidencePackage {
+        dataIssues = dataIssues == null ? List.of() : List.copyOf(dataIssues);
         Objects.requireNonNull(history, "history is required");
         Objects.requireNonNull(qualityScore, "qualityScore is required");
         Objects.requireNonNull(trends, "trends is required");

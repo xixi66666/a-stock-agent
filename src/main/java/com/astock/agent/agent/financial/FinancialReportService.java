@@ -90,7 +90,7 @@ public final class FinancialReportService {
                 .filter(item -> item.status() == FinancialQualityScore.SignalStatus.FAIL).count();
         int unverified = score.signals().size() - pass - fail;
         FinancialEvidencePackage pack = new FinancialEvidencePackage(code, history, score, trends,
-                financialIndustry, pass, fail, unverified, score.signals().size());
+                financialIndustry, pass, fail, unverified, score.signals().size()).withSource(section);
 
         String traceId = "financial-" + UUID.randomUUID();
         long started = System.nanoTime();

@@ -2,6 +2,7 @@
  * 财报分析视图:评分卡、信号清单、趋势图与 DeepSeek 叙事。
  * 所有状态如实渲染:数据不足 / 确定性回退 / 模型诊断不渲染为 0 或空白。
  */
+import { chartTheme } from "./chart-theme.js";
 
 function escapeText(value) {
   const raw = String(value ?? "");
@@ -29,7 +30,7 @@ export function renderFinancialViewShell() {
       </button>
       <div id="financial-request-status" aria-live="polite"></div>
     </div>
-    <div id="financial-output"><p class="muted">基于新浪财报三表历史计算财务质量评分(F-Score)与多期趋势,由 DeepSeek 生成解读。</p></div>
+    <div id="financial-output"><p class="muted">优先使用同花顺年报三表计算财务质量评分(F-Score)与多期趋势；同花顺不可用时回退新浪，缺失字段不补零。</p></div>
   </section>`;
 }
 
@@ -167,6 +168,9 @@ function renderLatestPeriod(report) {
       <span class="source-status" data-status="${escapeText(section.status || "UNVERIFIED")}"><span></span>${escapeText(sourceLabel)}</span>
     </div>
     <div class="financial-period-grid">${metrics}</div>
+    ${provenance.fallbackProvider ? `<p class="muted financial-note">${escapeText(provenance.fallbackProvider)} 不可用，当前使用 ${escapeText(sourceLabel)} 备用数据。</p>` : ""}
+    <p class="muted financial-note">源时间 ${escapeText(provenance.providerTimestamp || "未提供")} · 获取时间 ${escapeText(provenance.fetchedAt || "未提供")} · ${provenance.cached ? "缓存" : "本次获取"}</p>
+    ${section.issues?.length ? `<details class="financial-note"><summary>数据口径与限制</summary>${section.issues.map(issue => `<p>${escapeText(issue)}</p>`).join("")}</details>` : ""}
     <p class="muted financial-note">利润表与现金流量表为年初至今累计口径；资产负债表为报告期末时点值。缺失字段显示为“--”。</p>
   </section>`;
 }
@@ -225,28 +229,29 @@ export function activateFinancialChart(report, container) {
     return point && point.value != null ? Number(point.value) : null;
   };
   const chart = window.echarts.init(container);
+  const theme = chartTheme();
   const bars = seriesList.filter((series) => series.unit === "元").slice(0, 2);
   const lines = seriesList.filter((series) => series.unit === "%").slice(0, 3);
   const formatYuan = (value) => (value == null ? "--" : value >= 1e8 ? `${(value / 1e8).toFixed(1)} 亿` : `${(value / 1e4).toFixed(1)} 万`);
   chart.setOption({
-    tooltip: { trigger: "axis" },
-    legend: { top: 0 },
+    tooltip: { trigger: "axis", backgroundColor: theme.surface, borderColor: theme.hairline, textStyle: { color: theme.ink } },
+    legend: { top: 0, textStyle: { color: theme.body } },
     grid: { left: 60, right: 60, top: 32, bottom: 28 },
-    xAxis: { type: "category", data: periodKeys.map((period) => period.slice(0, 7)), axisLabel: { color: "#807d72" } },
+    xAxis: { type: "category", data: periodKeys.map((period) => period.slice(0, 7)), axisLabel: { color: theme.muted }, axisLine: { lineStyle: { color: theme.strongHairline } } },
     yAxis: [
-      { type: "value", name: "金额(累计)", axisLabel: { color: "#807d72", formatter: formatYuan }, splitLine: { lineStyle: { color: "#e6e5e0" } } },
-      { type: "value", name: "比率 %", axisLabel: { color: "#807d72" }, splitLine: { show: false } },
+      { type: "value", name: "金额(累计)", axisLabel: { color: theme.muted, formatter: formatYuan }, splitLine: { lineStyle: { color: theme.hairline } } },
+      { type: "value", name: "比率 %", axisLabel: { color: theme.muted }, splitLine: { show: false } },
     ],
     series: [
       ...bars.map((series, index) => ({
         name: series.name, type: "bar", yAxisIndex: 0,
-        itemStyle: { color: index === 0 ? "#7158d9" : "#cfcdc4" },
+        itemStyle: { color: index === 0 ? theme.accent : theme.strongHairline },
         data: periodKeys.map((period) => valueOf(series, period)),
       })),
       ...lines.map((series, index) => ({
         name: series.name, type: "line", yAxisIndex: 1, smooth: true,
-        lineStyle: { color: index === 0 ? "#d83b53" : index === 1 ? "#1f8a65" : "#807d72" },
-        itemStyle: { color: index === 0 ? "#d83b53" : index === 1 ? "#1f8a65" : "#807d72" },
+        lineStyle: { color: index === 0 ? theme.up : index === 1 ? theme.down : theme.muted },
+        itemStyle: { color: index === 0 ? theme.up : index === 1 ? theme.down : theme.muted },
         data: periodKeys.map((period) => valueOf(series, period)),
       })),
     ],

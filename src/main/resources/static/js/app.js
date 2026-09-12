@@ -50,11 +50,13 @@ function refreshIcons() {
 }
 
 function formatNumber(value, digits = 2) {
+  if (value == null || value === "") return "--";
   const number = Number(value);
   return Number.isFinite(number) ? number.toLocaleString("zh-CN", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "--";
 }
 
 function formatCompact(value) {
+  if (value == null || value === "") return "--";
   const number = Number(value);
   if (!Number.isFinite(number)) return "--";
   if (Math.abs(number) >= 1e8) return `${formatNumber(number / 1e8)} 亿`;

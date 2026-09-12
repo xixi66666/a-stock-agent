@@ -34,7 +34,26 @@ public record StockResearchSnapshot(
         boolean crossSourceConsistent,
         boolean coreCompleteness,
         boolean authoritativeSources,
-        Instant fetchedAt) {
+        Instant fetchedAt,
+        DataSection<com.astock.agent.marketdata.model.ValuationSnapshot> valuation) {
+
+    public StockResearchSnapshot(SecurityId security, DataSection<Quote> quote,
+            DataSection<List<DailyBar>> bars, DataSection<TechnicalSnapshot> technical,
+            DataSection<?> sectors, DataSection<IndustryValuationData> industryValuation,
+            DataSection<?> fundFlow, DataSection<FundFlowSummary> fundFlowSummary,
+            DataSection<?> capital, DataSection<?> fundamentals, DataSection<?> research,
+            DataSection<?> news, DataSection<?> announcements, DataQualityBreakdown quality,
+            boolean crossSourceConsistent, boolean coreCompleteness, boolean authoritativeSources, Instant fetchedAt) {
+        this(security,quote,bars,technical,sectors,industryValuation,fundFlow,fundFlowSummary,capital,
+                fundamentals,research,news,announcements,quality,crossSourceConsistent,coreCompleteness,
+                authoritativeSources,fetchedAt,DataSection.unavailable("估值供应商未配置"));
+    }
+
+    public StockResearchSnapshot withValuation(DataSection<com.astock.agent.marketdata.model.ValuationSnapshot> value) {
+        return new StockResearchSnapshot(security,quote,bars,technical,sectors,industryValuation,fundFlow,
+                fundFlowSummary,capital,fundamentals,research,news,announcements,quality,crossSourceConsistent,
+                coreCompleteness,authoritativeSources,fetchedAt,value);
+    }
 
     public StockResearchSnapshot(
             SecurityId security,
@@ -108,6 +127,6 @@ public record StockResearchSnapshot(
         return new StockResearchSnapshot(
                 security, quoteValue, barsValue, technical, sectors, industryValuation, fundFlow, fundFlowSummary,
                 capital, fundamentals,
-                research, news, announcements, quality, consistent, complete, authoritative, fetchedAt);
+                research, news, announcements, quality, consistent, complete, authoritative, fetchedAt, valuation);
     }
 }

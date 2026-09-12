@@ -10,7 +10,14 @@ public record CapitalData(
         List<ShareholderChange> shareholderChanges,
         List<UnlockRecord> unlocks,
         List<DividendRecord> dividends,
-        List<DragonTigerRecord> dragonTigerRecords) {
+        List<DragonTigerRecord> dragonTigerRecords,
+        java.util.Map<String, DataSection<?>> components) {
+
+    public CapitalData(List<MarginRecord> marginHistory, List<BlockTrade> blockTrades,
+            List<ShareholderChange> shareholderChanges, List<UnlockRecord> unlocks,
+            List<DividendRecord> dividends, List<DragonTigerRecord> dragonTigerRecords) {
+        this(marginHistory,blockTrades,shareholderChanges,unlocks,dividends,dragonTigerRecords,java.util.Map.of());
+    }
 
     public CapitalData {
         marginHistory = copy(marginHistory);
@@ -19,6 +26,7 @@ public record CapitalData(
         unlocks = copy(unlocks);
         dividends = copy(dividends);
         dragonTigerRecords = copy(dragonTigerRecords);
+        components = components == null ? java.util.Map.of() : java.util.Map.copyOf(components);
     }
 
     private static <T> List<T> copy(List<T> value) {

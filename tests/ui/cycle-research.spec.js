@@ -55,7 +55,7 @@ for (const viewport of [{width:1440,height:1000}, {width:1024,height:768}, {widt
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const button = page.getByRole('button', { name: '重新生成周期研究', exact: true });
     expect(await button.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-    expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(247, 247, 244)');
+    expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(245, 238, 229)');
     await page.evaluate(() => window.scrollTo(0, 0));
     const header = await page.locator('.app-header').boundingBox();
     const toolbar = await page.locator('.cycle-toolbar').boundingBox();

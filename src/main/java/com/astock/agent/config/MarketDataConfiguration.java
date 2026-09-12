@@ -46,6 +46,15 @@ import org.springframework.context.annotation.Configuration;
  */
 public class MarketDataConfiguration {
 
+    @Bean
+    com.astock.agent.marketdata.provider.hithink.HithinkFinanceClient hithinkFinanceClient(
+            ProviderHttpClient http, Clock clock,
+            @org.springframework.beans.factory.annotation.Value("${hithink.enabled:false}") boolean enabled,
+            @org.springframework.beans.factory.annotation.Value("${hithink.api-key:}") String apiKey) {
+        return new com.astock.agent.marketdata.provider.hithink.HithinkFinanceClient(http, clock,
+                enabled ? apiKey : "", java.net.URI.create("https://fuyao.aicubes.cn"));
+    }
+
     @Bean Clock applicationClock() { return Clock.systemUTC(); }
 
     @Bean
@@ -90,8 +99,10 @@ public class MarketDataConfiguration {
 
     @Bean
     BenchmarkDataGateway benchmarkDataGateway(
-            ProviderHttpClient http, TencentResponseParser parser, Clock clock) {
-        return new TencentBenchmarkDataGateway(http, parser, clock);
+            ProviderHttpClient http, TencentResponseParser parser, Clock clock,
+            com.astock.agent.marketdata.provider.hithink.HithinkFinanceClient hithink) {
+        return new com.astock.agent.analysis.HithinkBenchmarkGateway(hithink,
+                new TencentBenchmarkDataGateway(http, parser, clock));
     }
 
     @Bean BaiduKlineClient baiduKlineClient(ProviderHttpClient http, Clock clock) {
@@ -125,6 +136,7 @@ public class MarketDataConfiguration {
 
     @Bean
     ResearchGateway researchGateway(
+            com.astock.agent.marketdata.provider.hithink.HithinkFinanceClient hithink,
             TencentMarketDataClient tencent,
             BaiduKlineClient baidu,
             EastmoneyResearchClient eastmoney,
@@ -137,9 +149,9 @@ public class MarketDataConfiguration {
             Cache<SecurityId, DataSection<List<NewsItem>>> newsCache,
             @Qualifier("announcementCache")
             Cache<SecurityId, DataSection<List<Announcement>>> announcementCache) {
-        return new ProviderResearchGateway(
+        return new com.astock.agent.analysis.HithinkResearchGateway(new ProviderResearchGateway(
                 tencent, baidu, eastmoney, sina, cninfo, industryValuation,
-                researchCache, newsCache, announcementCache);
+                researchCache, newsCache, announcementCache), hithink);
     }
 
     @Bean
