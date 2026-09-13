@@ -19,6 +19,7 @@ public record FinancialReportAnalysis(
         GenerationMode generationMode,
         ModelDiagnostic diagnostic,
         boolean financialIndustry,
+        String modelName,
         String generatedAt,
         String ruleVersion,
         String promptVersion,

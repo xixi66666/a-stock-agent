@@ -17,7 +17,8 @@ const viewports = [
 ];
 
 async function mockApis(page) {
-  await page.route("**/api/agent/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
+  await page.route("**/api/finrobot/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
+  await page.route("**/api/finrobot/models", (route) => route.fulfill({ json: { models: [] } }));
   await page.route("**/api/stocks/600519/snapshot", (route) => route.fulfill({ json: baseSnapshot }));
   await page.route("**/api/stocks/600519/candlestick**", (route) => route.fulfill({ json: {
     status: "UNAVAILABLE", payload: null, provenance: null, issues: ["该测试不加载蜡烛图数据"],
@@ -27,7 +28,7 @@ async function mockApis(page) {
 }
 
 async function openFinancialTab(page) {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "财报分析" }).click();
 }
@@ -36,7 +37,7 @@ test.beforeEach(async ({ page }) => {
   await mockApis(page);
 });
 
-test("financial chart uses the sunset accent for its primary series", async ({ page }) => {
+test("financial chart uses the semantic accent for its primary series", async ({ page }) => {
   await openFinancialTab(page);
   await page.getByRole("button", { name: "生成财报分析" }).click();
   await expect(page.locator("#financial-trend-chart canvas")).toBeVisible();
@@ -68,6 +69,8 @@ for (const viewport of viewports) {
     await expect(page.locator(".financial-narrative")).toContainText("总体结论");
     await expect(page.locator(".financial-narrative")).toContainText("为什么得出这个结论");
     await expect(page.locator(".financial-narrative")).toContainText("需要留意什么");
+    await expect(page.locator(".financial-report-header .generation-line").first()).toContainText("生成模式：确定性回退");
+    await expect(page.locator(".financial-report-header .generation-line").first()).toContainText("模型：未配置");
     await expect(page.locator(".report-disclaimer")).toContainText("仅供学习研究，不构成投资建议");
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -91,12 +94,13 @@ test("shows deterministic fallback badge", async ({ page }) => {
 
 test("shows model-assisted badge when live narrative passes validation", async ({ page }) => {
   await page.route("**/api/agent/financial-report", (route) => route.fulfill({
-    json: { ...financialReport, generationMode: "MODEL_ASSISTED" },
+    json: { ...financialReport, generationMode: "MODEL_ASSISTED", modelName: "deepseek-chat" },
   }));
   await openFinancialTab(page);
   await page.getByRole("button", { name: "生成财报分析" }).click();
 
   await expect(page.locator(".financial-report-header .source-status")).toContainText("DeepSeek 叙事已校验");
+  await expect(page.locator(".financial-report-header .generation-line").first()).toContainText("模型：deepseek-chat");
 });
 
 test("shows unavailable state when data source fails", async ({ page }) => {

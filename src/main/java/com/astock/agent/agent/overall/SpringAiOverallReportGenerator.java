@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.converter.BeanOutputConverter;
 
 /**
  * 面向 OpenAI 兼容接口的总体报告适配层。
@@ -70,6 +71,10 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
 
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
 
+    /** 保留相同的结构化输出请求，只替换客户端的 JSON 转换逻辑。 */
+    private static final BeanOutputConverter<OverallReportDraft> CONVERTER =
+            new RobustOverallReportDraftConverter();
+
     @FunctionalInterface
     interface ModelInvoker {
         OverallReportDraft invoke(String systemPrompt, String userPrompt) throws Exception;
@@ -85,7 +90,7 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
                 .system(systemPrompt)
                 .user(userPrompt)
                 .call()
-                .entity(OverallReportDraft.class), modelName);
+                .entity(CONVERTER), modelName);
         Objects.requireNonNull(client, "client is required");
     }
 
@@ -98,20 +103,34 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
 
     @Override
     public OverallReportDraft generate(StockResearchSnapshot snapshot) throws Exception {
-        // 快照在进入模型前已经由聚合层规范化；生成器不在这里补数据或调用其他工具。
+        return generate(snapshot, null);
+    }
+
+    @Override
+    public OverallReportDraft generate(StockResearchSnapshot snapshot,
+            SupplementalResearchEvidence evidence) throws Exception {
+        // 快照和补充证据都在进入模型前已经规范化；生成器不在这里抓取数据或计算指标。
         Objects.requireNonNull(snapshot, "snapshot is required");
-        return invoker.invoke(SYSTEM_PROMPT, generationPrompt(snapshot));
+        return invoker.invoke(SYSTEM_PROMPT, generationPrompt(snapshot, evidence));
     }
 
     @Override
     public OverallReportDraft repair(StockResearchSnapshot snapshot,
             OverallReportDraft draft, List<String> issues) throws Exception {
+        return repair(snapshot, draft, issues, null);
+    }
+
+    @Override
+    public OverallReportDraft repair(StockResearchSnapshot snapshot,
+            OverallReportDraft draft, List<String> issues,
+            SupplementalResearchEvidence evidence) throws Exception {
         // 修复请求携带旧草稿和问题列表，防止模型修复时丢失原有事实和来源。
         Objects.requireNonNull(snapshot, "snapshot is required");
         Objects.requireNonNull(draft, "draft is required");
         List<String> safeIssues = issues == null ? List.of() : List.copyOf(issues);
         String userPrompt = "以下是同一证券的完整规范化研究快照 JSON：\n"
                 + MAPPER.writeValueAsString(snapshot)
+                + supplementalPrompt(evidence)
                 + "\n\n这是上一次草稿（上一轮返回的 OverallReportDraft JSON）：\n"
                 + MAPPER.writeValueAsString(draft)
                 + "\n\n确定性校验发现的问题列表：\n"
@@ -137,11 +156,26 @@ public final class SpringAiOverallReportGenerator implements OverallReportGenera
         return guidance.isEmpty() ? "" : "\n\n针对校验问题的修复要求：\n- " + String.join("\n- ", guidance);
     }
 
-    private String generationPrompt(StockResearchSnapshot snapshot)
+    private String generationPrompt(StockResearchSnapshot snapshot,
+            SupplementalResearchEvidence evidence)
             throws JsonProcessingException {
         return "以下是证券 " + snapshot.security().code()
                 + " 的完整规范化研究快照。请严格按照系统约束生成 OverallReportDraft JSON：\n"
-                + MAPPER.writeValueAsString(snapshot) + methodologyPrompt();
+                + MAPPER.writeValueAsString(snapshot)
+                + supplementalPrompt(evidence) + methodologyPrompt();
+    }
+
+    private String supplementalPrompt(SupplementalResearchEvidence evidence)
+            throws JsonProcessingException {
+        if (evidence == null) return "";
+        return "\n\n以下是补充研究证据 " + evidence.name()
+                + "。它不是市场实时抓取结果，只能作为当前报告的额外事实边界；"
+                + "只能使用其中明确出现的事实，不得猜测或补写缺失值。\n补充事实 JSON：\n"
+                + MAPPER.writeValueAsString(evidence.facts())
+                + "\n补充证据来源（引用时必须逐项匹配）：\n"
+                + MAPPER.writeValueAsString(evidence.sourceReferences())
+                + "\n补充证据限制：\n"
+                + MAPPER.writeValueAsString(evidence.limitations());
     }
 
     private String methodologyPrompt() throws JsonProcessingException {

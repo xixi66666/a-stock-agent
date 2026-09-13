@@ -1,8 +1,8 @@
-# A 股智能研究 Agent
+# A 股智能研究台 · FinRobot 投研
 
 新增独立的“周期研究”标签：Agent 直接加载霍华德·马克斯原始 skill，检索原书并综合研究证据。配置、接口与边界见 [周期研究模块](docs/cycle-research.md)。
 
-一个用于学习 Agent 工程实践的 Spring AI 股票研究项目。它从多个公开数据源获取真实 A 股行情与研究数据，先完成归一化、校验和技术指标计算，再把有来源证据的数据交给可选的 Spring AI Agent。未配置模型时，行情、技术分析和全部 REST API 仍可独立运行。
+一个用于学习 Agent 工程实践的 Spring AI 股票研究项目。它从多个公开数据源获取真实 A 股行情与研究数据，先完成归一化、校验和技术指标计算，再把有来源证据的数据交给 FinRobot Equity Research 流水线。未配置模型时，行情、技术分析和确定性投研报告仍可独立运行。
 
 ![A 股智能研究台](docs/assets/dashboard.png)
 
@@ -14,7 +14,9 @@
 - 资金筹码、财务报表、估值预期、研报、新闻与公告分区展示。
 - 每个数据区块保留状态、来源、源时间、抓取时间、缓存和降级信息。
 - 0-100 数据质量评分，按新鲜度、一致性、完整度和权威性拆分。
-- 可选 Spring AI Agent，仅能调用项目声明的受限股票工具，不能访问任意 URL。
+- FinRobot 单证券投研：证据快照、研究分析、估值建模、风险复核和报告综合统一为一个入口。
+- UZI 投研：独立运行官方 UZI-Skill 的 22 维度研究，并保留公司画像、竞争对手、盈利预测、结构化估值、原始维度、来源和数据缺口。
+- 可选 Spring AI 模型，仅能接收项目声明的有界研究快照，不能访问任意 URL。
 - 浅灰白与浅紫研究工作台，A 股红涨绿跌，桌面四列指标矩阵与移动端单列布局。
 
 ## 一键启动
@@ -48,7 +50,7 @@ Copy-Item config/application-local.yml.example config/application-local.yml
 cp config/application-local.yml.example config/application-local.yml
 ```
 
-编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`institutional-report` 默认使用 `primary`，`overall-report` 默认使用 `deepseek`。总体报告页面会读取所有已启用且配置完整的命名模型，生成前可以选择具体模型；`overall-report` 角色只指定默认选项，旧客户端未提交 `modelId` 时仍使用该默认模型。修改模型、角色或密钥后请重启应用。
+编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`finrobot-research` 默认使用 `deepseek`，财报专项仍使用 `financial-report` 角色。FinRobot 投研页面会读取所有已启用且配置完整的命名模型，生成前可以选择具体模型。修改模型、角色或密钥后请重启应用。
 
 ```yaml
 spring:
@@ -88,11 +90,11 @@ app:
         model: "mimo-v2.5-pro"
         temperature: 0.2
     roles:
+      finrobot-research: deepseek
       institutional-report: primary
-      overall-report: deepseek
 ```
 
-三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK。总体报告页面从后端安全模型目录动态生成选择器，选择后由服务端按命名模型 ID 路由请求。浏览器只接收模型 ID、实际模型名和默认标记，不会接收 API Key、Base URL 或连接参数。总体报告和右侧原有研究报告相互独立，任一模型不可用都不会覆盖另一份报告。
+三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK。FinRobot 页面从后端安全模型目录动态生成选择器，选择后由服务端按命名模型 ID 路由请求。浏览器只接收模型 ID、实际模型名和默认标记，不会接收 API Key、Base URL 或连接参数。模型仅负责受校验约束的投研叙述，确定性指标、估值表、资金流、来源和缺失数据由 Java 数据链路生成。
 
 | 供应商 | Base URL | 默认示例模型 | 额外配置 |
 | --- | --- | --- | --- |
@@ -106,6 +108,22 @@ app:
 
 IDEA 的 Project SDK、模块 SDK、Maven Runner 和 Maven Importer 都应选择 JDK 21。项目 `pom.xml` 声明了 Java 21；如果日志出现 `javac 17`、`不支持发行版本 21` 或 Maven 使用 JDK 8/11，请先切换 JDK，再重新导入 Maven 项目并执行 Rebuild。
 
+## UZI Python 环境
+
+UZI 页面通过项目内固定的 `scripts/uzi-worker.py` 调用官方 `wbh604/UZI-Skill` 的 `run.py`。官方仓库和虚拟环境放在 Git 忽略目录中，不复制进本项目，也不把 Python 命令、路径或密钥暴露给页面。Windows 首次准备环境：
+
+```powershell
+.\scripts\setup-uzi.ps1
+```
+
+也可以使用：
+
+```bat
+scripts\setup-uzi.cmd
+```
+
+脚本会准备 `tools/uzi/UZI-Skill` 和 `tools/uzi/.venv`，并打印应写入 `config/application-local.yml` 的 `app.uzi.python` 路径。UZI 的模型密钥只放在被忽略的本地配置或系统环境变量中；未安装、Python 不可用、依赖不完整、模型失败和数据缺口都会在 UZI 页面中单独显示，不会生成伪造的研究结论。
+
 ## 架构
 
 ```mermaid
@@ -116,7 +134,7 @@ flowchart LR
   Aggregate --> Validate["归一化与数据校验"]
   Aggregate --> Technical["ta4j + 自定义指标"]
   Aggregate --> Quality["0-100 质量评分"]
-  Agent["Spring AI Agent"] --> Tools["受限股票工具"]
+  FinRobot["FinRobot Equity Research"] --> Tools["受限研究快照与模型角色"]
   Tools --> Aggregate
 ```
 
@@ -128,8 +146,8 @@ flowchart LR
 2. 阅读 `ProviderHttpClient`、`ProviderThrottle`、`ProviderHealthRegistry`，理解超时、重试、冷却与防封。
 3. 阅读 `ResearchAggregationService`，观察并行获取与区块级部分成功如何组合。
 4. 阅读 `TechnicalAnalysisService` 和 `DataQualityScorer`，理解确定性计算应在模型调用前完成。
-5. 阅读 `StockAgentTools` 和 `StockAnalysisAgent`，理解工具边界、结构化输出和缺失数据披露。
-6. 在 `config/application-local.yml` 配置兼容模型，通过页面或 `/api/agent/analyze` 比较模型综合与原始证据。
+5. 阅读 `StockAgentTools`、`FinRobotResearchService` 和 `FinRobotReportMapper`，理解工具边界、角色编排、结构化输出和缺失数据披露。
+6. 在 `config/application-local.yml` 配置兼容模型，通过页面或 `/api/finrobot/research` 比较 FinRobot 叙述与原始证据。
 
 ## 数据可靠性
 
@@ -151,10 +169,9 @@ flowchart LR
 | GET | `/api/stocks/{code}/snapshot` | 完整研究快照 |
 | GET | `/api/stocks/{code}/technical?timeframe=DAILY` | 技术指标 |
 | GET | `/api/stocks/{code}/sources` | 来源与质量状态 |
-| GET | `/api/agent/status` | Agent 配置状态 |
-| POST | `/api/agent/analyze` | 生成结构化研究报告 |
-| GET | `/api/agent/models?capability=overall-report` | 获取可用于总体报告的安全模型目录 |
-| POST | `/api/agent/overall-report` | 使用请求选择的命名模型生成总体报告；`modelId` 可选 |
+| GET | `/api/finrobot/status` | FinRobot 模型配置状态 |
+| GET | `/api/finrobot/models` | 获取 FinRobot 安全模型目录 |
+| POST | `/api/finrobot/research` | 生成完整 FinRobot 单证券投研报告；`modelId` 可选 |
 | POST | `/api/agent/financial-report` | 财报分析（F-Score 财务质量评分 + 多期趋势 + DeepSeek 叙事，失败时确定性回退） |
 | GET | `/api/system/providers` | 数据源健康状态 |
 | GET | `/actuator/health` | 应用健康检查 |
@@ -236,17 +253,20 @@ Agent 显示“未配置”：这是默认状态。行情与指标仍正常工�
 ## 投资风险声明
 
 本项目仅用于软件工程、Spring AI 和 Agent 学习。公开数据可能延迟、缺失或因供应商接口调整而变化，技术指标基于历史数据，不能预测未来。本项目不提供买卖指令，不构成任何投资建议或收益承诺。
-## Institutional report flow
+## FinRobot equity research flow
 
-`POST /api/agent/analyze` first aggregates a single timestamped snapshot, then
-runs the fixed-weight `ResearchJudgementEngine`. Its direction is one of
-`STRONGER`, `NEUTRAL`, `WEAKER` and `INSUFFICIENT`; the internal weighted score
-is never returned and `EvidenceStatus` is a data-availability state, not a
-confidence probability. Industry PE/PB percentiles and consensus EPS are
-optional, provenance-preserving evidence.
+`POST /api/finrobot/research` first aggregates a single timestamped snapshot,
+then runs the fixed-weight `ResearchJudgementEngine` and the bounded FinRobot
+research roles. Its direction is one of `STRONGER`, `NEUTRAL`, `WEAKER` and
+`INSUFFICIENT`; the internal weighted score is never returned and
+`EvidenceStatus` is a data-availability state, not a confidence probability.
+Industry PE/PB percentiles and consensus EPS are optional,
+provenance-preserving evidence.
 
-`InstitutionalReportComposer` sends only a bounded evidence package to the
-optional chat model. Fixed report generation does not use dynamic tool calling.
-Invalid model output or a timeout returns `DETERMINISTIC_FALLBACK`; the report
-always retains conflicts, missing data, invalidation conditions, sources and
+`FinRobotResearchService` sends only a bounded evidence package to the optional
+chat model. When a completed UZI bundle exists, its normalized four-category
+evidence, raw dimensions, gaps and source references are added to that package.
+Fixed calculations and data validation stay outside the model;
+invalid model output or a timeout returns a deterministic FinRobot-compatible
+report. The unified report always retains conflicts, missing data, sources and
 `仅供学习研究，不构成投资建议`.

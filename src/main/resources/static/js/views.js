@@ -135,33 +135,38 @@ function renderSources(snapshot) {
   return `<section>${heading(`总分 ${quality.total ?? "--"} / 100`, "数据来源与质量", snapshot.quote)}<div class="quality-components">${[["新鲜度",quality.freshness,30],["一致性",quality.consistency,30],["完整度",quality.completeness,25],["权威性",quality.authority,15]].map(([label,value,max])=>`<div><span>${label}</span><strong>${value ?? "--"} / ${max}</strong><progress max="${max}" value="${value || 0}"></progress></div>`).join("")}</div><div class="source-list">${keys.map(([key,label])=>{const section=snapshot[key]||{};const source=section.provenance;return `<article><span class="source-status" data-status="${section.status || "UNAVAILABLE"}"><span></span>${statusLabel(section.status)}</span><div><strong>${label}</strong><p>${escapeHtml(source?.provider || sectionIssues(section)[0] || "无可用来源")}</p></div><div class="source-time"><span>${source?.cached ? "缓存" : "实时请求"}</span><time>${source?.fetchedAt ? new Date(source.fetchedAt).toLocaleString("zh-CN",{hour12:false}) : "--"}</time></div></article>`;}).join("")}</div></section>`;
 }
 
-function renderAgent(snapshot) {
-  return `<section>${heading("SPRING AI · EVIDENCE BOUNDED", "Agent 研究", null)}
-    <div class="agent-layout">
-      <aside class="agent-sidebar" aria-label="报告生成与总体报告">
-        <div class="agent-controls">
-          <span class="section-kicker">INSTITUTIONAL + OVERALL</span>
-          <h3>研究报告</h3>
-          <p>两份报告独立生成，并保留数据来源、缺失项与风险边界。</p>
-          <button id="run-agent" class="primary-command agent-command" type="button"><i data-lucide="sparkles" aria-hidden="true"></i><span>生成研究报告</span></button>
-          <label class="overall-model-field" for="overall-model-select">
-            <span>总体报告模型</span>
-            <select id="overall-model-select" disabled>
+function renderFinRobot(snapshot) {
+  return `<section class="finrobot-view">${heading("FINROBOT · EQUITY RESEARCH", "FinRobot 投研", null)}
+    <div class="finrobot-layout">
+      <aside class="finrobot-sidebar" aria-label="FinRobot 投研工作流">
+        <div class="finrobot-controls">
+          <span class="section-kicker">RESEARCH DESK · EVIDENCE BOUNDED</span>
+          <h3>多角色研究流程</h3>
+          <p>基于当前股票的规范化快照，依次组织证据、分析、估值、风险与报告综合。</p>
+          <ol class="finrobot-steps" aria-label="FinRobot 投研阶段">
+            <li class="finrobot-step" data-state="ready"><span class="finrobot-step-marker">1</span><span><strong>证据快照</strong><small>行情、财务、资金与事件</small></span><b>已就绪</b></li>
+            <li class="finrobot-step" data-state="ready"><span class="finrobot-step-marker">2</span><span><strong>研究分析</strong><small>技术、基本面与机构预期</small></span><b>可运行</b></li>
+            <li class="finrobot-step" data-state="next"><span class="finrobot-step-marker">3</span><span><strong>估值建模</strong><small>估值证据与条件式情景</small></span><b>待生成</b></li>
+            <li class="finrobot-step" data-state="next"><span class="finrobot-step-marker">4</span><span><strong>风险复核</strong><small>冲突、缺失与失效条件</small></span><b>待生成</b></li>
+            <li class="finrobot-step" data-state="next"><span class="finrobot-step-marker">5</span><span><strong>报告综合</strong><small>可追溯的投研结论</small></span><b>待生成</b></li>
+          </ol>
+          <button id="run-finrobot" class="primary-command finrobot-command" type="button"><i data-lucide="sparkles" aria-hidden="true"></i><span>运行 FinRobot 投研</span></button>
+          <label class="finrobot-model-field" for="finrobot-model-select">
+            <span>FinRobot 模型</span>
+            <select id="finrobot-model-select" disabled>
               <option value="">正在加载可用模型</option>
             </select>
           </label>
-          <small id="overall-model-help" class="overall-model-help">正在读取本地模型配置</small>
-          <button id="run-overall-report" class="secondary-command agent-command" type="button" disabled><i data-lucide="file-chart-column" aria-hidden="true"></i><span>生成总体报告</span><small id="overall-model-name">未选择</small></button>
-          <div id="overall-report-request-status" class="overall-report-request-status" aria-live="polite"></div>
+          <small id="finrobot-model-help" class="finrobot-model-help">正在读取本地模型配置</small>
+          <div id="finrobot-request-status" class="finrobot-request-status" aria-live="polite"></div>
         </div>
-        <div id="overall-report-output" class="overall-report-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>所选模型将读取当前股票的完整规范化快照。</p></div>
       </aside>
-      <div id="agent-output" class="agent-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>单股量化研究报告将在这里显示。</p></div>
+      <div id="finrobot-output" class="finrobot-output" aria-live="polite"><span class="source-status" data-status="UNAVAILABLE"><span></span>等待生成</span><p>运行后将显示 FinRobot 的公司概览、投资逻辑、估值、竞争、风险与事件研究。</p></div>
     </div>
   </section>`;
 }
 
 export function renderGenericView(view, snapshot) {
   // 视图选择只影响展示，所有数据仍来自同一规范化快照。
-  return ({ capital: renderCapital, fundamentals: renderFundamentals, valuation: renderValuation, events: renderEvents, sources: renderSources, agent: renderAgent }[view] || renderSources)(snapshot);
+  return ({ capital: renderCapital, fundamentals: renderFundamentals, valuation: renderValuation, events: renderEvents, sources: renderSources, finrobot: renderFinRobot }[view] || renderSources)(snapshot);
 }

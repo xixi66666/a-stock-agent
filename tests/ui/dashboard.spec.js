@@ -1,9 +1,9 @@
 /*
- * Agent 工作台 UI 测试。
+ * FinRobot 投研工作台 UI 测试。
  *
  * 测试统一拦截 HTTP 请求，使用离线快照和模型响应 Fixture 验证页面行为：模型选择是否
- * 传给正确 endpoint、旧请求是否会被丢弃、研究报告和总体报告是否互不覆盖、缺失数据是否
- * 明确展示。这里不访问真实行情 Provider 或大模型 API。
+ * 传给 FinRobot endpoint、旧请求是否会被丢弃、单一投研报告是否保留证据与缺失数据。
+ * 这里不访问真实行情 Provider 或大模型 API。
  */
 const { test, expect } = require("@playwright/test");
 const baseSnapshot = require("./fixtures/partial-snapshot.json");
@@ -103,8 +103,8 @@ function candlestickSection(timeframe = "DAILY") {
 
 async function mockApis(page) {
   // 每个测试从同一份快照开始，单个测试只覆盖它关心的响应或请求路由。
-  await page.route("**/api/agent/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
-  await page.route("**/api/agent/models?capability=overall-report", (route) => route.fulfill({ json: {
+  await page.route("**/api/finrobot/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
+  await page.route("**/api/finrobot/models", (route) => route.fulfill({ json: {
     models: [
       { id: "deepseek", modelName: "deepseek-chat", defaultModel: true },
       { id: "mimo", modelName: "mimo-v2.5-pro", defaultModel: false },
@@ -125,7 +125,7 @@ test("candlestick methodology shows the cited method note without a query entry"
     section.payload.methodology.knowledge = [{ id: "nison-reversal", title: "反转警告与前置趋势", chapter: "第四章 反转形态", summary: "形态提示趋势变化" }];
     return route.fulfill({ json: section });
   });
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.getByRole("button", { name: /贵州茅台/ }).click();
   await page.getByText("方法、章节与限制", { exact: true }).click();
   await expect(page.getByText("反转警告与前置趋势", { exact: true })).toBeVisible();
@@ -134,6 +134,22 @@ test("candlestick methodology shows the cited method note without a query entry"
 
 test.beforeEach(async ({ page }) => {
   await mockApis(page);
+});
+
+test("FinRobot replaces the former Agent analysis entry with an equity research workspace", async ({ page }) => {
+  await page.goto("/workbench.html");
+  await page.locator('[data-symbol="600519"]').click();
+
+  await expect(page.getByRole("tab", { name: "FinRobot 投研" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Agent 分析" })).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "FinRobot 投研" }).click();
+  await expect(page.locator("#view-content")).toContainText("FinRobot 投研");
+  await expect(page.locator("#view-content")).toContainText("多角色研究流程");
+  await expect(page.locator("#view-content")).toContainText("证据快照");
+  await expect(page.locator("#view-content")).toContainText("估值建模");
+  await expect(page.locator("#view-content")).toContainText("风险复核");
+  await expect(page.getByRole("button", { name: "运行 FinRobot 投研" })).toBeVisible();
 });
 
 test("candlestick distinguishes historical pattern date from current analysis cutoff", async ({ page }) => {
@@ -145,7 +161,7 @@ test("candlestick distinguishes historical pattern date from current analysis cu
     return route.fulfill({ json: section });
   });
 
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
 
   const detail = page.locator(".candlestick-signal-detail");
@@ -154,7 +170,7 @@ test("candlestick distinguishes historical pattern date from current analysis cu
 });
 
 test("candlestick workbench renders evidence confirmation levels and methodology", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
 
   const workbench = page.locator(".candlestick-workbench");
@@ -170,7 +186,7 @@ test("candlestick workbench renders evidence confirmation levels and methodology
 });
 
 test("previous session is prominent and distinguishes candle color from daily return", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   const review = page.getByRole("region", { name: "最近已收盘日线分析" });
   await expect(review).toBeVisible();
@@ -190,7 +206,7 @@ test("previous session is prominent and distinguishes candle color from daily re
 });
 
 test("previous session shows original book text immediately after system interpretation", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   const review = page.locator(".previous-session");
   await expect(review.locator(".previous-session-interpretation + .previous-session-excerpts")).toBeVisible();
@@ -208,7 +224,7 @@ test("previous session keeps missing values and zero range honest", async ({ pag
       upperShadowPercent: null, lowerShadowPercent: null, changePercent: null, volumeRatio: null });
     return route.fulfill({ json: section });
   });
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   const review = page.locator(".previous-session");
   await expect(review).toContainText("无振幅线");
@@ -226,7 +242,7 @@ test("previous session preserves the 600115 upper shadow and body proportions", 
     });
     return route.fulfill({ json: section });
   });
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   const candle = page.locator(".previous-session-candle");
   await expect(candle).toHaveAttribute("data-tone", "down");
@@ -247,7 +263,7 @@ test("previous session preserves the 600115 upper shadow and body proportions", 
 
 test("candle remains bounded when its stylesheet is unavailable", async ({ page }) => {
   await page.route("**/candlestick.css*", route => route.fulfill({ contentType: "text/css", body: "" }));
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   const candle = page.locator(".previous-session-candle");
   await expect(candle).toBeVisible();
@@ -256,106 +272,98 @@ test("candle remains bounded when its stylesheet is unavailable", async ({ page 
   expect(bounds.height).toBeLessThanOrEqual(180);
 });
 
-test("quant report renders evidence-backed prose without scores", async ({ page }) => {
-  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
-    reportMeta: { reportType: "QUANT_SINGLE_SECURITY", version: "v2", securityCode: "600519", generatedAt: "2026-08-11T06:00:00Z" },
-    portfolioScope: { scope: "SINGLE_SECURITY", unavailableReasons: ["组合净值、持仓结构、换手率、对冲比例和 Brinson 归因不在单股快照范围内"] },
-    executiveSummary: "报告只展示客观指标与证据化文字。",
-    marketEnvironment: "市场环境与基准表现基于同交易日样本。",
-    securityPerformance: "20 日收益可用，风险指标按日收益计算。",
-    factorObservations: "仅描述价格、波动和流动性观察，不称为 Barra 风险暴露。",
-    valuationAndFundamentals: "估值与基本面以当前快照为边界。",
-    capitalAndEvents: "资金与事件缺失项保持不可用。",
-    riskAndInvalidation: "回撤扩大或样本失效时需重新计算。",
-    outlook: "前瞻仅描述策略适应性，不提供交易建议。",
-    portfolioUnavailable: "组合级数据不可用。",
-    metrics: [
-      { name: "return-20", value: 12.34, unit: "%", window: "20日", asOf: "2026-08-11", availability: "AVAILABLE", method: "区间收益", sourceIds: ["Tencent:bars"], limitations: [] },
-      { name: "var-95", value: null, unit: "%", window: "历史日收益", asOf: "2026-08-11", availability: "INSUFFICIENT_SAMPLE", method: "历史分位数", sourceIds: ["Tencent:bars"], limitations: ["样本不足"] },
-    ],
-    benchmarkComparisons: [
-      { benchmarkId: "CSI_300", excessReturnPercent: 2.1, beta: 0.8, informationRatio: 0.4, asOf: "2026-08-11", availability: "AVAILABLE", method: "同日配对", sourceIds: ["Tencent:bars"], limitations: [] },
-    ],
-    sources: ["Tencent:bars"], methods: ["指标由 Java 确定性规则计算"]
-  } }));
+function finRobotResponse(overrides = {}) {
+  const base = {
+    status: "MODEL_ASSISTED",
+    message: "FinRobot 投研已生成",
+    report: {
+      ticker: "600519",
+      companyName: "贵州茅台",
+      tagline: "高质量白酒企业的证据化研究摘要",
+      companyOverview: "公司概览内容",
+      investmentOverview: "投资逻辑内容",
+      valuationOverview: "估值分析内容",
+      risks: "风险评估内容",
+      competitorAnalysis: "竞争格局内容",
+      majorTakeaways: "主要结论内容",
+      newsSummary: "事件与新闻内容",
+      dataQualitySummary: "数据质量摘要",
+      technicalAndCapital: "技术与资金内容",
+      bullishEvidence: ["盈利能力保持稳定"],
+      bearishEvidence: ["短期波动仍然存在"],
+      riskFactors: ["数据时效性风险"],
+      scenarios: { stronger: "偏强情景", neutral: "中性情景", weaker: "偏弱情景" },
+      conflictsAndMissingData: ["暂无重大冲突"],
+      sourceReferences: [{ section: "quote", provider: "Tencent", fetchedAt: "2026-08-03T02:00:00Z" }],
+      industryValuation: industryValuationSection(),
+      fundFlowSummary: fundFlowSummarySection(),
+      modelName: "deepseek-chat",
+      snapshotAt: "2026-08-03T02:00:00Z",
+      generatedAt: "2026-08-03T02:01:00Z",
+      generationMode: "MODEL_ASSISTED",
+      pipelineVersion: "finrobot-equity-v1",
+      disclaimer: "仅供学习研究，不构成投资建议",
+    },
+  };
+  return {
+    ...base,
+    ...overrides,
+    report: { ...base.report, ...(overrides.report || {}) },
+  };
+}
 
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: "生成研究报告" }).click();
-
-  const output = page.locator("#agent-output");
-  await expect(output).toContainText("市场环境与基准表现");
-  await expect(output).toContainText("20 日收益");
-  await expect(output).toContainText("组合级数据不可用");
-  await expect(output).not.toContainText("综合得分");
-  await expect(output.locator(".quality-score, progress, .radar-chart")).toHaveCount(0);
-});
-
-test("overall report model can be selected per request", async ({ page }) => {
-  // 验证总体报告的 modelId 由前端选择并传到服务端，而不是误用 institutional-report 默认模型。
+test("FinRobot model can be selected per research request", async ({ page }) => {
   let requestBody = null;
-  await page.route("**/api/agent/overall-report", async (route) => {
+  await page.route("**/api/finrobot/research", async (route) => {
     requestBody = route.request().postDataJSON();
-    await route.fulfill({ json: {
-      status: "MODEL_ASSISTED",
-      report: {
-        overallConclusion: "总体判断内容",
-        dataQualitySummary: "数据质量摘要",
-        companyAndFundamentals: "基本面",
-        technicalAndCapital: "技术与资金",
-        valuationAndIndustry: "估值与行业",
-        eventsAndSentiment: "事件与情绪",
-        bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
-        conflictsAndMissingData: [], sourceReferences: [],
-        modelName: "mimo-v2.5-pro", disclaimer: "仅供学习研究，不构成投资建议",
-      },
-    } });
+    await route.fulfill({ json: finRobotResponse({ report: { modelName: "mimo-v2.5-pro" } }) });
   });
 
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  const selector = page.getByLabel("总体报告模型");
+  await page.getByRole("tab", { name: "FinRobot 投研" }).click();
+  const selector = page.getByLabel("FinRobot 模型");
   await expect(selector).toHaveValue("deepseek");
   await selector.selectOption("mimo");
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
+  await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
 
   expect(requestBody).toEqual({ code: "600519", modelId: "mimo" });
-  await expect(page.locator("#overall-report-output")).toContainText("mimo-v2.5-pro");
-  await expect(page.locator("#overall-report-output")).not.toContainText("DeepSeek 总体报告");
+  await expect(page.locator("#finrobot-output")).toContainText("mimo-v2.5-pro");
+  await expect(page.locator("#finrobot-output")).toContainText("公司概览内容");
+  await expect(page.locator("#finrobot-output")).not.toContainText("综合得分");
 });
 
-test("stale overall report completion does not unlock a newer request", async ({ page }) => {
-  // 用两个延迟响应模拟竞态，确保较早请求完成后不会覆盖较新的总体报告状态。
+test("FinRobot header lists available models and reports generation mode first", async ({ page }) => {
+  await page.route("**/api/finrobot/research", (route) => route.fulfill({ json: finRobotResponse() }));
+
+  await page.goto("/workbench.html");
+  await page.locator('[data-symbol="600519"]').click();
+  const modelStatus = page.locator("#finrobot-model-status");
+  await expect(modelStatus).toContainText("deepseek-chat");
+  await expect(modelStatus).toContainText("mimo-v2.5-pro");
+
+  await page.getByRole("tab", { name: "FinRobot 投研" }).click();
+  await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
+  const generationLine = page.locator("#finrobot-output .generation-line").first();
+  await expect(generationLine).toContainText("生成模式：模型生成");
+  await expect(generationLine).toContainText("模型：deepseek-chat");
+});
+
+test("stale FinRobot completion does not overwrite the newer request", async ({ page }) => {
   const pending = [];
-  await page.route("**/api/agent/overall-report", async (route) => {
+  await page.route("**/api/finrobot/research", async (route) => {
     let release;
     const gate = new Promise((resolve) => { release = resolve; });
     const requestNumber = pending.length + 1;
     pending.push({ release });
     await gate;
-    await route.fulfill({ json: {
-      status: "MODEL_ASSISTED",
-      report: {
-        overallConclusion: `第 ${requestNumber} 次总体判断`,
-        dataQualitySummary: "数据质量摘要",
-        companyAndFundamentals: "基本面",
-        technicalAndCapital: "技术与资金",
-        valuationAndIndustry: "估值与行业",
-        eventsAndSentiment: "事件与情绪",
-        bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
-        conflictsAndMissingData: [], sourceReferences: [],
-        modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
-      },
-    } });
+    await route.fulfill({ json: finRobotResponse({ report: { tagline: `第 ${requestNumber} 次 FinRobot 结论` } }) });
   });
 
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  const button = page.getByRole("button", { name: /生成总体报告/ });
-
+  await page.getByRole("tab", { name: "FinRobot 投研" }).click();
+  const button = page.getByRole("button", { name: "运行 FinRobot 投研" });
   await button.click();
   await expect.poll(() => pending.length).toBe(1);
   await page.getByRole("button", { name: "刷新当前股票" }).click();
@@ -366,166 +374,92 @@ test("stale overall report completion does not unlock a newer request", async ({
   pending[0].release();
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(button).toBeDisabled();
+  await expect(page.locator("#finrobot-output")).not.toContainText("第 1 次 FinRobot 结论");
 
   pending[1].release();
-  await expect(page.locator("#overall-report-output")).toContainText("第 2 次总体判断");
+  await expect(page.locator("#finrobot-output")).toContainText("第 2 次 FinRobot 结论");
   await expect(button).toBeEnabled();
 });
 
-test("overall report result survives remounting the Agent view", async ({ page }) => {
-  const pending = [];
-  await page.route("**/api/agent/overall-report", async (route) => {
-    const requestNumber = pending.length + 1;
-    let release;
-    await new Promise((resolve) => {
-      release = resolve;
-      pending.push({ release });
-    });
-    if (requestNumber === 1) {
-      await route.fulfill({ json: {
-        status: "MODEL_ASSISTED",
-        report: {
-          overallConclusion: "跨标签返回的总体判断",
-          dataQualitySummary: "数据质量摘要",
-          companyAndFundamentals: "基本面",
-          technicalAndCapital: "技术与资金",
-          valuationAndIndustry: "估值与行业",
-          eventsAndSentiment: "事件与情绪",
-          bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
-          conflictsAndMissingData: [], sourceReferences: [],
-          modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
-        },
-      } });
-      return;
-    }
-    await route.fulfill({ json: {
-      status: "MODEL_FAILED",
-      message: "跨标签模型生成失败",
-      diagnostic: { errorCode: "MODEL_TIMEOUT", message: "模型响应超时" },
-    } });
-  });
-
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  const agentTab = page.getByRole("tab", { name: "Agent 分析" });
-  const technicalTab = page.getByRole("tab", { name: "技术分析" });
-  await agentTab.click();
-
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
-  await expect.poll(() => pending.length).toBe(1);
-  await technicalTab.click();
-  await agentTab.click();
-  pending[0].release();
-  await expect(page.locator("#overall-report-output")).toContainText("跨标签返回的总体判断");
-
-  await page.getByLabel("总体报告模型").selectOption("mimo");
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
-  await expect.poll(() => pending.length).toBe(2);
-  await technicalTab.click();
-  await agentTab.click();
-  pending[1].release();
-  await expect(page.locator("#overall-report-request-status")).toContainText("跨标签模型生成失败");
-  await expect(page.locator("#overall-report-output")).toContainText("跨标签返回的总体判断");
-});
-
-test("existing overall report remains visible while a replacement fails", async ({ page }) => {
+test("FinRobot result survives view remounting and surfaces a model response failure", async ({ page }) => {
   let requestCount = 0;
-  let releaseFailure;
-  await page.route("**/api/agent/overall-report", async (route) => {
+  await page.route("**/api/finrobot/research", async (route) => {
     requestCount += 1;
     if (requestCount === 1) {
-      await route.fulfill({ json: {
-        status: "MODEL_ASSISTED",
-        report: {
-          overallConclusion: "模型 A 已生成的总体判断",
-          dataQualitySummary: "数据质量摘要",
-          companyAndFundamentals: "基本面",
-          technicalAndCapital: "技术与资金",
-          valuationAndIndustry: "估值与行业",
-          eventsAndSentiment: "事件与情绪",
-          bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
-          conflictsAndMissingData: [], sourceReferences: [],
-          modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
-        },
-      } });
+      await route.fulfill({ json: finRobotResponse({ report: { majorTakeaways: "第一份 FinRobot 结论" } }) });
       return;
     }
-    await new Promise((resolve) => { releaseFailure = resolve; });
-    if (requestCount === 2) {
-      await route.fulfill({ json: {
-        status: "MODEL_FAILED",
-        message: "所选模型生成失败",
-        diagnostic: { errorCode: "MODEL_TIMEOUT", message: "模型响应超时" },
-      } });
-      return;
-    }
-    await route.fulfill({
-      status: 503,
-      contentType: "application/problem+json",
-      body: JSON.stringify({ detail: "模型网关暂不可用" }),
-    });
+    await route.fulfill({ json: { status: "MODEL_FAILED", message: "所选模型生成失败", diagnostic: { errorCode: "MODEL_TIMEOUT", message: "模型响应超时" } } });
   });
 
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  const button = page.getByRole("button", { name: /生成总体报告/ });
-  const output = page.locator("#overall-report-output");
-  const requestStatus = page.locator("#overall-report-request-status");
+  const finRobotTab = page.getByRole("tab", { name: "FinRobot 投研" });
+  await finRobotTab.click();
+  await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
+  await expect(page.locator("#finrobot-output")).toContainText("第一份 FinRobot 结论");
 
-  await button.click();
-  await expect(output).toContainText("模型 A 已生成的总体判断");
-  await page.getByLabel("总体报告模型").selectOption("mimo");
-  await button.click();
-  await expect.poll(() => typeof releaseFailure).toBe("function");
-  await expect(output).toContainText("模型 A 已生成的总体判断", { timeout: 500 });
-  await expect(requestStatus).toContainText("正在生成总体报告");
+  await page.getByRole("tab", { name: "技术分析" }).click();
+  await finRobotTab.click();
+  await expect(page.locator("#finrobot-output")).toContainText("第一份 FinRobot 结论");
 
-  releaseFailure();
-  await expect(requestStatus).toContainText("所选模型生成失败");
-  await expect(output).toContainText("模型 A 已生成的总体判断");
-
-  releaseFailure = undefined;
-  await page.getByLabel("总体报告模型").selectOption("primary");
-  await button.click();
-  await expect.poll(() => typeof releaseFailure).toBe("function");
-  releaseFailure();
-  await expect(requestStatus).toContainText("模型网关暂不可用");
-  await expect(output).toContainText("模型 A 已生成的总体判断");
+  await page.getByLabel("FinRobot 模型").selectOption("mimo");
+  await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
+  await expect(page.locator("#finrobot-output")).toContainText("所选模型生成失败");
 });
 
-test("overall report generation is disabled when no model is available", async ({ page }) => {
-  await page.unroute("**/api/agent/models?capability=overall-report");
-  await page.route("**/api/agent/models?capability=overall-report", (route) =>
-    route.fulfill({ json: { models: [] } }));
+test("FinRobot renders the official equity research sections and diagnostics", async ({ page }) => {
+  await page.route("**/api/finrobot/research", (route) => route.fulfill({ json: finRobotResponse({
+    message: "FinRobot 投研已生成，存在校验提示",
+    report: { companyOverview: "模型公司概览", investmentOverview: "模型投资逻辑" },
+    diagnostic: {
+      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_WARNING",
+      exceptionType: "ReportValidationWarning", message: "模型叙述存在校验警告",
+      validationIssues: ["UNSUPPORTED_NUMBER"], modelName: "deepseek-chat",
+      durationMs: 120, occurredAt: "2026-08-03T02:00:00Z", traceId: "finrobot-trace-1",
+    },
+  }) }));
 
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
+  await page.getByRole("tab", { name: "FinRobot 投研" }).click();
+  await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
 
-  await expect(page.getByLabel("总体报告模型")).toBeDisabled();
-  await expect(page.getByRole("button", { name: /生成总体报告/ })).toBeDisabled();
-  await expect(page.locator("#overall-model-help")).toContainText("没有可用模型");
-  await expect(page.getByRole("button", { name: "生成研究报告" })).toBeEnabled();
+  const output = page.locator("#finrobot-output");
+  await expect(output).toContainText("模型公司概览");
+  await expect(output).toContainText("模型投资逻辑");
+  await expect(output).toContainText("同行估值对比");
+  await expect(output).toContainText("五粮液");
+  await expect(output).toContainText("资金流窗口汇总");
+  await expect(output).toContainText("近 20 日");
+  await expect(output).toContainText("仅供学习研究，不构成投资建议");
+  await output.locator("details.model-diagnostic summary").click();
+  await expect(output).toContainText("MODEL_NARRATIVE_VALIDATION_WARNING");
+  await expect(output).toContainText("finrobot-trace-1");
 });
 
-test("model catalog failure does not disable institutional report generation", async ({ page }) => {
-  await page.unroute("**/api/agent/models?capability=overall-report");
-  await page.route("**/api/agent/models?capability=overall-report", (route) =>
-    route.fulfill({ status: 503, contentType: "application/problem+json", body: "{}" }));
+test("FinRobot keeps deterministic research available without a configured model", async ({ page }) => {
+  await page.route("**/api/finrobot/research", (route) => route.fulfill({ json: finRobotResponse({
+    status: "MODEL_NOT_CONFIGURED",
+    message: "没有配置可用的 FinRobot 模型，已返回确定性研究结果",
+    report: { modelName: null, generationMode: "DETERMINISTIC_FALLBACK", majorTakeaways: "确定性研究结果" },
+  }) }));
+  await page.unroute("**/api/finrobot/models");
+  await page.route("**/api/finrobot/models", (route) => route.fulfill({ json: { models: [] } }));
 
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-
-  await expect(page.getByLabel("总体报告模型")).toBeDisabled();
-  await expect(page.getByRole("button", { name: /生成总体报告/ })).toBeDisabled();
-  await expect(page.locator("#overall-model-help")).toContainText("模型目录加载失败");
-  await expect(page.getByRole("button", { name: "生成研究报告" })).toBeEnabled();
+  await page.getByRole("tab", { name: "FinRobot 投研" }).click();
+  await expect(page.getByLabel("FinRobot 模型")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "运行 FinRobot 投研" })).toBeEnabled();
+  await expect(page.locator("#finrobot-model-help")).toContainText("没有可用模型");
+  await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
+  await expect(page.locator("#finrobot-output")).toContainText("确定性研究回退");
+  await expect(page.locator("#finrobot-output")).toContainText("确定性研究结果");
 });
 
 test("landing opens the research layout only after choosing a stock", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await expect(page.locator(".security-overview")).toBeHidden();
   await expect(page.getByRole("tablist", { name: "研究维度" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "选择一只股票开始研究" })).toBeVisible();
@@ -537,7 +471,7 @@ test("landing opens the research layout only after choosing a stock", async ({ p
 });
 
 test("technical chart follows the interface accent when switching indicators", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   await page.locator('[data-indicator-id="RSI_6"]').click();
   await expect(page.locator("#detail-name")).toHaveText("RSI 6");
@@ -556,13 +490,11 @@ for (const viewport of [
 ]) {
   test(`technical workbench is stable at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto("/");
+    await page.goto("/workbench.html");
     await page.locator('[data-symbol="600519"]').click();
     await expect(page.locator(".indicator-card")).toHaveCount(38);
     await expect(page.locator(".previous-session")).toBeVisible();
-    // Wait for the reading overlay to settle before inspecting the final canvas.
-    await expect.poll(() => page.locator(".ambient-background").evaluate((element) =>
-      getComputedStyle(element, "::after").backgroundColor)).toBe("rgba(255, 255, 255, 0.24)");
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 247, 244)');
     const columns = await page.locator(".indicator-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
     expect(columns).toBe(viewport.columns);
     await expect(page.locator("#technical-chart canvas")).toBeVisible();
@@ -599,11 +531,11 @@ for (const viewport of [
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `target/ui-screenshots/dashboard-${viewport.width}x${viewport.height}.png`, fullPage: true });
 
-    await page.getByRole("tab", { name: "Agent 分析" }).click();
-    await expect(page.getByLabel("总体报告模型")).toBeVisible();
+    await page.getByRole("tab", { name: "FinRobot 投研" }).click();
+    await expect(page.getByLabel("FinRobot 模型")).toBeVisible();
     const agentLayout = await page.evaluate(() => {
-      const button = document.querySelector("#run-overall-report");
-      const selector = document.querySelector("#overall-model-select");
+      const button = document.querySelector("#run-finrobot");
+      const selector = document.querySelector("#finrobot-model-select");
       return {
         scrollWidth: document.documentElement.scrollWidth,
         viewportWidth: document.documentElement.clientWidth,
@@ -614,14 +546,14 @@ for (const viewport of [
     expect(agentLayout.scrollWidth).toBeLessThanOrEqual(agentLayout.viewportWidth);
     expect(agentLayout.buttonFits).toBe(true);
     expect(agentLayout.selectorFits).toBe(true);
-    await page.screenshot({ path: `target/ui-screenshots/agent-${viewport.width}x${viewport.height}.png`, fullPage: true });
+    await page.screenshot({ path: `target/ui-screenshots/finrobot-${viewport.width}x${viewport.height}.png`, fullPage: true });
   });
 }
 
 test("every research tab renders an owned state without raw JSON", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
-  for (const tab of ["资金筹码", "基本面", "估值预期", "事件资讯", "数据来源", "Agent 分析"]) {
+  for (const tab of ["资金筹码", "基本面", "估值预期", "事件资讯", "数据来源", "FinRobot 投研"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.locator("#view-content")).toBeVisible();
     await expect(page.locator("#view-content pre")).toHaveCount(0);
@@ -629,7 +561,7 @@ test("every research tab renders an owned state without raw JSON", async ({ page
 });
 
 test("source quality uses the backend scoring weights", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "数据来源" }).click();
   await expect(page.locator(".quality-components")).toContainText("30 / 30");
@@ -638,7 +570,7 @@ test("source quality uses the backend scoring weights", async ({ page }) => {
 });
 
 test("valuation view shows target and deterministic peer groups", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "估值预期" }).click();
 
@@ -651,7 +583,7 @@ test("valuation view shows target and deterministic peer groups", async ({ page 
 });
 
 test("capital view shows latest and multi-window order-size flows", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "资金筹码" }).click();
 
@@ -662,255 +594,4 @@ test("capital view shows latest and multi-window order-size flows", async ({ pag
   await expect(table).toContainText("近 5 日");
   await expect(table).toContainText("近 20 日");
   await expect(table).toContainText("18 / 20 日");
-});
-
-test("agent renders the structured report even when direction metadata is absent", async ({ page }) => {
-  await page.route("**/api/agent/quant-report", (route) => route.fulfill({
-    json: {
-      direction: null,
-      generationMode: null,
-      executiveSummary: "结构化判断内容",
-      technicalAndFlow: { narrative: "技术与资金分析内容", facts: [{ label: "最新价", value: "100" }], evidence: [] },
-      fundamentals: { narrative: "基本面分析内容", facts: [{ label: "收入同比", value: "12%" }], evidence: [] },
-      valuationAndIndustry: { narrative: "估值与行业分析内容", facts: [{ label: "个股PE", value: "20" }], evidence: [] },
-      coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
-      disclaimer: "仅供学习研究，不构成投资建议",
-    },
-  }));
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: "生成研究报告" }).click();
-  await expect(page.locator("#agent-output")).toContainText("结构化判断内容");
-  await expect(page.locator("#agent-output")).toContainText("技术与资金分析内容");
-  await expect(page.locator("#agent-output")).toContainText("最新价");
-});
-
-test("agent renders evidence-backed report diagnostics", async ({ page }) => {
-  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
-    direction: "STRONGER", generationMode: "DETERMINISTIC_FALLBACK", evidenceStatus: "SUFFICIENT",
-    executiveSummary: "确定性报告完整保留",
-    coreDrivers: [{ conclusion: "SMA20高于SMA60", rationale: "趋势与动量互相确认", invalidation: "均线反向交叉" }],
-    technicalAndFlow: {
-      narrative: "技术结论", facts: [{ label: "SMA20", value: "100" }],
-      signals: [{ conclusion: "20日收益为正" }], methodology: ["趋势跟随与动量确认"],
-      counterEvidence: ["量能未同步放大"], limitations: ["历史指标不代表未来收益"],
-    },
-    fundamentals: { narrative: "基本面结论", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
-    valuationAndIndustry: { narrative: "估值结论", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
-    catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
-    modelDiagnostic: {
-      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_FAILED",
-      exceptionType: "ReportValidationException", message: "包含证据包未支持的数字",
-      validationIssues: ["UNSUPPORTED_NUMBER"], modelName: "gpt-test", durationMs: 80,
-      occurredAt: "2026-08-03T02:00:00Z", traceId: "trace-test-1",
-    }, disclaimer: "仅供学习研究，不构成投资建议",
-  } }));
-
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: "生成研究报告" }).click();
-
-  await expect(page.locator("#agent-output")).toContainText("SMA20高于SMA60");
-  await expect(page.locator("#agent-output")).toContainText("趋势跟随与动量确认");
-  await expect(page.locator("#agent-output")).toContainText("反证与限制");
-  await expect(page.locator("#agent-output")).toContainText("MODEL_NARRATIVE_VALIDATION_FAILED");
-  await page.locator(".model-diagnostic summary").click();
-  await expect(page.locator("#agent-output")).toContainText("trace-test-1");
-});
-
-test("agent keeps valid model narrative when only one field falls back", async ({ page }) => {
-  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
-    direction: "NEUTRAL", generationMode: "MODEL_ASSISTED_PARTIAL", evidenceStatus: "PARTIAL",
-    executiveSummary: "模型主摘要", coreDrivers: [],
-    technicalAndFlow: { narrative: "确定性技术参考", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
-    fundamentals: { narrative: "模型基本面叙述", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
-    valuationAndIndustry: { narrative: "模型估值叙述", facts: [], signals: [], methodology: [], counterEvidence: [], limitations: [] },
-    catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
-    modelDiagnostic: {
-      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_FAILED",
-      exceptionType: "ReportValidationException", message: "技术模块存在阻断问题",
-      validationIssues: ["TRADE_INSTRUCTION"], modelName: "mimo-v2.5-pro", durationMs: 120,
-      occurredAt: "2026-08-03T06:00:00Z", traceId: "trace-partial-1",
-    }, disclaimer: "仅供学习研究，不构成投资建议",
-  } }));
-
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: "生成研究报告" }).click();
-
-  await expect(page.locator("#agent-output")).toContainText("模型叙述已生成（部分字段回退）");
-  await expect(page.locator("#agent-output")).toContainText("模型基本面叙述");
-  await expect(page.locator("#agent-output")).toContainText("确定性技术参考");
-  await expect(page.locator("#agent-output")).toContainText("trace-partial-1");
-});
-
-test("overall report is independent and appears before the existing research report", async ({ page }) => {
-  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
-    status: "MODEL_ASSISTED",
-    report: {
-      overallConclusion: "总体判断内容",
-      dataQualitySummary: "数据质量良好，仍需关注缺失项",
-      companyAndFundamentals: "公司与基本面分析",
-      technicalAndCapital: "技术面与资金面分析",
-      valuationAndIndustry: "估值与行业分析",
-      eventsAndSentiment: "事件与情绪分析",
-      bullishEvidence: ["盈利能力保持稳定"], bearishEvidence: ["短期波动仍然存在"],
-      riskFactors: ["数据时效性风险"], scenarios: { base: "基准情景" },
-      conflictsAndMissingData: ["暂无重大冲突"],
-      sourceReferences: [{ section: "quote", provider: "Tencent", fetchedAt: "2026-08-03T02:00:00Z" }],
-      modelName: "deepseek-chat", generatedAt: "2026-08-03T02:01:00Z",
-      disclaimer: "仅供学习研究，不构成投资建议",
-    },
-  } }));
-  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
-    direction: "NEUTRAL", generationMode: "DETERMINISTIC_FALLBACK", executiveSummary: "现有研究报告内容",
-    technicalAndFlow: { narrative: "技术与资金" }, fundamentals: { narrative: "基本面" }, valuationAndIndustry: { narrative: "估值" },
-    coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
-    disclaimer: "仅供学习研究，不构成投资建议",
-  } }));
-
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await expect(page.getByRole("button", { name: /生成总体报告/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "生成研究报告" })).toBeVisible();
-  const layout = await page.evaluate(() => {
-    const controls = document.querySelector(".agent-controls").getBoundingClientRect();
-    const overall = document.querySelector("#overall-report-output").getBoundingClientRect();
-    const existing = document.querySelector("#agent-output").getBoundingClientRect();
-    return { overallBelowControls: overall.top >= controls.bottom, overallLeftOfExisting: overall.right <= existing.left + 1 };
-  });
-  expect(layout.overallBelowControls).toBe(true);
-  expect(layout.overallLeftOfExisting).toBe(true);
-
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
-  await expect(page.locator("#overall-report-output")).toContainText("总体判断内容");
-  await expect(page.locator("#agent-output")).toContainText("等待生成");
-  await page.getByRole("button", { name: "生成研究报告" }).click();
-  await expect(page.locator("#agent-output")).toContainText("现有研究报告内容");
-
-  // 重新加载当前股票后，两份报告都回到独立的等待状态。
-  await page.getByRole("button", { name: "刷新当前股票" }).click();
-  await expect(page.locator("#overall-report-output")).toContainText("等待生成");
-  await expect(page.locator("#agent-output")).toContainText("等待生成");
-});
-
-test("overall and institutional reports render deterministic market details", async ({ page }) => {
-  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
-    status: "MODEL_ASSISTED",
-    report: {
-      overallConclusion: "总体判断内容",
-      dataQualitySummary: "数据质量摘要",
-      companyAndFundamentals: "公司与基本面分析",
-      technicalAndCapital: "技术面与资金面分析",
-      valuationAndIndustry: "估值与行业分析",
-      industryValuation: industryValuationSection(),
-      fundFlowSummary: fundFlowSummarySection(),
-      eventsAndSentiment: "事件与情绪分析",
-      bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
-      conflictsAndMissingData: [], sourceReferences: [],
-      modelName: "deepseek-chat", disclaimer: "仅供学习研究，不构成投资建议",
-    },
-  } }));
-  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
-    direction: "NEUTRAL", generationMode: "DETERMINISTIC_FALLBACK", executiveSummary: "现有研究报告内容",
-    technicalAndFlow: { narrative: "技术与资金", fundFlowSummary: fundFlowSummarySection() },
-    fundamentals: { narrative: "基本面" },
-    valuationAndIndustry: { narrative: "估值", industryValuation: industryValuationSection() },
-    coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
-    disclaimer: "仅供学习研究，不构成投资建议",
-  } }));
-
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
-  await expect(page.locator("#overall-report-output")).toContainText("同行估值对比");
-  await expect(page.locator("#overall-report-output")).toContainText("五粮液");
-  await expect(page.locator("#overall-report-output")).toContainText("资金流窗口汇总");
-  await expect(page.locator("#overall-report-output")).toContainText("近 20 日");
-
-  await page.getByRole("button", { name: "生成研究报告" }).click();
-  await expect(page.locator("#agent-output")).toContainText("同行估值对比");
-  await expect(page.locator("#agent-output")).toContainText("资金流窗口汇总");
-});
-
-test("reports keep narratives when deterministic details are absent", async ({ page }) => {
-  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
-    status: "MODEL_ASSISTED",
-    report: {
-      overallConclusion: "总体叙述仍然可见", technicalAndCapital: "资金叙述仍然可见", valuationAndIndustry: "估值叙述仍然可见",
-      industryValuation: null, fundFlowSummary: null,
-      bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {}, conflictsAndMissingData: [], sourceReferences: [],
-      disclaimer: "仅供学习研究，不构成投资建议",
-    },
-  } }));
-  await page.route("**/api/agent/quant-report", (route) => route.fulfill({ json: {
-    executiveSummary: "研究叙述仍然可见",
-    technicalAndFlow: { narrative: "技术叙述", fundFlowSummary: null },
-    fundamentals: { narrative: "基本面叙述" },
-    valuationAndIndustry: { narrative: "行业叙述", industryValuation: null },
-    coreDrivers: [], catalysts: [], risks: [], conflicts: [], missingData: [], invalidationConditions: [], sources: [],
-    disclaimer: "仅供学习研究，不构成投资建议",
-  } }));
-
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
-  await page.getByRole("button", { name: "生成研究报告" }).click();
-
-  await expect(page.locator("#overall-report-output")).toContainText("总体叙述仍然可见");
-  await expect(page.locator("#agent-output")).toContainText("研究叙述仍然可见");
-  await expect(page.getByRole("table", { name: "同行估值对比" })).toHaveCount(0);
-  await expect(page.getByRole("table", { name: "资金流窗口汇总" })).toHaveCount(0);
-});
-
-test("selected overall report model shows a local configuration error without affecting the existing report", async ({ page }) => {
-  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ detail: "所选模型未配置" }) }));
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
-  await expect(page.locator("#overall-report-request-status")).toContainText("所选模型未配置");
-  await expect(page.locator("#overall-report-output")).toContainText("等待生成");
-  await expect(page.locator("#agent-output")).toContainText("等待生成");
-});
-
-test("overall report remains visible with validation warnings", async ({ page }) => {
-  await page.route("**/api/agent/overall-report", (route) => route.fulfill({ json: {
-    status: "MODEL_ASSISTED",
-    message: "总体报告已生成，存在校验警告",
-    report: {
-      overallConclusion: "模型原始总体结论",
-      dataQualitySummary: "数据质量说明",
-      companyAndFundamentals: "公司与基本面",
-      technicalAndCapital: "技术与资金",
-      valuationAndIndustry: "估值与行业",
-      eventsAndSentiment: "事件与情绪",
-      bullishEvidence: [], bearishEvidence: [], riskFactors: [], scenarios: {},
-      conflictsAndMissingData: [], sourceReferences: [], modelName: "deepseek-chat",
-      snapshotAt: "2026-08-03T02:00:00Z", disclaimer: "模型自定义说明",
-    },
-    diagnostic: {
-      failureStage: "VALIDATION", errorCode: "MODEL_NARRATIVE_VALIDATION_WARNING",
-      exceptionType: "ReportValidationWarning", message: "模型叙述存在校验警告",
-      validationIssues: ["UNSUPPORTED_NUMBER", "UNKNOWN_SOURCE_REFERENCE"], modelName: "deepseek-chat",
-      durationMs: 120, occurredAt: "2026-08-03T02:00:00Z", traceId: "overall-trace-test-1",
-    },
-  } }));
-
-  await page.goto("/");
-  await page.locator('[data-symbol="600519"]').click();
-  await page.getByRole("tab", { name: "Agent 分析" }).click();
-  await page.getByRole("button", { name: /生成总体报告/ }).click();
-
-  await expect(page.locator("#overall-report-output")).toContainText("模型原始总体结论");
-  await page.locator("#overall-report-output details.model-diagnostic").click();
-  await expect(page.locator("#overall-report-output")).toContainText("MODEL_NARRATIVE_VALIDATION_WARNING");
-  await expect(page.locator("#overall-report-output")).toContainText("UNSUPPORTED_NUMBER");
-  await expect(page.locator("#overall-report-output")).toContainText("模型自定义说明");
 });

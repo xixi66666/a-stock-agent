@@ -41,8 +41,9 @@ app:
         model: "mimo-v2.5-pro"
         temperature: 0.2
     roles:
+      finrobot-research: deepseek
       institutional-report: primary
-      overall-report: deepseek
+      uzi-research: deepseek
       cycle-report: deepseek
   cycle:
     # 原始技能和书库仅在本机读取，不打包到应用或提交原文。
@@ -50,6 +51,12 @@ app:
     book-path: "D:/codex-book/books/howard-marks-market-cycle"
     python: "python"
     report-path: "data/cycle-reports"
+  uzi:
+    root-path: "tools/uzi/UZI-Skill"
+    python: "tools/uzi/.venv/Scripts/python.exe"
+    report-path: "data/uzi-reports"
+    task-timeout: 30m
+    max-concurrent-tasks: 1
 
 # Agent 学习闭环默认由 application.yml 关闭；离线运行无需 API Key。
 # app:

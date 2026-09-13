@@ -1,8 +1,8 @@
 /*
  * 研究工作台的页面状态机。
  *
- * state.snapshot 是当前股票的规范化快照，state.institutionalReport 和
- * state.overallReportResponse 是两条独立的报告结果。所有异步回调都要检查 code 和
+ * state.snapshot 是当前股票的规范化快照，state.finRobotResponse 是唯一的投研结果。
+ * 所有异步回调都要检查 code 和
  * loadGeneration，防止用户切换股票后旧请求覆盖新页面。
  */
 import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
@@ -12,6 +12,7 @@ import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./cand
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 import { activateFinancialChart, renderFinancialReport, renderFinancialViewShell } from "./financial-view.js";
 import { activateCycleView } from "./cycle-view.js";
+import { activateUziView } from "./uzi-view.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -28,20 +29,19 @@ const state = {
   candlestickPhase: "idle",
   candlestickSections: {},
   candlestickRequestId: 0,
-  overallReportPhase: "idle",
-  overallModelsPhase: "idle",
-  overallModels: [],
-  selectedOverallModelId: null,
-  institutionalReportPhase: "idle",
-  institutionalReport: null,
-  overallReportResponse: null,
-  overallReportFeedback: null,
-  overallReportRequestId: 0,
+  finRobotPhase: "idle",
+  finRobotModelsPhase: "idle",
+  finRobotModels: [],
+  selectedFinRobotModelId: null,
+  finRobotResponse: null,
+  finRobotFeedback: null,
+  finRobotRequestId: 0,
   financialReportPhase: "idle",
   financialReportResult: null,
   financialReportRequestId: 0,
   financialController: null,
   cycleController: null,
+  uziController: null,
   loadGeneration: 0,
 };
 
@@ -123,8 +123,14 @@ function renderCurrentView() {
   state.financialController = null;
   state.cycleController?.dispose();
   state.cycleController = null;
+  state.uziController?.dispose();
+  state.uziController = null;
   if (state.currentView === "cycle") {
     state.cycleController = activateCycleView(content, state.currentCode);
+    return;
+  }
+  if (state.currentView === "uzi") {
+    state.uziController = activateUziView(content, state.currentCode);
     return;
   }
   if (state.currentView === "financial") {
@@ -155,16 +161,11 @@ function renderCurrentView() {
     state.technicalController = activateTechnicalView(state.snapshot.technical, content);
     if (!candlestick && state.candlestickPhase !== "loading") loadCandlestick(state.candlestickTimeframe);
   }
-  if (state.currentView === "agent") {
-    bindOverallModelControls();
-    bindOverallReportAction();
-    bindAgentAction();
-    if (state.overallReportResponse) $("#overall-report-output").innerHTML = renderOverallReportResponse(state.overallReportResponse);
-    renderOverallRequestFeedback();
-    if (state.institutionalReport) $("#agent-output").innerHTML = isQuantResearchReport(state.institutionalReport)
-      ? renderQuantResearchReport(state.institutionalReport)
-      : isInstitutionalReport(state.institutionalReport)
-        ? renderInstitutionalReport(state.institutionalReport) : renderLegacyReport(state.institutionalReport);
+  if (state.currentView === "finrobot") {
+    bindFinRobotModelControls();
+    bindFinRobotAction();
+    if (state.finRobotResponse) $("#finrobot-output").innerHTML = renderFinRobotResponse(state.finRobotResponse);
+    renderFinRobotFeedback();
     refreshIcons();
   }
 }
@@ -177,126 +178,6 @@ function escapeText(value) {
     .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
-function renderAgentList(title, items) {
-  if (!Array.isArray(items) || !items.length) return `<section class="report-block"><h4>${escapeText(title)}</h4><p class="muted">暂无可用证据</p></section>`;
-  return `<section class="report-block"><h4>${escapeText(title)}</h4><ul>${items.map((item) => {
-    const text = typeof item === "string" ? item : `${item.title || ""}：${item.interpretation || ""}`;
-    return `<li>${escapeText(text)}</li>`;
-  }).join("")}</ul></section>`;
-}
-
-function renderReportSources(sources) {
-  if (!Array.isArray(sources) || !sources.length) return renderAgentList("来源", []);
-  return `<section class="report-block report-sources"><h4>来源</h4><ul>${sources.map((source) => `<li><strong>${escapeText(source.section || "数据")}</strong> · ${escapeText(source.provider || "未知来源")} · ${escapeText(source.status || "")}${source.url ? ` <a href="${escapeText(source.url)}" target="_blank" rel="noopener noreferrer">查看</a>` : ""}<small>${escapeText(source.fetchedAt || "")}</small></li>`).join("")}</ul></section>`;
-}
-
-function renderReportFacts(facts) {
-  if (!Array.isArray(facts) || !facts.length) return '<p class="muted report-facts-empty">暂无可用结构化指标</p>';
-  return `<ul class="report-facts">${facts.map((fact) => `<li><span>${escapeText(fact.label || "指标")}</span><strong>${escapeText(fact.value || "--")}</strong></li>`).join("")}</ul>`;
-}
-
-const QUANT_METRIC_LABELS = {
-  "return-5": "5 日收益", "return-20": "20 日收益", "return-60": "60 日收益",
-  "return-120": "120 日收益", "return-250": "250 日收益",
-  "annualized-volatility": "年化波动率", "downside-volatility": "下行波动率",
-  "max-drawdown": "最大回撤", sharpe: "Sharpe", sortino: "Sortino", calmar: "Calmar",
-  "var-95": "历史 VaR 95%", "cvar-95": "历史 CVaR 95%", skewness: "收益偏度", kurtosis: "超额峰度",
-};
-
-const QUANT_STATUS_LABELS = {
-  AVAILABLE: "可用", INSUFFICIENT_SAMPLE: "样本不足", INVALID_INPUT: "输入无效", UNAVAILABLE: "不可用",
-};
-
-function formatQuantValue(value, unit) {
-  if (value == null || value === "") return "--";
-  const number = Number(value);
-  const text = Number.isFinite(number)
-    ? number.toLocaleString("zh-CN", { maximumFractionDigits: 4 })
-    : escapeText(value);
-  return `${text}${unit || ""}`;
-}
-
-function renderQuantMetrics(metrics) {
-  const rows = Array.isArray(metrics) ? metrics : [];
-  return `<section class="quant-section quant-metrics"><h4>个股收益与价格行为</h4>${rows.length
-    ? `<div class="quant-metric-grid">${rows.map((metric) => `<article class="quant-metric" data-status="${escapeText(metric.availability || "UNAVAILABLE")}">
-        <div><strong>${escapeText(QUANT_METRIC_LABELS[metric.name] || metric.name || "指标")}</strong><span>${escapeText(QUANT_STATUS_LABELS[metric.availability] || metric.availability || "不可用")}</span></div>
-        <b>${formatQuantValue(metric.value, metric.unit)}</b>
-        <dl><dt>窗口</dt><dd>${escapeText(metric.window || "--")}</dd><dt>截至</dt><dd>${escapeText(metric.asOf || "--")}</dd><dt>方法</dt><dd>${escapeText(metric.method || "--")}</dd></dl>
-        ${Array.isArray(metric.limitations) && metric.limitations.length ? `<p>${metric.limitations.map(escapeText).join("；")}</p>` : ""}
-      </article>`).join("")}</div>`
-    : '<p class="muted">UNAVAILABLE：当前没有可展示的量化指标。</p>'}</section>`;
-}
-
-function renderBenchmarkComparisons(comparisons) {
-  const rows = Array.isArray(comparisons) ? comparisons : [];
-  return `<section class="quant-section"><h4>市场环境与基准表现</h4>${rows.length
-    ? `<div class="quant-benchmark-table" role="table" aria-label="基准比较">
-        <div class="quant-table-head" role="row"><span>基准</span><span>超额收益</span><span>Beta</span><span>信息比率</span><span>状态</span></div>
-        ${rows.map((item) => `<div class="quant-table-row" role="row"><strong>${escapeText(item.benchmarkId || "--")}</strong><span>${formatQuantValue(item.excessReturnPercent, "%")}</span><span>${formatQuantValue(item.beta, "")}</span><span>${formatQuantValue(item.informationRatio, "")}</span><span class="source-status" data-status="${escapeText(item.availability || "UNAVAILABLE")}"><i></i>${escapeText(QUANT_STATUS_LABELS[item.availability] || item.availability || "不可用")}</span></div>`).join("")}
-      </div>`
-    : '<p class="muted">UNAVAILABLE：基准日线不可用。</p>'}</section>`;
-}
-
-function renderQuantTextSection(title, content) {
-  return `<section class="quant-section"><h4>${escapeText(title)}</h4><p>${escapeText(content || "UNAVAILABLE：当前分区没有可用证据。")}</p></section>`;
-}
-
-function renderQuantStringList(title, values, emptyText) {
-  const items = Array.isArray(values) ? values : [];
-  return `<section class="quant-section"><h4>${escapeText(title)}</h4>${items.length
-    ? `<ul>${items.map((value) => `<li>${escapeText(value)}</li>`).join("")}</ul>`
-    : `<p class="muted">${escapeText(emptyText)}</p>`}</section>`;
-}
-
-function isQuantResearchReport(report) {
-  return Boolean(report?.reportMeta?.reportType === "QUANT_SINGLE_SECURITY" || report?.portfolioScope?.scope === "SINGLE_SECURITY");
-}
-
-function renderQuantResearchReport(report) {
-  const meta = report.reportMeta || {};
-  const portfolio = report.portfolioScope || {};
-  const unavailableReasons = Array.isArray(portfolio.unavailableReasons) ? portfolio.unavailableReasons : [];
-  return `<article class="quant-report">
-    <header class="quant-report-header">
-      <div><span class="source-status" data-status="HEALTHY"><span></span>单股量化研究 · ${escapeText(meta.version || "v2")}</span><h3>${escapeText(meta.securityCode || state.currentCode || "--")} 量化研究报告</h3></div>
-      <dl><dt>报告类型</dt><dd>${escapeText(meta.reportType || "QUANT_SINGLE_SECURITY")}</dd><dt>生成时间</dt><dd>${escapeText(meta.generatedAt || "--")}</dd></dl>
-    </header>
-    <p class="quant-executive-summary">${escapeText(report.executiveSummary || "UNAVAILABLE：当前没有可用摘要。")}</p>
-    ${renderBenchmarkComparisons(report.benchmarkComparisons)}
-    ${renderQuantMetrics(report.metrics)}
-    <div class="quant-prose-grid">
-      ${renderQuantTextSection("因子文字观察", report.factorObservations)}
-      ${renderQuantTextSection("估值与基本面", report.valuationAndFundamentals)}
-      ${renderQuantTextSection("资金与事件", report.capitalAndEvents)}
-      ${renderQuantTextSection("风险与失效条件", report.riskAndInvalidation)}
-      ${renderQuantTextSection("前瞻展望", report.outlook)}
-      ${renderQuantTextSection("个股表现说明", report.securityPerformance)}
-    </div>
-    <section class="quant-unavailable" aria-label="组合级不可用说明"><h4>组合级数据不可用</h4><p>${escapeText(report.portfolioUnavailable || "UNAVAILABLE")}</p>${unavailableReasons.length ? `<ul>${unavailableReasons.map((value) => `<li>${escapeText(value)}</li>`).join("")}</ul>` : ""}</section>
-    <div class="quant-prose-grid quant-evidence-grid">
-      ${renderQuantStringList("来源", report.sources, "UNAVAILABLE：没有可展示来源。")}
-      ${renderQuantStringList("方法", report.methods, "UNAVAILABLE：没有可展示方法。")}
-    </div>
-    <small class="report-disclaimer">仅供研究，不构成投资建议；历史表现不代表未来。</small>
-  </article>`;
-}
-
-function renderCoreDrivers(drivers) {
-  if (!Array.isArray(drivers) || !drivers.length) return renderAgentList("核心驱动", []);
-  return `<section class="report-block report-drivers"><h4>核心驱动</h4><ol>${drivers.map((driver) => `<li><strong>${escapeText(driver.conclusion || "未命名驱动")}</strong><p>${escapeText(driver.rationale || "")}</p>${driver.invalidation ? `<small>失效条件：${escapeText(driver.invalidation)}</small>` : ""}</li>`).join("")}</ol></section>`;
-}
-
-function renderAnalysisList(title, values) {
-  if (!Array.isArray(values) || !values.length) return "";
-  return `<div class="report-subsection"><strong>${escapeText(title)}</strong><ul>${values.map((value) => `<li>${escapeText(typeof value === "string" ? value : value.conclusion || value.rationale || "")}</li>`).join("")}</ul></div>`;
-}
-
-function renderModuleAnalysis(title, section = {}, fallback) {
-  const constraints = [...(section.counterEvidence || []), ...(section.limitations || [])];
-  return `<section class="report-block report-analysis"><h4>${escapeText(title)}</h4>${renderReportFacts(section.facts)}<p>${escapeText(section.narrative || fallback)}</p>${renderAnalysisList("关键判断", section.signals)}${renderAnalysisList("方法依据", section.methodology)}${renderAnalysisList("反证与限制", constraints)}</section>`;
-}
-
 function renderModelDiagnostic(diagnostic, titleOverride = null) {
   if (!diagnostic) return "";
   const issueLabels = { MISSING_EVIDENCE_REFERENCE: "缺少证据引用", UNKNOWN_EVIDENCE: "引用未知证据", UNSUPPORTED_NUMBER: "包含证据包未支持的数字", TRADE_INSTRUCTION: "包含禁止的交易指令", MISSING_CONFLICT: "缺少冲突说明", EMPTY_NARRATIVE: "叙述字段为空", NARRATIVE_TOO_LONG: "叙述过长", EMPTY_REQUIRED_SECTION: "必填章节为空", INVALID_DISCLAIMER: "免责声明不正确", UNKNOWN_SOURCE_REFERENCE: "引用未知来源", MISSING_CORE_DATA_LIMITATION: "缺少核心数据限制说明" };
@@ -307,118 +188,62 @@ function renderModelDiagnostic(diagnostic, titleOverride = null) {
   return `<details class="model-diagnostic"><summary>${title} · ${escapeText(diagnostic.errorCode || "MODEL_FAILURE")}</summary><dl><dt>阶段</dt><dd>${escapeText(diagnostic.failureStage || "--")}</dd><dt>原因</dt><dd>${escapeText(diagnostic.message || "--")}</dd><dt>异常</dt><dd>${escapeText(diagnostic.exceptionType || "--")}</dd><dt>模型</dt><dd>${escapeText(diagnostic.modelName || "--")}</dd><dt>耗时</dt><dd>${escapeText(diagnostic.durationMs == null ? "--" : `${diagnostic.durationMs} ms`)}</dd><dt>时间</dt><dd>${escapeText(diagnostic.occurredAt || "--")}</dd>${issues}<dt>追踪 ID</dt><dd>${escapeText(diagnostic.traceId || "--")}</dd></dl></details>`;
 }
 
-function renderInstitutionalReport(report) {
-  // generationMode 是后端真实生成路径的提示，不能仅根据文本外观猜测是否调用了模型。
-  const direction = ({ STRONGER: "偏强", NEUTRAL: "中性", WEAKER: "偏弱", INSUFFICIENT: "证据不足" })[report.direction] || report.direction?.label || report.direction || "证据不足";
-  const mode = report.generationMode || "DETERMINISTIC_FALLBACK";
-  const technical = report.technicalAndFlow?.narrative || "技术与资金证据不可用";
-  const fundamental = report.fundamentals?.narrative || "基本面与机构预期证据不可用";
-  const valuation = report.valuationAndIndustry?.narrative || "估值与行业证据不可用";
-  const modeMeta = ({
-    MODEL_ASSISTED: { status: "HEALTHY", label: "模型叙述已校验" },
-    MODEL_ASSISTED_WITH_WARNINGS: { status: "DEGRADED", label: "模型叙述已生成（有校验警告）" },
-    MODEL_ASSISTED_PARTIAL: { status: "DEGRADED", label: "模型叙述已生成（部分字段回退）" },
-    DETERMINISTIC_FALLBACK: { status: "DEGRADED", label: "确定性规则回退" },
-    REPORT_UNAVAILABLE: { status: "UNAVAILABLE", label: "报告不可用" },
-  })[mode] || { status: "DEGRADED", label: "报告状态未知" };
-  return `<span class="source-status" data-status="${escapeText(modeMeta.status)}"><span></span>${escapeText(modeMeta.label)}</span>
-    <div class="report-header"><div><span class="section-kicker">${escapeText(report.horizon || "1-3个月")} · ${escapeText(report.evidenceStatus || "INSUFFICIENT")}</span><h3>${escapeText(direction)}</h3></div><small>${escapeText(report.ruleVersion || "")}</small></div>
-    <p class="report-summary">${escapeText(report.executiveSummary || "现有证据无法生成摘要")}</p>
-    <div class="report-grid">
-      ${renderCoreDrivers(report.coreDrivers)}
-      ${renderModuleAnalysis("技术与资金", report.technicalAndFlow, technical)}
-      ${renderFundFlowSummary(report.technicalAndFlow?.fundFlowSummary)}
-      ${renderModuleAnalysis("基本面与机构预期", report.fundamentals, fundamental)}
-      ${renderModuleAnalysis("估值与行业", report.valuationAndIndustry, valuation)}
-      ${renderPeerValuationTable(report.valuationAndIndustry?.industryValuation)}
-      ${renderAgentList("催化剂", report.catalysts)}
-      ${renderAgentList("风险", report.risks)}
-      ${renderAgentList("证据冲突", report.conflicts)}
-      ${renderAgentList("缺失数据", report.missingData)}
-      ${renderAgentList("判断失效条件", report.invalidationConditions)}
-      ${renderReportSources(report.sources)}
-    </div>
-    ${renderModelDiagnostic(report.modelDiagnostic)}
-    <small>${escapeText(report.disclaimer || "仅供学习研究，不构成投资建议")}</small>`;
-}
-
-function unwrapReport(payload) {
-  return payload?.report && typeof payload.report === "object" ? payload.report : payload;
-}
-
-function isInstitutionalReport(report) {
-  return Boolean(report && (
-    "executiveSummary" in report ||
-    "technicalAndFlow" in report ||
-    "fundamentals" in report ||
-    "valuationAndIndustry" in report ||
-    "generationMode" in report ||
-    "direction" in report
-  ));
-}
-
-function renderLegacyReport(report) {
-  const summary = report?.factualSummary || "旧版报告未返回事实摘要";
-  const trend = report?.trendAndRegime || "旧版报告未返回趋势判断";
-  const evidence = [
-    ...(report?.technicalEvidence || []),
-    ...(report?.capitalAndFundamentalEvidence || []),
-  ];
-  const conclusion = report?.conclusion || "旧版报告未返回结论，请重新编译并重启后端服务";
-  return `<span class="source-status" data-status="DEGRADED"><span></span>兼容旧版报告</span>
-    <h3>${escapeText(summary)}</h3>
-    <p>${escapeText(trend)}</p>
-    ${evidence.length ? `<ul>${evidence.map((item) => `<li>${escapeText(item)}</li>`).join("")}</ul>` : ""}
-    <strong>${escapeText(conclusion)}</strong>
-    <small>${escapeText(report?.disclaimer || "仅供学习研究，不构成投资建议")}</small>`;
-}
-
 function renderOverallList(title, values, tone = "neutral") {
   const items = Array.isArray(values) ? values : [];
-  return `<section class="overall-evidence" data-tone="${escapeText(tone)}"><h5>${escapeText(title)}</h5>${items.length
+  return `<section class="finrobot-evidence" data-tone="${escapeText(tone)}"><h5>${escapeText(title)}</h5>${items.length
     ? `<ul>${items.map((value) => `<li>${escapeText(value)}</li>`).join("")}</ul>`
     : '<p class="muted">暂无可靠证据</p>'}</section>`;
 }
 
 function renderOverallSection(title, content, open = false) {
-  return `<details class="overall-section" ${open ? "open" : ""}><summary>${escapeText(title)}</summary><p>${escapeText(content || "暂无可靠证据")}</p></details>`;
+  return `<details class="finrobot-section" ${open ? "open" : ""}><summary>${escapeText(title)}</summary><p>${escapeText(content || "暂无可靠证据")}</p></details>`;
 }
 
 function renderOverallScenarios(scenarios = {}) {
   const entries = [["偏强情景", scenarios.stronger], ["中性情景", scenarios.neutral], ["偏弱情景", scenarios.weaker]];
-  return `<section class="overall-scenarios"><h5>条件式情景</h5>${entries.map(([label, value]) => `<div><strong>${label}</strong><p>${escapeText(value || "条件不足")}</p></div>`).join("")}</section>`;
+  return `<section class="finrobot-scenarios"><h5>条件式情景</h5>${entries.map(([label, value]) => `<div><strong>${label}</strong><p>${escapeText(value || "条件不足")}</p></div>`).join("")}</section>`;
 }
 
 function renderOverallSources(sources) {
   const items = Array.isArray(sources) ? sources : [];
-  return `<details class="overall-section overall-sources"><summary>来源引用</summary>${items.length
+  return `<details class="finrobot-section finrobot-sources"><summary>来源引用</summary>${items.length
     ? `<ul>${items.map((source) => `<li><strong>${escapeText(source.section || "数据")}</strong> · ${escapeText(source.provider || "未知来源")}${source.sourceUrl ? ` · <a href="${escapeText(source.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看来源</a>` : ""}</li>`).join("")}</ul>`
     : '<p class="muted">当前报告未返回可验证来源</p>'}</details>`;
 }
 
-function renderOverallFailure(response = {}) {
+function renderFinRobotFailure(response = {}) {
   const diagnostic = response.diagnostic || {};
-  const diagnosticMarkup = Object.keys(diagnostic).length ? renderModelDiagnostic(diagnostic, "总体报告校验诊断") : "";
-  return `<div class="overall-report-failure"><span class="source-status" data-status="UNAVAILABLE"><span></span>${escapeText(response.status || "MODEL_FAILED")}</span><p>${escapeText(response.message || "总体报告暂不可用")}</p>${diagnostic.traceId ? `<small>追踪 ID：${escapeText(diagnostic.traceId)}</small>` : ""}${diagnosticMarkup}</div>`;
+  const diagnosticMarkup = Object.keys(diagnostic).length ? renderModelDiagnostic(diagnostic, "FinRobot 校验诊断") : "";
+  const modeLabel = response.status === "MODEL_NOT_CONFIGURED" ? "确定性回退" : "模型调用失败";
+  const modelName = diagnostic.modelName || response.modelName || "未配置";
+  return `<div class="finrobot-report-failure"><p class="generation-line">生成模式：${modeLabel} · 模型：${escapeText(modelName)}</p><span class="source-status" data-status="UNAVAILABLE"><span></span>${escapeText(response.status || "MODEL_FAILED")}</span><p>${escapeText(response.message || "FinRobot 投研暂不可用")}</p>${diagnostic.traceId ? `<small>追踪 ID：${escapeText(diagnostic.traceId)}</small>` : ""}${diagnosticMarkup}</div>`;
 }
 
-function renderOverallReportResponse(response = {}) {
-  if (response?.status !== "MODEL_ASSISTED" || !response.report) return renderOverallFailure(response);
+function renderFinRobotResponse(response = {}) {
+  if (!response.report) return renderFinRobotFailure(response);
   const report = response.report;
-  const diagnosticMarkup = response.diagnostic
-    ? renderModelDiagnostic(response.diagnostic, "总体报告校验提示")
-    : "";
-  return `<article class="overall-report">
-    <header class="overall-report-header"><span class="source-status" data-status="HEALTHY"><span></span>总体报告</span><h3>总体结论</h3><p>${escapeText(report.overallConclusion || "暂无总体结论")}</p><dl><dt>模型</dt><dd>${escapeText(report.modelName || "未知模型")}</dd><dt>快照</dt><dd>${escapeText(report.snapshotAt || "--")}</dd></dl></header>
+  const modelAssisted = response.status === "MODEL_ASSISTED";
+  const status = modelAssisted ? "HEALTHY" : report.generationMode === "REPORT_UNAVAILABLE" ? "UNAVAILABLE" : "DEGRADED";
+  const statusLabel = modelAssisted ? "FinRobot 模型已生成" : response.status === "MODEL_NOT_CONFIGURED" ? "确定性研究回退" : "FinRobot 确定性回退";
+  const modeLabels = { MODEL_ASSISTED: "模型生成", DETERMINISTIC_FALLBACK: "确定性回退", REPORT_UNAVAILABLE: "报告不可用" };
+  const generationMode = report.generationMode || (modelAssisted ? "MODEL_ASSISTED" : "DETERMINISTIC_FALLBACK");
+  const generationLabel = modeLabels[generationMode] || generationMode;
+  const diagnosticMarkup = response.diagnostic ? renderModelDiagnostic(response.diagnostic, "FinRobot 校验诊断") : "";
+  return `<article class="finrobot-report">
+    <header class="finrobot-report-header"><p class="generation-line">生成模式：${escapeText(generationLabel)} · 模型：${escapeText(report.modelName || "未配置")}</p><span class="source-status" data-status="${status}"><span></span>${statusLabel}</span><h3>${escapeText(report.ticker || state.currentCode || "--")} · ${escapeText(report.companyName || "FinRobot Equity Research")}</h3><p>${escapeText(report.tagline || "暂无研究摘要")}</p><dl><dt>模型</dt><dd>${escapeText(report.modelName || "未配置")}</dd><dt>流水线</dt><dd>${escapeText(report.pipelineVersion || "finrobot-equity-v1")}</dd><dt>快照</dt><dd>${escapeText(report.snapshotAt || "--")}</dd></dl></header>
     ${renderOverallSection("数据质量", report.dataQualitySummary, true)}
-    ${renderOverallSection("公司与基本面", report.companyAndFundamentals)}
+    ${renderOverallSection("公司概览", report.companyOverview)}
+    ${renderOverallSection("投资逻辑", report.investmentOverview)}
     ${renderOverallSection("技术与资金", report.technicalAndCapital)}
     ${renderFundFlowSummary(report.fundFlowSummary)}
-    ${renderOverallSection("估值与行业", report.valuationAndIndustry)}
+    ${renderOverallSection("估值分析", report.valuationOverview)}
     ${renderPeerValuationTable(report.industryValuation)}
-    ${renderOverallSection("事件与情绪", report.eventsAndSentiment)}
+    ${renderOverallSection("竞争格局", report.competitorAnalysis)}
+    ${renderOverallSection("事件与新闻", report.newsSummary)}
+    ${renderOverallSection("主要结论", report.majorTakeaways)}
     ${renderOverallList("支持证据", report.bullishEvidence, "support")}
     ${renderOverallList("反向证据", report.bearishEvidence, "oppose")}
+    ${renderOverallSection("风险评估", report.risks)}
     ${renderOverallList("风险因素", report.riskFactors, "risk")}
     ${renderOverallScenarios(report.scenarios)}
     ${renderOverallList("冲突与缺失", report.conflictsAndMissingData)}
@@ -428,110 +253,141 @@ function renderOverallReportResponse(response = {}) {
   </article>`;
 }
 
-function renderOverallRequestFeedback() {
-  const requestStatus = $("#overall-report-request-status");
+function renderFinRobotFeedback() {
+  const requestStatus = $("#finrobot-request-status");
   if (!requestStatus) return;
-  const feedback = state.overallReportFeedback;
+  const feedback = state.finRobotFeedback;
   if (!feedback) {
     requestStatus.replaceChildren();
     return;
   }
   if (feedback.kind === "loading") {
-    requestStatus.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在生成总体报告</span><p>所选模型正在读取当前股票的完整数据快照。</p>';
+    requestStatus.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>FinRobot 正在运行</span><p>研究角色正在读取当前股票的完整规范化快照。</p>';
     return;
   }
   if (feedback.kind === "response-failure") {
-    requestStatus.innerHTML = renderOverallFailure(feedback.payload);
+    requestStatus.innerHTML = renderFinRobotFailure(feedback.payload);
     return;
   }
-  requestStatus.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>总体报告不可用</span><p>${escapeText(feedback.message || "请检查所选模型的本地配置")}</p>`;
+  requestStatus.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>FinRobot 不可用</span><p>${escapeText(feedback.message || "请检查所选模型的本地配置")}</p>`;
 }
 
-function bindAgentAction() {
-  // “生成研究报告”与“生成总体报告”是两个独立请求和两个独立输出区域。
-  const button = $("#run-agent");
+function bindFinRobotAction() {
+  // FinRobot 只有一个投研请求：同一份快照依次进入确定性分析、角色叙述和报告校验。
+  const button = $("#run-finrobot");
   if (!button) return;
   button.addEventListener("click", async () => {
-    const output = $("#agent-output");
+    const output = $("#finrobot-output");
     const reportCode = state.currentCode;
     const generation = state.loadGeneration;
-    state.institutionalReportPhase = "loading";
+    const requestId = ++state.finRobotRequestId;
+    state.finRobotPhase = "loading";
+    state.finRobotFeedback = { kind: "loading" };
     button.disabled = true;
-    output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在综合</span><p>Agent 正在调用受限股票研究工具。</p>';
+    syncFinRobotModelControls();
+    renderFinRobotFeedback();
+    output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>FinRobot 正在综合</span><p>正在运行证据、分析、估值、风险与报告角色。</p>';
     try {
       // 请求期间记录股票和加载代数；返回时如果页面已切换，丢弃旧结果。
-      const report = unwrapReport(await stockApi.quantReport(reportCode));
-      if (state.currentCode !== reportCode || state.loadGeneration !== generation) return;
-      state.institutionalReport = report;
-      if (isQuantResearchReport(report)) {
-        output.innerHTML = renderQuantResearchReport(report);
-        refreshIcons();
-        return;
-      }
-      if (isInstitutionalReport(report)) {
-        output.innerHTML = renderInstitutionalReport(report);
-        refreshIcons();
-        return;
-      }
-      output.innerHTML = renderLegacyReport(report);
+      const payload = await stockApi.finRobotResearch(reportCode, state.selectedFinRobotModelId);
+      if (state.currentCode !== reportCode || state.loadGeneration !== generation || state.finRobotRequestId !== requestId) return;
+      state.finRobotResponse = payload;
+      state.finRobotFeedback = null;
+      output.innerHTML = renderFinRobotResponse(payload);
+      refreshIcons();
     } catch (error) {
-      output.innerHTML = `<span class="source-status" data-status="UNAVAILABLE"><span></span>Agent 不可用</span><p>${escapeText(error.message || "请检查本地模型配置")}</p>`;
+      if (state.currentCode === reportCode && state.loadGeneration === generation && state.finRobotRequestId === requestId) {
+        state.finRobotFeedback = { kind: "transport-failure", message: error.message || "请检查本地模型配置" };
+        renderFinRobotFeedback();
+        output.innerHTML = renderFinRobotFailure({ status: "MODEL_FAILED", message: error.message || "FinRobot 投研请求失败" });
+      }
     } finally {
-      state.institutionalReportPhase = "idle";
-      button.disabled = false;
+      if (state.currentCode === reportCode && state.loadGeneration === generation && state.finRobotRequestId === requestId) {
+        state.finRobotPhase = "idle";
+        button.disabled = false;
+        syncFinRobotModelControls();
+      }
     }
   });
 }
 
-function syncOverallModelControls() {
-  const select = $("#overall-model-select");
-  const button = $("#run-overall-report");
-  const help = $("#overall-model-help");
-  const modelName = $("#overall-model-name");
-  if (!select || !button || !help || !modelName) return;
+function syncFinRobotModelControls() {
+  const select = $("#finrobot-model-select");
+  const button = $("#run-finrobot");
+  const help = $("#finrobot-model-help");
+  if (!select || !button || !help) return;
 
-  const models = state.overallModels;
-  const selected = models.find((model) => model.id === state.selectedOverallModelId);
+  const models = state.finRobotModels;
+  const selected = models.find((model) => model.id === state.selectedFinRobotModelId);
   select.innerHTML = models.length
     ? models.map((model) => `<option value="${escapeText(model.id)}">${escapeText(model.id)} · ${escapeText(model.modelName)}</option>`).join("")
-    : `<option value="">${state.overallModelsPhase === "loading" ? "正在加载可用模型" : "没有可用模型"}</option>`;
+    : `<option value="">${state.finRobotModelsPhase === "loading" ? "正在加载可用模型" : "没有可用模型，将使用确定性研究"}</option>`;
   select.value = selected?.id || "";
-  select.disabled = !models.length || state.overallReportPhase === "loading";
-  button.disabled = !selected || state.overallReportPhase === "loading";
-  modelName.textContent = selected?.modelName || "未选择";
-  help.textContent = state.overallModelsPhase === "failed"
+  select.disabled = !models.length || state.finRobotPhase === "loading";
+  button.disabled = state.finRobotPhase === "loading";
+  help.textContent = state.finRobotModelsPhase === "failed"
     ? "模型目录加载失败，请稍后重试"
     : models.length
-      ? "请选择生成本次总体报告的模型"
-      : state.overallModelsPhase === "loading"
+      ? "请选择本次 FinRobot 投研使用的模型"
+      : state.finRobotModelsPhase === "loading"
         ? "正在读取本地模型配置"
-        : "没有可用模型，请检查本地配置";
+        : "没有可用模型，将保留确定性研究结果";
 }
 
-async function loadOverallModels() {
-  // 模型目录只描述安全的 ID、实际模型名和默认标记，不包含任何连接秘密。
-  if (state.overallModelsPhase === "loading" || state.overallModelsPhase === "ready") {
-    syncOverallModelControls();
+function renderFinRobotModelStatus() {
+  const status = $("#finrobot-model-status");
+  if (!status) return;
+  if (state.finRobotModelsPhase === "loading" || state.finRobotModelsPhase === "idle") {
+    status.innerHTML = '<span class="status-dot"></span>模型：读取中';
+    status.dataset.tone = "muted";
+    status.title = "正在读取本地模型配置";
     return;
   }
-  state.overallModelsPhase = "loading";
-  syncOverallModelControls();
+  if (state.finRobotModelsPhase === "failed") {
+    status.innerHTML = '<span class="status-dot"></span>模型：读取失败';
+    status.dataset.tone = "warning";
+    status.title = "模型目录读取失败，可切换 FinRobot 标签重试";
+    return;
+  }
+  if (!state.finRobotModels.length) {
+    status.innerHTML = '<span class="status-dot"></span>模型：未配置';
+    status.dataset.tone = "muted";
+    status.title = "没有已注册的可用模型，将使用确定性研究结果";
+    return;
+  }
+  const labels = state.finRobotModels.map((model) => `${model.id} · ${model.modelName}`).join(" / ");
+  status.innerHTML = `<span class="status-dot"></span>模型：${escapeText(labels)}`;
+  status.dataset.tone = "ok";
+  status.title = `可用模型：${labels}`;
+}
+
+async function loadFinRobotModels() {
+  // 模型目录只描述安全的 ID、实际模型名和默认标记，不包含任何连接秘密。
+  if (state.finRobotModelsPhase === "loading" || state.finRobotModelsPhase === "ready") {
+    syncFinRobotModelControls();
+    renderFinRobotModelStatus();
+    return;
+  }
+  state.finRobotModelsPhase = "loading";
+  syncFinRobotModelControls();
+  renderFinRobotModelStatus();
   try {
-    const response = await stockApi.overallModels();
-    state.overallModels = Array.isArray(response?.models) ? response.models : [];
-    const stillSelected = state.overallModels.some((model) => model.id === state.selectedOverallModelId);
+    const response = await stockApi.finRobotModels();
+    state.finRobotModels = Array.isArray(response?.models) ? response.models : [];
+    const stillSelected = state.finRobotModels.some((model) => model.id === state.selectedFinRobotModelId);
     if (!stillSelected) {
-      state.selectedOverallModelId = state.overallModels.find((model) => model.defaultModel)?.id
-        || state.overallModels[0]?.id
+      state.selectedFinRobotModelId = state.finRobotModels.find((model) => model.defaultModel)?.id
+        || state.finRobotModels[0]?.id
         || null;
     }
-    state.overallModelsPhase = "ready";
+    state.finRobotModelsPhase = "ready";
   } catch {
-    state.overallModels = [];
-    state.selectedOverallModelId = null;
-    state.overallModelsPhase = "failed";
+    state.finRobotModels = [];
+    state.selectedFinRobotModelId = null;
+    state.finRobotModelsPhase = "failed";
   }
-  syncOverallModelControls();
+  syncFinRobotModelControls();
+  renderFinRobotModelStatus();
 }
 
 function bindFinancialAction() {
@@ -601,61 +457,14 @@ async function loadCandlestick(timeframe) {
   }
 }
 
-function bindOverallModelControls() {
-  const select = $("#overall-model-select");
+function bindFinRobotModelControls() {
+  const select = $("#finrobot-model-select");
   if (!select) return;
   select.addEventListener("change", () => {
-    state.selectedOverallModelId = select.value || null;
-    syncOverallModelControls();
+    state.selectedFinRobotModelId = select.value || null;
+    syncFinRobotModelControls();
   });
-  loadOverallModels();
-}
-
-function bindOverallReportAction() {
-  // 总体报告把当前选中的 modelId 发给后端，后端再次校验该 ID 是否存在。
-  const button = $("#run-overall-report");
-  if (!button) return;
-  button.addEventListener("click", async () => {
-    const reportCode = state.currentCode;
-    const generation = state.loadGeneration;
-    const selectedModelId = state.selectedOverallModelId;
-    if (!selectedModelId) return;
-    const requestId = ++state.overallReportRequestId;
-    const isCurrentRequest = () => state.overallReportRequestId === requestId
-      && state.currentCode === reportCode
-      && state.loadGeneration === generation;
-    state.overallReportPhase = "loading";
-    state.overallReportFeedback = { kind: "loading" };
-    syncOverallModelControls();
-    renderOverallRequestFeedback();
-    try {
-      const payload = await stockApi.overallReport(reportCode, selectedModelId);
-      if (!isCurrentRequest()) return;
-      if (payload?.status !== "MODEL_ASSISTED" || !payload.report) {
-        state.overallReportFeedback = { kind: "response-failure", payload };
-        renderOverallRequestFeedback();
-        return;
-      }
-      state.overallReportResponse = payload;
-      state.overallReportFeedback = null;
-      renderOverallRequestFeedback();
-      const currentOutput = $("#overall-report-output");
-      if (currentOutput) currentOutput.innerHTML = renderOverallReportResponse(payload);
-      refreshIcons();
-    } catch (error) {
-      if (!isCurrentRequest()) return;
-      state.overallReportFeedback = {
-        kind: "transport-failure",
-        message: error.message || "请检查所选模型的本地配置",
-      };
-      renderOverallRequestFeedback();
-    } finally {
-      if (isCurrentRequest()) {
-        state.overallReportPhase = "idle";
-        syncOverallModelControls();
-      }
-    }
-  });
+  loadFinRobotModels();
 }
 
 async function loadStock(code) {
@@ -668,13 +477,13 @@ async function loadStock(code) {
   state.snapshot = null;
   state.cycleController?.dispose();
   state.cycleController = null;
-  state.overallReportRequestId += 1;
+  state.uziController?.dispose();
+  state.uziController = null;
+  state.finRobotRequestId += 1;
   state.currentCode = code;
-  state.overallReportPhase = "idle";
-  state.overallReportFeedback = null;
-  state.institutionalReportPhase = "idle";
-  state.overallReportResponse = null;
-  state.institutionalReport = null;
+  state.finRobotPhase = "idle";
+  state.finRobotFeedback = null;
+  state.finRobotResponse = null;
   state.financialReportResult = null;
   state.financialReportRequestId += 1;
   state.candlestickRequestId += 1;
@@ -744,14 +553,14 @@ function selectView(button) {
   if (state.snapshot) renderCurrentView();
 }
 
-async function loadAgentStatus() {
+async function loadFinRobotStatus() {
   try {
-    const status = await stockApi.agentStatus();
+    const status = await stockApi.finRobotStatus();
     const enabled = status.enabled === true || String(status.status || "").includes("READY");
-    $("#agent-status").innerHTML = `<span class="status-dot"></span>${enabled ? "Agent 可用" : "Agent 未配置"}`;
-    $("#agent-status").dataset.tone = enabled ? "ok" : "muted";
+    $("#finrobot-status").innerHTML = `<span class="status-dot"></span>${enabled ? "FinRobot 可用" : "FinRobot 未配置"}`;
+    $("#finrobot-status").dataset.tone = enabled ? "ok" : "muted";
   } catch {
-    $("#agent-status").dataset.tone = "warning";
+    $("#finrobot-status").dataset.tone = "warning";
   }
 }
 
@@ -775,4 +584,12 @@ $$(".view-tab").forEach((button) => button.addEventListener("click", () => selec
 $("#refresh-data").addEventListener("click", () => state.currentCode && loadStock(state.currentCode));
 
 refreshIcons();
-loadAgentStatus();
+loadFinRobotStatus();
+loadFinRobotModels();
+
+// The cinematic home links to a bounded security code and an existing research tab.
+const entryParameters = new URLSearchParams(window.location.search);
+const entryView = $$('.view-tab').find(button => button.dataset.view === entryParameters.get('view'));
+if (entryView) selectView(entryView);
+const entryCode = entryParameters.get('code') || '';
+if (/^\d{6}$/.test(entryCode)) void loadStock(entryCode);

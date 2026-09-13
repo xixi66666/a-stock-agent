@@ -26,8 +26,8 @@ class LocalModelConfigurationExampleTest {
                 "https://api.openai.com",
                 "https://api.deepseek.com",
                 "https://api.xiaomimimo.com/v1",
+                "finrobot-research: deepseek",
                 "institutional-report: primary",
-                "overall-report: deepseek",
                 "deepseek-chat",
                 "mimo-v2.5-pro",
                 "completions-path: \"/chat/completions\"");
@@ -50,6 +50,6 @@ class LocalModelConfigurationExampleTest {
         assertThat(active.getProperty("app.ai.models.mimo.model")).isEqualTo("mimo-v2.5-pro");
         assertThat(active.getProperty("app.ai.models.mimo.completions-path")).isEqualTo("/chat/completions");
         assertThat(active.getProperty("app.ai.roles.institutional-report")).isEqualTo("primary");
-        assertThat(active.getProperty("app.ai.roles.overall-report")).isEqualTo("deepseek");
+        assertThat(active.getProperty("app.ai.roles.finrobot-research")).isEqualTo("deepseek");
     }
 }

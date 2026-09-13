@@ -34,7 +34,7 @@ async function setup(page) {
     return route.fulfill({ json: { ...completed, status: 'RUNNING', report: null, stage: '检索原书' } });
   });
   await page.route('**/api/agent/cycle/tasks/cycle-demo', route => route.fulfill({ json: completed }));
-  await page.goto('/');
+  await page.goto('/workbench.html');
   await page.locator('[data-symbol="600519"]').click();
 }
 for (const viewport of [{width:1440,height:1000}, {width:1024,height:768}, {width:768,height:1024}, {width:390,height:844}]) {
@@ -50,12 +50,13 @@ for (const viewport of [{width:1440,height:1000}, {width:1024,height:768}, {widt
     await expect(page.locator('#cycle-output')).toContainText('当前事实');
     await expect(page.locator('#cycle-output')).toContainText('我的分析');
     await expect(page.locator('#cycle-output')).toContainText('整体信贷');
+    await expect(page.locator('#cycle-output .generation-line').first()).toContainText('生成模式：模型生成 · 模型：test-model');
     await page.getByText('原书阅读与执行记录', { exact: true }).click();
     await expect(page.locator('#cycle-output')).toContainText('如何应对市场周期');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const button = page.getByRole('button', { name: '重新生成周期研究', exact: true });
     expect(await button.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-    expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(245, 238, 229)');
+    expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(247, 247, 244)');
     await page.evaluate(() => window.scrollTo(0, 0));
     const header = await page.locator('.app-header').boundingBox();
     const toolbar = await page.locator('.cycle-toolbar').boundingBox();

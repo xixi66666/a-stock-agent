@@ -14,10 +14,10 @@ class AiModelPropertiesTest {
 
         AiModelProperties properties = new AiModelProperties(
                 Map.of("primary", primary, "deepseek", deepSeek),
-                Map.of("institutional-report", "primary", "overall-report", "deepseek"));
+                Map.of("institutional-report", "primary", "finrobot-research", "deepseek"));
 
         assertThat(properties.models()).containsKeys("primary", "deepseek");
-        assertThat(properties.modelForRole("overall-report"))
+        assertThat(properties.modelForRole("finrobot-research"))
                 .isPresent()
                 .get()
                 .satisfies(entry -> {

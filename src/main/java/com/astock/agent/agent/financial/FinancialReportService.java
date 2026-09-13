@@ -96,7 +96,7 @@ public final class FinancialReportService {
         long started = System.nanoTime();
         Optional<NamedChatClientRegistry.NamedModel> model = registry.forRole(ROLE);
         if (model.isEmpty()) {
-            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, null);
+            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, null, null);
         }
         try {
             FinancialReportGenerator generator = generatorFactory.create(model.orElseThrow());
@@ -109,17 +109,19 @@ public final class FinancialReportService {
             if (validation.blocking()) {
                 ModelDiagnostic diagnostic = classifier.validation(validation.issues(),
                         generator.modelName(), elapsedMillis(started), traceId);
-                return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, diagnostic);
+                return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null,
+                        generator.modelName(), diagnostic);
             }
             return compose(GenerationMode.MODEL_ASSISTED, pack, section,
                     new FinancialNarrative(draft.tierInterpretation(), draft.signalCommentary(),
-                            draft.trendCommentary(), draft.riskNotes()), null);
+                            draft.trendCommentary(), draft.riskNotes()), generator.modelName(), null);
         } catch (Exception failure) {
             ModelDiagnostic diagnostic = classifier.classify(failure,
                     model.map(NamedChatClientRegistry.NamedModel::modelName)
                             .orElse("configured-financial-model"),
                     elapsedMillis(started), traceId);
-            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, diagnostic);
+            return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null,
+                    model.map(NamedChatClientRegistry.NamedModel::modelName).orElse(null), diagnostic);
         }
     }
 
@@ -143,7 +145,7 @@ public final class FinancialReportService {
 
     private FinancialReportAnalysis compose(GenerationMode mode, FinancialEvidencePackage pack,
             DataSection<FinancialStatementHistory> historySection,
-            FinancialNarrative narrative, ModelDiagnostic diagnostic) {
+            FinancialNarrative narrative, String modelName, ModelDiagnostic diagnostic) {
         FinancialNarrative text = narrative != null ? narrative : composer.compose(pack);
         String range = pack.history().periodCount() == 0 ? "--"
                 : pack.history().periods().get(0).reportPeriod() + " - "
@@ -153,7 +155,7 @@ public final class FinancialReportService {
                 pack.securityCode(), range, pack.history().periodCount(),
                 latestPeriod,
                 pack.qualityScore(), pack.trends(), text, mode, diagnostic,
-                pack.financialIndustry(), Instant.now().toString(),
+                pack.financialIndustry(), modelName, Instant.now().toString(),
                 FinancialQualityScorer.RULE_VERSION,
                 mode == GenerationMode.MODEL_ASSISTED
                         ? SpringAiFinancialNarrativeGenerator.PROMPT_VERSION : "deterministic",

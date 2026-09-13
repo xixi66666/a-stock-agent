@@ -18,6 +18,7 @@
 .cycle-report p, .cycle-report li { line-height: 1.8; }
 .cycle-report ul, .cycle-report ol { padding-left: 20px; }
 .cycle-meta, .cycle-digest, .cycle-report small { font-size: 12px; color: var(--body); overflow-wrap: anywhere; }
+.cycle-report .generation-line { margin-bottom: 12px; }
 .cycle-dimension, .cycle-section { border-top: 1px solid var(--hairline); margin-top: 28px; padding-top: 24px; }
 .cycle-dimension dl { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 14px 18px; margin: 0; }
 .cycle-dimension dt { font-weight: 600; color: var(--ink); line-height: 1.8; }

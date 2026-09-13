@@ -18,7 +18,7 @@ function renderTrace(task) {
 function renderReport(task) {
   const report = task.report;
   return `<article class="cycle-report">
-    <section><h3>综合判断</h3><p>${escape(report.conclusion)}</p>
+    <section><p class="generation-line">生成模式：模型生成 · 模型：${escape(task.modelName || '未配置')}</p><h3>综合判断</h3><p>${escape(report.conclusion)}</p>
       <p class="cycle-meta">${escape(task.modelName)} · 生成于 ${escape(date(task.updatedAt))} · 快照获取于 ${escape(date(task.snapshotAt))}</p></section>
     ${report.dimensions.map(d => `<section class="cycle-dimension"><h3>${escape(d.title)}</h3><dl><dt>书中观点</dt><dd>${escape(d.bookView)}
       <span class="cycle-citations">${(d.chapterIds || []).map(id => `<a href="#cycle-chapter-${escape(id)}" data-cycle-chapter>${escape(task.chapters?.find(c => c.id === id)?.title || id)}</a>`).join(' · ')}</span></dd>

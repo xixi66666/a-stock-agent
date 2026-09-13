@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="基于真实公开数据与 Spring AI 的 A 股研究工作台">
+  <title>A 股智能研究台</title>
+  <link rel="stylesheet" href="/styles.css?v=20260913-model-status">
+  <link rel="stylesheet" href="/candlestick.css?v=20260911-quotes">
+  <link rel="stylesheet" href="/cycle.css?v=20260910">
+  <link rel="stylesheet" href="/uzi.css?v=20260913">
+  <link rel="stylesheet" href="/workbench-theme.css?v=20260913">
+</head>
+<body>
+  <div class="workbench-backdrop" aria-hidden="true"></div>
+  <a class="skip-link" href="#workspace">跳到研究内容</a>
+  <!--
+    页面骨架只负责布局和可访问的容器；数据由 app.js 加载，报告由 views.js 渲染。
+    FinRobot 投研在统一研究流水线中复用当前股票快照，并输出一份完整 equity research 报告。
+  -->
+  <header class="app-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="A 股智能研究台首页">
+        <svg width="24" height="24" viewBox="0 0 256 256" aria-hidden="true"><path d="M 128 128 C 128 198.692 70.692 256 0 256 C 0 185.308 57.308 128 128 128 Z M 128 128 C 198.692 128 256 185.308 256 256 C 185.308 256 128 198.692 128 128 Z M 0 0 C 70.692 0 128 57.308 128 128 C 57.308 128 0 70.692 0 0 Z M 256 0 C 256 70.692 198.692 128 128 128 C 128 57.308 185.308 0 256 0 Z"/></svg>
+        <span class="brand-copy"><strong>a-stock</strong><small>智能研究台</small></span>
+      </a>
+
+      <form id="stock-search" class="search-form" role="search" autocomplete="off">
+        <label class="sr-only" for="stock-query">股票代码或名称</label>
+        <i data-lucide="search" aria-hidden="true"></i>
+        <input id="stock-query" name="q" type="search" inputmode="search"
+               placeholder="股票代码 / 名称" maxlength="20" aria-autocomplete="list"
+               aria-controls="search-results" aria-expanded="false">
+        <button id="search-submit" class="primary-command" type="submit" aria-label="研究股票" title="研究股票">
+          <span>研究</span><i data-lucide="arrow-right" aria-hidden="true"></i>
+        </button>
+        <div id="search-results" class="search-results" role="listbox" hidden></div>
+      </form>
+
+      <div class="header-status">
+        <span id="finrobot-status" class="status-chip" data-tone="muted"><span class="status-dot"></span>FinRobot 未配置</span>
+        <span id="finrobot-model-status" class="status-chip model-status" data-tone="muted" aria-live="polite" title="正在读取可用模型"><span class="status-dot"></span>模型：读取中</span>
+        <button id="refresh-data" class="icon-button" type="button" aria-label="刷新当前股票" title="刷新当前股票" disabled>
+          <i data-lucide="refresh-cw" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="workbench-context"><a href="/"><i data-lucide="arrow-left" aria-hidden="true"></i>返回首页</a><span>研究工作台</span><small>行情 · 证据 · 判断</small></div>
+
+  <main id="workspace" class="workspace" tabindex="-1">
+    <section class="security-overview" aria-labelledby="security-name">
+      <div class="security-identity">
+        <div class="security-title-line">
+          <h1 id="security-name">等待选择股票</h1>
+          <span id="security-code" class="security-code">------</span>
+          <span id="market-badge" class="market-badge">A 股</span>
+        </div>
+        <p id="quote-time" class="quote-time">数据日期 --</p>
+      </div>
+      <div class="price-block" aria-label="最新行情">
+        <strong id="latest-price">--</strong>
+        <span id="price-change" class="price-change">-- / --</span>
+      </div>
+      <dl class="quote-strip">
+        <div><dt>今开</dt><dd id="quote-open">--</dd></div>
+        <div><dt>最高</dt><dd id="quote-high">--</dd></div>
+        <div><dt>最低</dt><dd id="quote-low">--</dd></div>
+        <div><dt>昨收</dt><dd id="quote-previous">--</dd></div>
+        <div><dt>换手率</dt><dd id="quote-turnover">--</dd></div>
+        <div><dt>成交额</dt><dd id="quote-amount">--</dd></div>
+        <div><dt>市盈率 TTM</dt><dd id="quote-pe">--</dd></div>
+        <div><dt>市净率</dt><dd id="quote-pb">--</dd></div>
+      </dl>
+      <div class="quality-summary">
+        <div class="quality-score" aria-label="数据质量评分">
+          <span id="quality-score">--</span><small>/ 100</small>
+        </div>
+        <div>
+          <strong>数据质量</strong>
+          <span id="quality-label">等待数据</span>
+        </div>
+      </div>
+    </section>
+
+    <nav class="view-tabs" aria-label="研究维度" role="tablist">
+      <button class="view-tab is-active" role="tab" aria-selected="true" data-view="technical"><i data-lucide="chart-no-axes-combined"></i><span>技术分析</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="capital"><i data-lucide="landmark"></i><span>资金筹码</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="fundamentals"><i data-lucide="building-2"></i><span>基本面</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="financial"><i data-lucide="book-open"></i><span>财报分析</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="valuation"><i data-lucide="scale"></i><span>估值预期</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="cycle"><i data-lucide="refresh-cw"></i><span>周期研究</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="uzi"><i data-lucide="scan-search"></i><span>UZI 投研</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="events"><i data-lucide="newspaper"></i><span>事件资讯</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="sources"><i data-lucide="database"></i><span>数据来源</span></button>
+      <button class="view-tab" role="tab" aria-selected="false" data-view="finrobot"><i data-lucide="sparkles"></i><span>FinRobot 投研</span></button>
+    </nav>
+
+    <section id="workspace-state" class="workspace-state" aria-live="polite">
+      <div class="empty-state">
+        <span class="empty-icon"><i data-lucide="line-chart" aria-hidden="true"></i></span>
+        <h2>选择一只股票开始研究</h2>
+        <p class="entry-description">从行情出发，让每个判断都有依据。</p>
+        <p class="entry-hint">搜索股票代码或名称，查看技术信号、资金动向与基本面。</p>
+        <div class="quick-symbols" aria-label="常用股票">
+          <button type="button" data-symbol="600519"><strong>贵州茅台</strong><span>600519</span></button>
+          <button type="button" data-symbol="000001"><strong>平安银行</strong><span>000001</span></button>
+          <button type="button" data-symbol="300750"><strong>宁德时代</strong><span>300750</span></button>
+        </div>
+        <div class="entry-dimensions" aria-label="研究内容">
+          <span><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>技术信号</span>
+          <span><i data-lucide="landmark" aria-hidden="true"></i>资金与财务</span>
+          <span><i data-lucide="database" aria-hidden="true"></i>来源可追溯</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-content" class="view-content" aria-live="polite" hidden></section>
+  </main>
+
+  <footer class="app-footer">
+    <p>数据来自公开市场数据源，仅供学习与研究，不构成任何投资建议。</p>
+    <span id="global-status">系统就绪</span>
+  </footer>
+
+  <!-- 第三方库只提供图表和图标能力，不参与数据获取或模型调用。 -->
+  <script src="/webjars/echarts/6.1.0/dist/echarts.min.js"></script>
+  <script src="/webjars/lucide/1.16.0/dist/umd/lucide.min.js"></script>
+  <script type="module" src="/js/app.js?v=20260913-model-status"></script>
+
+</body>
+</html>

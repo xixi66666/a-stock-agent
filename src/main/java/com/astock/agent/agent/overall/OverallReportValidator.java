@@ -38,6 +38,12 @@ public final class OverallReportValidator {
             .findAndRegisterModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     public Validation validate(OverallReportDraft draft, StockResearchSnapshot snapshot) {
+        return validate(draft, snapshot, null);
+    }
+
+    /** 校验总体报告，同时纳入已声明、可追溯的补充研究证据。 */
+    public Validation validate(OverallReportDraft draft, StockResearchSnapshot snapshot,
+            SupplementalResearchEvidence evidence) {
         // 先做结构和安全检查，再做依赖快照的来源、数字和缺失限制检查。
         List<String> issues = new ArrayList<>();
         if (draft == null) {
@@ -57,37 +63,45 @@ public final class OverallReportValidator {
         }
 
         if (snapshot != null) {
-            validateSources(draft.sourceReferences(), snapshot, issues);
-            validateNumbers(text, snapshot, issues);
+            validateSources(draft.sourceReferences(), snapshot, evidence, issues);
+            validateNumbers(text, snapshot, evidence, issues);
             validateCoreLimitations(draft.conflictsAndMissingData(), snapshot, issues);
         }
         return new Validation(issues);
     }
 
     private void validateSources(List<OverallSourceReference> references,
-            StockResearchSnapshot snapshot, List<String> issues) {
+            StockResearchSnapshot snapshot, SupplementalResearchEvidence evidence,
+            List<String> issues) {
         // 引用必须指向快照真实存在的分区，Provider 也必须与该分区 provenance 一致。
         Map<String, DataSection<?>> sections = sections(snapshot);
         for (OverallSourceReference reference : references) {
-            if (reference == null || !sections.containsKey(reference.section())) {
-                add(issues, "UNKNOWN_SOURCE_REFERENCE");
-                continue;
+            if (reference != null && sections.containsKey(reference.section())) {
+                DataSection<?> section = sections.get(reference.section());
+                String provider = section == null ? null
+                        : section.provenance().map(p -> p.provider()).orElse(null);
+                if (provider != null && provider.equals(reference.provider())) continue;
             }
-            DataSection<?> section = sections.get(reference.section());
-            if (section == null) {
-                add(issues, "UNKNOWN_SOURCE_REFERENCE");
-                continue;
-            }
-            String provider = section.provenance().map(p -> p.provider()).orElse(null);
-            if (provider == null || !provider.equals(reference.provider())) {
-                add(issues, "UNKNOWN_SOURCE_REFERENCE");
-            }
+            if (!matchesSupplementalSource(reference, evidence)) add(issues, "UNKNOWN_SOURCE_REFERENCE");
         }
     }
 
-    private void validateNumbers(String text, StockResearchSnapshot snapshot, List<String> issues) {
+    private boolean matchesSupplementalSource(OverallSourceReference reference,
+            SupplementalResearchEvidence evidence) {
+        if (evidence == null || reference == null) return false;
+        return evidence.sourceReferences().stream().anyMatch(source -> source != null
+                && java.util.Objects.equals(source.section(), reference.section())
+                && java.util.Objects.equals(source.provider(), reference.provider())
+                && java.util.Objects.equals(source.sourceUrl(), reference.sourceUrl())
+                && java.util.Objects.equals(source.fetchedAt(), reference.fetchedAt()));
+    }
+
+    private void validateNumbers(String text, StockResearchSnapshot snapshot,
+            SupplementalResearchEvidence evidence, List<String> issues) {
         Set<String> supported = snapshotNumbers(snapshot);
+        if (evidence != null) collectNumbers(evidence.facts(), supported);
         Set<String> supportedDates = snapshotDateTokens(snapshot);
+        if (evidence != null) collectDateTokens(evidence.facts().toString(), supportedDates);
         StringBuilder withoutDates = new StringBuilder();
         Matcher dates = DATE_TOKEN.matcher(text);
         int last = 0;

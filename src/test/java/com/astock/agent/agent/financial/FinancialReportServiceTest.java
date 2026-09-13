@@ -97,6 +97,7 @@ class FinancialReportServiceTest {
         FinancialReportAnalysis analysis = service.generate("600519");
 
         assertThat(analysis.generationMode()).isEqualTo(GenerationMode.MODEL_ASSISTED);
+        assertThat(analysis.modelName()).isEqualTo("deepseek-chat");
         assertThat(analysis.diagnostic()).isNull();
     }
 

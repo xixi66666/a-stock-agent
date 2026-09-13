@@ -18,20 +18,20 @@ class NamedChatClientRegistryTest {
                 Map.of(
                         "primary", new NamedChatClientRegistry.NamedModel(primary, "gpt-test"),
                         "deepseek", new NamedChatClientRegistry.NamedModel(deepseek, "deepseek-chat")),
-                Map.of("institutional-report", "primary", "overall-report", "deepseek"));
+                Map.of("institutional-report", "primary", "finrobot-research", "deepseek"));
 
         assertThat(registry.forRole("institutional-report").orElseThrow().client()).isSameAs(primary);
-        assertThat(registry.forRole("overall-report").orElseThrow().client()).isSameAs(deepseek);
-        assertThat(registry.forRole("overall-report").orElseThrow().modelName()).isEqualTo("deepseek-chat");
+        assertThat(registry.forRole("finrobot-research").orElseThrow().client()).isSameAs(deepseek);
+        assertThat(registry.forRole("finrobot-research").orElseThrow().modelName()).isEqualTo("deepseek-chat");
     }
 
     @Test
     void missingRoleIsUnavailableWithoutDisablingOtherRoles() {
         NamedChatClientRegistry registry = new NamedChatClientRegistry(Map.of(),
-                Map.of("institutional-report", "primary", "overall-report", "deepseek"));
+                Map.of("institutional-report", "primary", "finrobot-research", "deepseek"));
 
-        assertThat(registry.forRole("overall-report")).isEmpty();
-        assertThat(registry.availability("overall-report")).isEqualTo(AgentAvailability.DISABLED_CONFIGURATION_MISSING);
+        assertThat(registry.forRole("finrobot-research")).isEmpty();
+        assertThat(registry.availability("finrobot-research")).isEqualTo(AgentAvailability.DISABLED_CONFIGURATION_MISSING);
     }
 
     @Test
@@ -42,9 +42,9 @@ class NamedChatClientRegistryTest {
                 Map.of(
                         "primary", new NamedChatClientRegistry.NamedModel(primary, "gpt-5"),
                         "mimo", new NamedChatClientRegistry.NamedModel(mimo, "mimo-v2.5-pro")),
-                Map.of("overall-report", "mimo"));
+                Map.of("finrobot-research", "mimo"));
 
-        assertThat(registry.availableModels("overall-report"))
+        assertThat(registry.availableModels("finrobot-research"))
                 .extracting(
                         NamedChatClientRegistry.ModelReference::id,
                         NamedChatClientRegistry.ModelReference::modelName,
@@ -52,7 +52,7 @@ class NamedChatClientRegistryTest {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("mimo", "mimo-v2.5-pro", true),
                         org.assertj.core.groups.Tuple.tuple("primary", "gpt-5", false));
-        assertThat(registry.modelIdForRole("overall-report")).contains("mimo");
+        assertThat(registry.modelIdForRole("finrobot-research")).contains("mimo");
     }
 
     @Test

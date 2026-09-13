@@ -1,5 +1,15 @@
 # Background footage
 
+## Forest research background
+
+`forest-workbench.jpg` is a 1600×1000 JPEG frame captured from the homepage
+video supplied in the user's design reference on 2026-09-13. The workbench
+serves the still locally to preserve visual continuity without video playback.
+
+Source: https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4
+
+## Earlier sunset assets
+
 - Title: Bright orange sunset on beach
 - Creator: asadphoto (as credited on the item page)
 - Source: https://mixkit.co/free-stock-video/bright-orange-sunset-on-beach-2168/

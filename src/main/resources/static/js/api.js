@@ -30,6 +30,14 @@ async function request(path, options = {}) {
 }
 
 export const stockApi = {
+  uziStatus(signal) { return request('/api/uzi/status', { signal }); },
+  uziModels(signal) { return request('/api/uzi/models', { signal }); },
+  latestUzi(code, signal) { return request(`/api/uzi/latest/${encodeURIComponent(code)}`, { signal }); },
+  uziTask(id, signal) { return request(`/api/uzi/tasks/${encodeURIComponent(id)}`, { signal }); },
+  startUzi(code, depth, school, signal) {
+    return request('/api/uzi/tasks', { method: 'POST', signal,
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, depth, school }) });
+  },
   cycleModels(signal) { return request('/api/agent/cycle/models', { signal }); },
   latestCycle(code, signal) { return request(`/api/agent/cycle/latest/${encodeURIComponent(code)}`, { signal }); },
   cycleTask(id, signal) { return request(`/api/agent/cycle/tasks/${encodeURIComponent(id)}`, { signal }); },
@@ -52,30 +60,15 @@ export const stockApi = {
   sources(code) {
     return request(`/api/stocks/${encodeURIComponent(code)}/sources`);
   },
-  agentStatus() {
-    return request("/api/agent/status");
+  finRobotStatus() {
+    return request("/api/finrobot/status");
   },
-  analyze(code) {
-    // 研究报告固定走 institutional-report 后端角色，不携带总体报告的 modelId。
-    return request("/api/agent/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
+  finRobotModels() {
+    return request("/api/finrobot/models");
   },
-  quantReport(code) {
-    return request("/api/agent/quant-report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
-  },
-  overallModels() {
-    return request("/api/agent/models?capability=overall-report");
-  },
-  overallReport(code, modelId) {
-    // 总体报告才把用户选择的命名模型 ID 传给服务端；浏览器不接触密钥和 Base URL。
-    return request("/api/agent/overall-report", {
+  finRobotResearch(code, modelId) {
+    // FinRobot 是页面唯一的投研流水线；浏览器只发送安全的模型 ID。
+    return request("/api/finrobot/research", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, modelId }),

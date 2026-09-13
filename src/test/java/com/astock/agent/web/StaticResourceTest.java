@@ -33,7 +33,7 @@ class StaticResourceTest {
 
         assertThat(html)
                 .contains("A 股智能研究台")
-                .contains("data-view=\"technical\"")
+                .contains("开始研究")
                 .doesNotContain("book-knowledge");
     }
 
@@ -63,11 +63,11 @@ class StaticResourceTest {
         assertThat(script)
                 .contains("stockApi.snapshot")
                 .contains("data-symbol")
-                .contains("selectedModelId");
+                .contains("selectedFinRobotModelId");
     }
 
     @Test
-    void servesIndependentOverallReportApiModule() throws Exception {
+    void servesFinRobotResearchApiModule() throws Exception {
         String script = mvc.perform(get("/js/api.js"))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -75,14 +75,16 @@ class StaticResourceTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(script)
-                .contains("overallModels()")
-                .contains("overallReport(code, modelId)")
-                .contains("/api/agent/models?capability=overall-report")
-                .contains("/api/agent/overall-report");
+                .contains("finRobotModels()")
+                .contains("finRobotResearch(code, modelId)")
+                .contains("/api/finrobot/models")
+                .contains("/api/finrobot/research")
+                .doesNotContain("/api/agent/quant-report")
+                .doesNotContain("/api/agent/analyze");
     }
 
     @Test
-    void servesIndependentOverallReportViewTemplate() throws Exception {
+    void servesFinRobotViewTemplate() throws Exception {
         String script = mvc.perform(get("/js/views.js"))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -90,11 +92,9 @@ class StaticResourceTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(script)
-                .contains("run-overall-report")
-                .contains("overall-model-select")
-                .contains("overall-report-output")
-                .contains("run-agent")
-                .contains("agent-output")
+                .contains("finrobot-model-select")
+                .contains("finrobot-output")
+                .contains("run-finrobot")
                 .doesNotContain("DeepSeek 总体报告");
     }
 

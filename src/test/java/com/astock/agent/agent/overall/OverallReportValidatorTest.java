@@ -7,6 +7,7 @@ import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
 import com.astock.agent.marketdata.model.Provenance;
 import com.astock.agent.marketdata.model.SecurityId;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Instant;
@@ -149,6 +150,26 @@ class OverallReportValidatorTest {
         OverallReportValidator.Validation result = new OverallReportValidator().validate(draft, snapshot);
 
         assertThat(result.issues()).doesNotContain("UNSUPPORTED_NUMBER");
+    }
+
+    @Test
+    void acceptsNumbersDatesAndSourcesFromSupplementalEvidence() throws Exception {
+        StockResearchSnapshot snapshot = StockResearchSnapshot.empty(SecurityId.parse("600519"));
+        Instant observedAt = Instant.parse("2025-01-02T00:00:00Z");
+        OverallSourceReference source = new OverallSourceReference(
+                "uzi:earningsForecast", "uzi-test", "https://example.test/uzi", observedAt);
+        SupplementalResearchEvidence evidence = new SupplementalResearchEvidence(
+                "UZI", new ObjectMapper().readTree(
+                        "{\"forecast\":123.45,\"asOf\":\"2025-01-02\"}"),
+                List.of(source), List.of());
+        OverallReportDraft draft = validDraft(
+                "补充预测为123.45，观察日期为2025-01-02",
+                List.of(source), "仅供学习研究，不构成投资建议");
+
+        OverallReportValidator.Validation result = new OverallReportValidator()
+                .validate(draft, snapshot, evidence);
+
+        assertThat(result.issues()).isEmpty();
     }
 
     @Test

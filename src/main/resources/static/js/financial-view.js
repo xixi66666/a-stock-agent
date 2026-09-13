@@ -190,11 +190,14 @@ function renderDiagnostic(diagnostic) {
 export function renderFinancialReport(report) {
   if (!report) return '<p class="muted">暂无财报分析结果。</p>';
   const modeMeta = MODE_META[report.generationMode] || { status: "DEGRADED", label: "报告状态未知" };
+  const generationLabels = { MODEL_ASSISTED: "模型生成", DETERMINISTIC_FALLBACK: "确定性回退" };
+  const generationLabel = generationLabels[report.generationMode] || "报告状态未知";
   const industryNote = report.financialIndustry
     ? '<p class="muted financial-note">金融行业:毛利率与资产周转率信号不适用传统口径。</p>' : "";
   return `<article class="financial-report">
     <header class="financial-report-header">
       <div>
+        <p class="generation-line">生成模式：${escapeText(generationLabel)} · 模型：${escapeText(report.modelName || "未配置")}</p>
         <span class="source-status" data-status="${escapeText(modeMeta.status)}"><span></span>${escapeText(modeMeta.label)}</span>
         <h3>${escapeText(report.securityCode || "")} 财报分析</h3>
       </div>

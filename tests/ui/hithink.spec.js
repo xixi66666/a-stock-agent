@@ -15,7 +15,7 @@ test('HiThink primary keeps missing quote fields empty and discloses dividend so
     legacyCapital:{status:'UNAVAILABLE',issues:['原筹码来源不可用']},
   },dragonTigerRecords:[{date:'2026-09-11',reason:'偏离值',netBuyYuan:123456.78,turnoverPercent:null}]},provenance:dividends.provenance,issues:[]};
   await page.route('**/api/**',route => route.fulfill({json:route.request().url().includes('/snapshot')?snapshot:{status:'UNAVAILABLE',enabled:false}}));
-  await page.goto('/');
+  await page.goto('/workbench.html');
   await page.locator('[data-symbol="600519"]').click();
   await expect(page.locator('#quote-pe')).toHaveText('--');
   await expect(page.locator('#quote-pb')).toHaveText('--');
@@ -40,7 +40,7 @@ for (const viewport of [{width:1440,height:1000},{width:1024,height:768},{width:
       if (route.request().url().includes('/snapshot')) return route.fulfill({json:snapshot});
       return route.fulfill({json:{status:'UNAVAILABLE',enabled:false,issues:['offline']}});
     });
-    await page.goto('/');
+    await page.goto('/workbench.html');
     await page.locator('[data-symbol="600519"]').click();
     await page.getByRole('tab',{name:'估值预期'}).click();
     const block = page.locator('.hithink-valuation');
@@ -65,7 +65,7 @@ test('financial report discloses fallback source and missing annual fields', asy
     if (route.request().url().includes('/financial-report')) return route.fulfill({json:data});
     return route.fulfill({json:{status:'UNAVAILABLE',enabled:false,issues:['offline']}});
   });
-  await page.goto('/');
+  await page.goto('/workbench.html');
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole('tab',{name:'财报分析'}).click();
   await page.getByRole('button',{name:'生成财报分析'}).click();
