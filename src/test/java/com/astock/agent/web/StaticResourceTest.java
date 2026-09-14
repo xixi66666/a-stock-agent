@@ -63,7 +63,8 @@ class StaticResourceTest {
         assertThat(script)
                 .contains("stockApi.snapshot")
                 .contains("data-symbol")
-                .contains("selectedFinRobotModelId");
+                .contains("getSelectedModelId")
+                .contains("model-picker");
     }
 
     @Test
@@ -79,8 +80,25 @@ class StaticResourceTest {
                 .contains("finRobotResearch(code, modelId)")
                 .contains("/api/finrobot/models")
                 .contains("/api/finrobot/research")
+                .contains("aiApi")
+                .contains("/api/ai/models")
                 .doesNotContain("/api/agent/quant-report")
                 .doesNotContain("/api/agent/analyze");
+    }
+
+    @Test
+    void servesModelSelectionModule() throws Exception {
+        String script = mvc.perform(get("/js/model-selection.js"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(script)
+                .contains("astock.selectedModelId")
+                .contains("getSelectedModelId")
+                .contains("setSelectedModelId")
+                .doesNotContain("apiKey");
     }
 
     @Test
@@ -92,7 +110,7 @@ class StaticResourceTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(script)
-                .contains("finrobot-model-select")
+                .doesNotContain("finrobot-model-select")
                 .contains("finrobot-output")
                 .contains("run-finrobot")
                 .doesNotContain("DeepSeek 总体报告");

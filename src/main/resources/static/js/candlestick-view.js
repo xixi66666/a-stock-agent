@@ -6,7 +6,7 @@
  * FORM: 现有技术页的 Operate 模式扩展；不改变全局视觉系统。
  */
 import { sectionIssues, sectionPayload } from "./api.js";
-import { renderPreviousSession } from "./previous-session-view.js?v=20260911-quotes";
+import { renderPreviousSession } from "./previous-session-view.js?v=20260914-timeframe";
 
 const directionLabels = { BULLISH: "看涨警告", BEARISH: "看跌警告", NEUTRAL: "暂无方向" };
 const trendLabels = { UP: "上升", DOWN: "下降", SIDEWAYS: "横向", INSUFFICIENT: "样本不足" };
@@ -109,7 +109,7 @@ function methodology(analysis, provenance) {
 
 export function renderCandlestickWorkbench(section, { timeframe = "DAILY", loading = false } = {}) {
   const analysis = sectionPayload(section);
-  const body = loading ? loadingPanel(timeframe) : !analysis ? unavailablePanel(section, timeframe) : `${timeframeControls(timeframe)}${renderPreviousSession(analysis.previousSession, section)}${summary(analysis)}<div class="candlestick-primary-grid"><nav class="candlestick-signal-list" aria-label="近期蜡烛图形态">${(analysis.signals || []).map((signal, index) => signalButton(signal, index === 0)).join("") || '<p class="candlestick-inline-empty">近期无严格命名形态</p>'}</nav><div class="candlestick-detail-slot">${signalDetail(analysis.signals?.[0], analysis.asOf)}</div></div>${confluenceFactors(analysis)}${riskAndLevels(analysis)}${methodology(analysis, section?.provenance)}`;
+  const body = loading ? loadingPanel(timeframe) : !analysis ? unavailablePanel(section, timeframe) : `${timeframeControls(timeframe)}${renderPreviousSession(analysis.previousSession, section, timeframe)}${summary(analysis)}<div class="candlestick-primary-grid"><nav class="candlestick-signal-list" aria-label="近期蜡烛图形态">${(analysis.signals || []).map((signal, index) => signalButton(signal, index === 0)).join("") || '<p class="candlestick-inline-empty">近期无严格命名形态</p>'}</nav><div class="candlestick-detail-slot">${signalDetail(analysis.signals?.[0], analysis.asOf)}</div></div>${confluenceFactors(analysis)}${riskAndLevels(analysis)}${methodology(analysis, section?.provenance)}`;
   return `<section class="candlestick-workbench" aria-labelledby="candlestick-title"><header class="candlestick-heading"><div><span>OHLCV · EVIDENCE FIRST</span><h2 id="candlestick-title">尼森蜡烛图研判</h2><p>形态是趋势变化的警告；结论必须经过位置、确认、结构与多技术证据复核。</p></div>${analysis?.completion?.latestPeriodComplete === false ? `<span class="candlestick-period-warning"><i data-lucide="clock-3" aria-hidden="true"></i>${escapeHtml(analysis.completion.note)}</span>` : ""}</header><div class="candlestick-body">${body}</div></section>`;
 }
 

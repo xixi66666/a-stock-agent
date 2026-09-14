@@ -6,6 +6,7 @@ import com.astock.agent.marketdata.model.FundFlow;
 import com.astock.agent.marketdata.model.IndustryPeerQuote;
 import com.astock.agent.marketdata.model.NewsItem;
 import com.astock.agent.marketdata.model.Provenance;
+import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.ResearchItem;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.marketdata.model.Sector;
@@ -153,7 +154,7 @@ public final class EastmoneyResearchClient {
             for (JsonNode item : root.path("holders")) {
                 holders.add(new CapitalData.ShareholderChange(
                         date(text(item, "END_DATE")), decimal(item, "HOLDER_NUM"),
-                        decimal(item, "HOLDER_NUM_RATIO"), decimal(item, "AVG_FREE_SHARES")));
+                        decimal(item, "HOLDER_NUM_RATIO"), decimal(item, "AVG_HOLD_NUM")));
             }
             List<CapitalData.UnlockRecord> unlocks = new ArrayList<>();
             for (JsonNode item : root.path("unlocks")) {
@@ -197,6 +198,81 @@ public final class EastmoneyResearchClient {
         URI uri = URI.create("https://push2.eastmoney.com/api/qt/slist/get?fltt=2&invt=2&spt=3&pi=0&pz=200&po=1"
                 + "&fields=f12,f14,f3,f128&secid=" + security.eastmoneySecId());
         return parseSectorsSection(http.get(ProviderId.EASTMONEY, uri, "https://quote.eastmoney.com/").utf8Text(), security);
+    }
+
+    public DataSection<Quote> fetchQuote(SecurityId security) {
+        ensureLiveClient();
+        URI uri = URI.create("https://push2.eastmoney.com/api/qt/stock/get?fltt=2&invt=2&fields="
+                + "f43,f44,f45,f46,f47,f48,f50,f51,f52,f57,f58,f60,f86,f116,f117,f164,f167,f168,f169,f170,f171"
+                + "&secid=" + security.eastmoneySecId());
+        try {
+            Quote quote = parseQuote(http.get(ProviderId.EASTMONEY, uri,
+                    "https://quote.eastmoney.com/").utf8Text(), security);
+            return DataSection.healthy(quote, provenance(uri));
+        } catch (Exception exception) {
+            return DataSection.unavailable("Eastmoney quote failed: " + exception.getMessage());
+        }
+    }
+
+    /** Field mapping verified 2026-09-14 against Tencent for 600519; f164 is PE TTM, f162 is a different measure. */
+    public Quote parseQuote(String body, SecurityId security) {
+        try {
+            JsonNode data = MAPPER.readTree(body).path("data");
+            if (!security.code().equals(data.path("f57").asText())) {
+                throw new IllegalArgumentException("Eastmoney quote identity mismatch");
+            }
+            BigDecimal price = positive(data, "f43");
+            BigDecimal previous = positive(data, "f60");
+            BigDecimal open = positive(data, "f46");
+            BigDecimal high = positive(data, "f44");
+            BigDecimal low = positive(data, "f45");
+            if (high.compareTo(open.max(price)) < 0 || low.compareTo(open.min(price)) > 0) {
+                throw new IllegalArgumentException("Eastmoney quote OHLC relationship invalid");
+            }
+            return new Quote(security, data.path("f58").asText(null), price, previous, open, high, low,
+                    number(data, "f169"), number(data, "f170"),
+                    multiply(data, "f47", new BigDecimal("100")), number(data, "f48"),
+                    number(data, "f168"), number(data, "f171"), number(data, "f50"),
+                    number(data, "f164"), null, number(data, "f167"),
+                    number(data, "f116"), number(data, "f117"),
+                    number(data, "f51"), number(data, "f52"), quoteTime(data, "f86"));
+        } catch (IllegalArgumentException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Unable to parse Eastmoney quote", exception);
+        }
+    }
+
+    private static BigDecimal positive(JsonNode data, String field) {
+        BigDecimal value = number(data, field);
+        if (value == null || value.signum() <= 0) {
+            throw new IllegalArgumentException("Missing Eastmoney price field " + field);
+        }
+        return value;
+    }
+
+    private static BigDecimal number(JsonNode data, String field) {
+        JsonNode node = data.path(field);
+        if (node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (!node.isNumber()) {
+            throw new IllegalArgumentException("Non-numeric Eastmoney field " + field);
+        }
+        return node.decimalValue();
+    }
+
+    private static BigDecimal multiply(JsonNode data, String field, BigDecimal factor) {
+        BigDecimal value = number(data, field);
+        return value == null ? null : value.multiply(factor);
+    }
+
+    private static Instant quoteTime(JsonNode data, String field) {
+        JsonNode node = data.path(field);
+        if (node.isMissingNode() || node.isNull() || !node.isIntegralNumber() || node.asLong() <= 0) {
+            return null;
+        }
+        return Instant.ofEpochSecond(node.asLong());
     }
 
     public DataSection<List<IndustryPeerQuote>> fetchIndustryPeers(Sector industry) {

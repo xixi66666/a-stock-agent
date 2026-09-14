@@ -1,4 +1,5 @@
 import { stockApi } from './api.js';
+import { getSelectedModelId } from './model-selection.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
 const date = value => value && Number.isFinite(Date.parse(value))
@@ -44,7 +45,7 @@ function renderBundle(task) {
 
 /** UZI 独立研究页：离开标签时停止轮询，后台任务可从 latest 恢复。 */
 export function activateUziView(root, code) {
-  let disposed = false, timer = null, task = null, models = [], status = null;
+  let disposed = false, timer = null, task = null, status = null;
   let depth = 'medium', school = '', busy = true, error = '';
   const controller = new AbortController();
   const signal = controller.signal;
@@ -58,7 +59,6 @@ export function activateUziView(root, code) {
       <div class="uzi-runtime" data-ready="${status?.enabled === true}"><span class="uzi-status-dot"></span>${escape(statusText)} · ${escape(status?.python || 'python')}</div></div>
       <div class="uzi-actions"><label for="uzi-depth">分析深度</label><select id="uzi-depth" ${busy || running ? 'disabled' : ''}><option value="lite" ${depth === 'lite' ? 'selected' : ''}>Lite · 快速</option><option value="medium" ${depth === 'medium' ? 'selected' : ''}>Medium · 标准</option><option value="deep" ${depth === 'deep' ? 'selected' : ''}>Deep · 完整</option></select>
         <label for="uzi-school">投资流派</label><select id="uzi-school" ${busy || running ? 'disabled' : ''}><option value="">自动/不指定</option>${'ABCDEFGHI'.split('').map(value => `<option value="${value}" ${school === value ? 'selected' : ''}>${value} 流派</option>`).join('')}</select>
-        <span class="uzi-model">模型：${escape(task?.modelName || models.find(model => model.defaultModel)?.modelName || '由本地 UZI 配置决定')}</span>
         <button id="run-uzi" class="primary-command" type="button" ${busy || running || status?.enabled !== true ? 'disabled' : ''}>${running ? '研究进行中' : task ? '重新运行 UZI 投研' : '运行 UZI 投研'}</button></div>
       <p id="uzi-progress" role="status">${escape(error || (busy && !task ? '正在加载 UZI 环境和历史任务…' : task?.stage || (status?.enabled === false ? `UZI 暂不可运行：${statusText}` : '按需运行，Deep 模式可能需要较长时间。')))}</p>
       <div id="uzi-output" ${running ? 'aria-busy="true"' : ''}>${task?.status === 'COMPLETED' && task.bundle ? renderBundle(task) : task?.status === 'FAILED' ? `<div class="uzi-empty" role="alert"><h3>UZI 研究未完成</h3><p>${escape(task.error || error || '请检查 UZI 安装、数据源和模型配置')}</p></div>` : running ? `<div class="uzi-empty"><h3>${escape(task.stage)}</h3><p>研究任务在后台运行，切换标签后可以回来继续查看。</p></div>` : '<div class="uzi-empty"><h3>从 22 个维度建立研究底稿</h3><p>先完成环境准备，再运行 UZI。缺失证据会保留为数据缺口，不会被页面补成估算值。</p></div>'}</div>
@@ -78,19 +78,18 @@ export function activateUziView(root, code) {
   }
   async function start() {
     busy = true; error = ''; render();
-    try { task = await stockApi.startUzi(code, depth, school || null, signal); if (!disposed) schedule(); }
+    try { task = await stockApi.startUzi(code, depth, school || null, getSelectedModelId(), signal); if (!disposed) schedule(); }
     catch (failure) { if (!disposed) error = failure.message; }
     finally { busy = false; render(); }
   }
 
   render();
-  Promise.allSettled([stockApi.uziStatus(signal), stockApi.uziModels(signal), stockApi.latestUzi(code, signal)]).then(results => {
+  Promise.allSettled([stockApi.uziStatus(signal), stockApi.latestUzi(code, signal)]).then(results => {
     if (disposed) return;
     if (results[0].status === 'fulfilled') status = results[0].value;
     else error = `UZI 环境探测失败：${results[0].reason.message}`;
-    if (results[1].status === 'fulfilled') models = Array.isArray(results[1].value) ? results[1].value : [];
-    if (results[2].status === 'fulfilled') task = results[2].value;
-    else if (results[2].reason.status !== 404) error = `历史 UZI 任务加载失败：${results[2].reason.message}`;
+    if (results[1].status === 'fulfilled') task = results[1].value;
+    else if (results[1].reason.status !== 404) error = `历史 UZI 任务加载失败：${results[1].reason.message}`;
     busy = false; render(); schedule();
   });
   return { dispose() { disposed = true; clearTimeout(timer); controller.abort(); } };

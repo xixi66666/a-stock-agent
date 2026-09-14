@@ -1,6 +1,7 @@
 package com.astock.agent.agent.financial;
 
 import com.astock.agent.agent.StockAgentTools;
+import com.astock.agent.agent.model.ModelNotAvailableException;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.agent.report.GenerationMode;
 import com.astock.agent.agent.report.ModelFailureClassifier;
@@ -71,7 +72,16 @@ public final class FinancialReportService {
     }
 
     public FinancialReportAnalysis generate(String code) {
+        return generate(code, null);
+    }
+
+    public FinancialReportAnalysis generate(String code, String modelId) {
         SecurityId security = SecurityId.parse(code);
+        Optional<NamedChatClientRegistry.NamedModel> selected = resolveModel(modelId);
+        if (modelId != null && !modelId.isBlank() && selected.isEmpty()) {
+            // 显式指定但未注册的模型必须在读取财报前拒绝，避免无意义的供应商调用。
+            throw new ModelNotAvailableException();
+        }
         DataSection<FinancialStatementHistory> section =
                 historyCache.get(security, gateway::financialHistory);
         if (section == null || section.status() == SectionStatus.UNAVAILABLE
@@ -94,7 +104,7 @@ public final class FinancialReportService {
 
         String traceId = "financial-" + UUID.randomUUID();
         long started = System.nanoTime();
-        Optional<NamedChatClientRegistry.NamedModel> model = registry.forRole(ROLE);
+        Optional<NamedChatClientRegistry.NamedModel> model = selected;
         if (model.isEmpty()) {
             return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null, null, null);
         }
@@ -123,6 +133,12 @@ public final class FinancialReportService {
             return compose(GenerationMode.DETERMINISTIC_FALLBACK, pack, section, null,
                     model.map(NamedChatClientRegistry.NamedModel::modelName).orElse(null), diagnostic);
         }
+    }
+
+    private Optional<NamedChatClientRegistry.NamedModel> resolveModel(String modelId) {
+        return modelId == null || modelId.isBlank()
+                ? registry.forRole(ROLE)
+                : registry.byId(modelId);
     }
 
     private boolean detectFinancialIndustry(String code) {

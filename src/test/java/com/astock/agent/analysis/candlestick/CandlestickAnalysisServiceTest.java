@@ -7,6 +7,7 @@ import com.astock.agent.technical.BarSeriesFactory;
 import com.astock.agent.technical.Timeframe;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -349,20 +350,63 @@ class CandlestickAnalysisServiceTest {
     }
 
     @Test
-    void previousSessionStaysDailyWhenWeeklySelectedAndRetainsUnnamedCandle() {
+    void previousSessionFollowsSelectedTimeframeInsteadOfAlwaysUsingDailyBars() {
         var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
                 Clock.fixed(Instant.parse("2026-09-08T02:00:00Z"), ZoneOffset.UTC));
-        var bars = new ArrayList<DailyBar>();
-        LocalDate end = LocalDate.parse("2026-09-07");
-        for (int i = 159; i >= 0; i--) bars.add(bar(end.minusDays(i).toString(), 99.7, 101, 99, 100, 0));
+        var bars = weekdayBars(LocalDate.parse("2024-01-02"), LocalDate.parse("2026-09-08"));
+
         var daily = reviewService.analyze(bars, Timeframe.DAILY).previousSession();
         var weekly = reviewService.analyze(bars, Timeframe.WEEKLY).previousSession();
-        assertThat(weekly).isEqualTo(daily);
-        assertThat(daily.bar().date()).isEqualTo(end);
-        assertThat(daily.shape()).isEqualTo("小实体线");
-        assertThat(daily.signals()).isEmpty();
-        assertThat(daily.volumeRatio()).isNull();
-        assertThat(daily.interpretation()).isNotBlank();
+
+        assertThat(daily.bar().date()).isEqualTo(LocalDate.parse("2026-09-07"));
+        assertThat(daily.trendEvidence()).contains("此前 5 根日线");
+        assertThat(daily.followUp()).contains("后续完整日线", "跨日");
+        assertThat(weekly.bar().date()).isEqualTo(LocalDate.parse("2026-09-04"));
+        assertThat(weekly.trendEvidence()).contains("此前 5 根周线");
+        assertThat(weekly.followUp()).contains("后续完整周线", "跨周");
+        assertThat(weekly.dateNote()).contains("自然周聚合");
+        assertThat(weekly.interpretation()).contains("周线");
+    }
+
+    @Test
+    void previousSessionAggregatesWeeklyOpenHighLowCloseVolumeAndChange() {
+        var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
+                Clock.fixed(Instant.parse("2026-09-09T02:00:00Z"), ZoneOffset.UTC));
+        var bars = weekdayBars(LocalDate.parse("2024-01-02"), LocalDate.parse("2026-09-08"));
+        // 上一完整周：2026-08-31（周一）至 2026-09-04（周五）
+        replaceBar(bars, bar("2026-08-31", 10.0, 12.0, 9.0, 11.0, 100));
+        replaceBar(bars, bar("2026-09-01", 11.0, 15.0, 10.5, 14.0, 200));
+        replaceBar(bars, bar("2026-09-02", 14.0, 14.2, 12.5, 13.0, 300));
+        replaceBar(bars, bar("2026-09-03", 13.0, 13.6, 12.0, 12.5, 400));
+        replaceBar(bars, bar("2026-09-04", 12.5, 14.5, 12.4, 13.5, 500));
+        // 再上一周周五收盘，用于验证周环比而不是日环比。
+        replaceBar(bars, bar("2026-08-28", 9.8, 10.2, 9.5, 10.0, 1_000));
+
+        var weekly = reviewService.analyze(bars, Timeframe.WEEKLY).previousSession();
+
+        assertThat(weekly.bar().date()).isEqualTo(LocalDate.parse("2026-09-04"));
+        assertThat(weekly.bar().open()).isEqualByComparingTo("10.00");
+        assertThat(weekly.bar().high()).isEqualByComparingTo("15.00");
+        assertThat(weekly.bar().low()).isEqualByComparingTo("9.00");
+        assertThat(weekly.bar().close()).isEqualByComparingTo("13.50");
+        assertThat(weekly.bar().volumeShares()).isEqualByComparingTo("1500");
+        assertThat(weekly.changePercent()).isEqualByComparingTo("35.00");
+        assertThat(weekly.locationEvidence()).contains("20 根周线区间");
+    }
+
+    @Test
+    void previousSessionUsesLastCompletedMonthlyCandleWhenMonthlySelected() {
+        var reviewService = new CandlestickAnalysisService(new BarSeriesFactory(),
+                Clock.fixed(Instant.parse("2026-09-09T02:00:00Z"), ZoneOffset.UTC));
+        var bars = weekdayBars(LocalDate.parse("2024-01-02"), LocalDate.parse("2026-09-08"));
+
+        var monthly = reviewService.analyze(bars, Timeframe.MONTHLY).previousSession();
+
+        assertThat(monthly.bar().date()).isEqualTo(LocalDate.parse("2026-08-31"));
+        assertThat(monthly.trendEvidence()).contains("此前 5 根月线");
+        assertThat(monthly.locationEvidence()).contains("20 根月线区间");
+        assertThat(monthly.dateNote()).contains("自然月聚合");
+        assertThat(monthly.interpretation()).contains("月线");
     }
 
     @Test
@@ -468,6 +512,26 @@ class CandlestickAnalysisServiceTest {
         assertThat(excerpts.get(0).path("text").asText()).isNotBlank();
         assertThat(excerpts.get(0).path("sourceLocator").asText()).startsWith("content/chapters/");
         assertThat(excerpts.get(0).path("scope").asText()).isNotBlank();
+    }
+
+    private static List<DailyBar> weekdayBars(LocalDate start, LocalDate endInclusive) {
+        List<DailyBar> bars = new ArrayList<>();
+        for (LocalDate date = start; !date.isAfter(endInclusive); date = date.plusDays(1)) {
+            if (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) continue;
+            double base = 100 + Math.floorMod(date.toEpochDay(), 17);
+            bars.add(bar(date.toString(), base, base + 2, base - 2, base + 1, 1_000_000));
+        }
+        return bars;
+    }
+
+    private static void replaceBar(List<DailyBar> bars, DailyBar replacement) {
+        for (int index = 0; index < bars.size(); index++) {
+            if (bars.get(index).date().equals(replacement.date())) {
+                bars.set(index, replacement);
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Missing bar for " + replacement.date());
     }
 
     private static List<DailyBar> decliningBars(int count) {

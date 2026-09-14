@@ -42,7 +42,7 @@ public record CandlestickAnalysis(
 
     public record CompletionStatus(boolean latestPeriodComplete, LocalDate excludedDate, String note) {}
 
-    /** 最近已收盘日线复盘；previousSession 字段保留以兼容客户端，比例无定义时为 null。 */
+    /** 最近已收盘周期复盘（日线/周线/月线）；previousSession 字段保留以兼容客户端，比例无定义时为 null。 */
     public record SessionReview(
             com.astock.agent.marketdata.model.DailyBar bar,
             String candleType, String shape,

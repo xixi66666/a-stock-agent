@@ -1,0 +1,25 @@
+{
+  "models": [
+    {
+      "id": "deepseek",
+      "modelName": "deepseek-chat",
+      "defaultModel": true,
+      "roles": ["finrobot-research", "financial-report", "cycle-report", "uzi-research"],
+      "connectivity": { "state": "OK", "latencyMs": 412, "checkedAt": "2026-09-14T02:00:00Z", "errorCode": null }
+    },
+    {
+      "id": "mimo",
+      "modelName": "mimo-v2.5-pro",
+      "defaultModel": false,
+      "roles": ["finrobot-research"],
+      "connectivity": { "state": "FAILED", "latencyMs": null, "checkedAt": "2026-09-14T02:00:00Z", "errorCode": "MODEL_TIMEOUT" }
+    },
+    {
+      "id": "primary",
+      "modelName": "gpt-5",
+      "defaultModel": false,
+      "roles": ["institutional-report"],
+      "connectivity": { "state": "UNKNOWN", "latencyMs": null, "checkedAt": null, "errorCode": null }
+    }
+  ]
+}

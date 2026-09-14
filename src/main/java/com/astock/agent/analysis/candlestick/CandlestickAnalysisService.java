@@ -89,18 +89,45 @@ public final class CandlestickAnalysisService {
                 confluence, risk, levels, methodology(signals),
                 List.of("反转形态表示原趋势可能变化的警告，不保证立即形成反向趋势",
                         "形态阈值是可审计的工程化近似，不等同于书中给出的机械交易系统",
-                        "本分析仅用于研究，不构成个性化投资建议"), previousSession(dailyBars));
+                        "本分析仅用于研究，不构成个性化投资建议"), previousSession(bars, timeframe));
     }
 
-    private CandlestickAnalysis.SessionReview previousSession(List<DailyBar> dailyBars) {
+    private CandlestickAnalysis.SessionReview previousSession(List<DailyBar> completedBars, Timeframe timeframe) {
         ZonedDateTime now = ZonedDateTime.now(clock).withZoneSameInstant(CHINA);
         LocalDate today = now.toLocalDate();
         boolean includeToday = !now.toLocalTime().isBefore(DAILY_CLOSE_SAFETY_TIME);
-        // 收盘安全时间后纳入当天日线；未来日期永不纳入，供应商缺失时保留真实日期。
-        List<DailyBar> history = dailyBars.stream().filter(bar -> bar.date().isBefore(today)
+        // 完成周期已由 analyze 依据 timeframe 剔除；这里只排除未来日期，保证复盘不使用之后行情。
+        List<DailyBar> history = completedBars.stream().filter(bar -> bar.date().isBefore(today)
                         || (includeToday && bar.date().equals(today)))
                 .sorted(Comparator.comparing(DailyBar::date)).toList();
         if (history.isEmpty()) return null;
+        String period = periodLabel(timeframe);
+        String unit = switch (timeframe) {
+            case DAILY -> "日";
+            case WEEKLY -> "周";
+            case MONTHLY -> "月";
+        };
+        String within = switch (timeframe) {
+            case DAILY -> "日内";
+            case WEEKLY -> "周内";
+            case MONTHLY -> "月内";
+        };
+        String thisPeriod = switch (timeframe) {
+            case DAILY -> "当日";
+            case WEEKLY -> "当周";
+            case MONTHLY -> "当月";
+        };
+        String thatPeriod = switch (timeframe) {
+            case DAILY -> "该日";
+            case WEEKLY -> "该周";
+            case MONTHLY -> "该月";
+        };
+        String averageVolume = timeframe == Timeframe.DAILY ? "20 日均量" : "20 期均量";
+        String span = switch (timeframe) {
+            case DAILY -> "跨日";
+            case WEEKLY -> "跨周";
+            case MONTHLY -> "跨月";
+        };
         DailyBar bar = history.getLast();
         BigDecimal range = bar.high().subtract(bar.low());
         BigDecimal realBody = body(bar);
@@ -117,23 +144,23 @@ public final class CandlestickAnalysisService {
             interpretation = "开高低收相同，无法从实体与影线比例判断力量变化；仅凭无振幅不能判断停牌或涨跌停。";
         } else if (bodyRatio.doubleValue() <= 5) {
             shape = "十字线轮廓";
-            interpretation = "开收接近，日内波动未转为明显实体，该日方向推进不足；十字轮廓本身不构成反转确认。";
+            interpretation = "开收接近，" + within + "波动未转为明显实体，" + thatPeriod + "方向推进不足；十字轮廓本身不构成反转确认。";
         } else if (upperRatio.doubleValue() >= 60) {
             shape = "长上影线";
-            interpretation = "收盘未能保持日内高位，提示上方压力。";
+            interpretation = "收盘未能保持" + within + "高位，提示上方压力。";
         } else if (lowerRatio.doubleValue() >= 60) {
             shape = "长下影线";
-            interpretation = "收盘脱离日内低点，提示下探后有所承接。";
+            interpretation = "收盘脱离" + within + "低点，提示下探后有所承接。";
         } else if (bodyRatio.doubleValue() >= 70) {
             shape = "实体主导";
-            interpretation = bullish(bar) ? "实体占当日振幅较大，收盘明显高于开盘，该日买方较占优势。"
-                    : "实体占当日振幅较大，收盘明显低于开盘，该日卖方较占优势。";
+            interpretation = bullish(bar) ? "实体占" + thisPeriod + "振幅较大，收盘明显高于开盘，" + thatPeriod + "买方较占优势。"
+                    : "实体占" + thisPeriod + "振幅较大，收盘明显低于开盘，" + thatPeriod + "卖方较占优势。";
         } else if (bodyRatio.doubleValue() <= 30) {
             shape = "小实体线";
-            interpretation = "开收差相对当日振幅较小，该日方向推进有限；单日小实体不足以判定相对历史的动能收缩。";
+            interpretation = "开收差相对" + thisPeriod + "振幅较小，" + thatPeriod + "方向推进有限；单" + unit + "小实体不足以判定相对历史的动能收缩。";
         } else {
             shape = "普通实体线";
-            interpretation = "实体与影线共同构成当日波动，单根轮廓没有突出特征。";
+            interpretation = "实体与影线共同构成" + thisPeriod + "波动，单根轮廓没有突出特征。";
         }
         List<DailyBar> prior = history.subList(Math.max(0, history.size() - 21), history.size() - 1);
         BigDecimal change = prior.isEmpty() || prior.getLast().close().signum() == 0 ? null
@@ -145,71 +172,95 @@ public final class CandlestickAnalysisService {
                     .divide(total, 2, RoundingMode.HALF_UP);
         }
         String trend = switch (trendBefore(history, history.size() - 1, 5)) {
-            case UP -> "此前 5 根日线收盘趋势向上";
-            case DOWN -> "此前 5 根日线收盘趋势向下";
-            case SIDEWAYS -> "此前 5 根日线收盘趋势横向";
-            case INSUFFICIENT -> "此前日线不足 5 根，前置趋势不可判定";
+            case UP -> "此前 5 根" + period + "收盘趋势向上";
+            case DOWN -> "此前 5 根" + period + "收盘趋势向下";
+            case SIDEWAYS -> "此前 5 根" + period + "收盘趋势横向";
+            case INSUFFICIENT -> "此前" + period + "不足 5 根，前置趋势不可判定";
         };
         String location = "此前价格区间样本不足";
         if (!prior.isEmpty()) {
             BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
             BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
-            location = "此前 " + prior.size() + " 根日线区间 " + money(low) + "—" + money(high) + " 元；"
+            location = "此前 " + prior.size() + " 根" + period + "区间 " + money(low) + "—" + money(high) + " 元；"
                     + (bar.close().compareTo(high) > 0 ? "收盘位于区间上方"
                     : bar.close().compareTo(low) < 0 ? "收盘位于区间下方" : "收盘仍在区间内");
         }
         List<PatternSignal> matches = detectPatterns(history).stream()
                 .filter(signal -> signal.endDate().equals(bar.date())).toList();
         if ("长上影线".equals(shape)) {
-            interpretation = upperShadowInterpretation(bar, prior, trend, volumeRatio);
+            interpretation = upperShadowInterpretation(bar, prior, trend, volumeRatio, period, within,
+                    thisPeriod, unit, averageVolume);
         } else if ("长下影线".equals(shape)) {
-            interpretation = lowerShadowInterpretation(bar, prior, trend, volumeRatio);
+            interpretation = lowerShadowInterpretation(bar, prior, trend, volumeRatio, period, within,
+                    thisPeriod, span, averageVolume);
         } else {
-            interpretation += sessionContext(bar, prior, trend, location, volumeRatio);
+            interpretation += sessionContext(bar, prior, trend, location, volumeRatio, period, thisPeriod,
+                    unit, averageVolume);
         }
         return new CandlestickAnalysis.SessionReview(bar, type, shape, realBody, upper, lower,
                 bodyRatio, upperRatio, lowerRatio, change, volumeRatio, interpretation, trend, location,
-                "截至 " + bar.date() + " 尚无后续完整日线，跨日确认状态为未确认。价格边界判据：后续完整日线收盘严格高于 "
-                        + money(bar.high()) + " 元记为向上突破；收盘严格低于 " + money(bar.low())
-                        + " 元记为向下破位；收盘处于两者之间或等于边界，记为未突破。该判据不等同于趋势反转。",
-                "按上海时间 15:05 判断日线完成；" + (includeToday ? "已过安全时间，可纳入当天收盘日线" : "尚未到安全时间，排除当天日线")
-                        + "。复盘截至 " + bar.date()
-                        + "，不含之后行情。休市、停牌或数据滞后均可能使日期提前，请核对来源时效。", matches,
+                "截至 " + bar.date() + " 尚无后续完整" + period + "，" + span + "确认状态为未确认。价格边界判据：后续完整"
+                        + period + "收盘严格高于 " + money(bar.high()) + " 元记为向上突破；收盘严格低于 "
+                        + money(bar.low()) + " 元记为向下破位；收盘处于两者之间或等于边界，记为未突破。该判据不等同于趋势反转。",
+                previousSessionDateNote(timeframe, bar, includeToday), matches,
                 knowledge.forSessionShape(shape));
     }
 
-    /** 用复盘日之前的区间定义前高，避免把当日高点混入比较基准。 */
+    private static String periodLabel(Timeframe timeframe) {
+        return switch (timeframe) {
+            case DAILY -> "日线";
+            case WEEKLY -> "周线";
+            case MONTHLY -> "月线";
+        };
+    }
+
+    private static String previousSessionDateNote(Timeframe timeframe, DailyBar bar, boolean includeToday) {
+        String freshness = "复盘截至 " + bar.date() + "，不含之后行情。休市、停牌或数据滞后均可能使日期提前，请核对来源时效。";
+        return switch (timeframe) {
+            case DAILY -> "按上海时间 15:05 判断日线完成；"
+                    + (includeToday ? "已过安全时间，可纳入当天收盘日线" : "尚未到安全时间，排除当天日线")
+                    + "。" + freshness;
+            case WEEKLY -> "周线由日 K 按自然周聚合：首日开盘、末日收盘、最高最低取极值、成交量求和；"
+                    + "周五 15:05 前当前周未完成，排除该周 K 线。" + freshness;
+            case MONTHLY -> "月线由日 K 按自然月聚合：首日开盘、末日收盘、最高最低取极值、成交量求和；"
+                    + "当前月未结束前排除该月 K 线。" + freshness;
+        };
+    }
+
+    /** 用复盘周期之前的区间定义前高，避免把当期高点混入比较基准。 */
     private static String upperShadowInterpretation(DailyBar bar, List<DailyBar> prior,
-            String trend, BigDecimal volumeRatio) {
-        if (prior.isEmpty()) return "收盘未能保持日内高位；此前日线缺失，无法判定区间位置与压力状态。";
+            String trend, BigDecimal volumeRatio, String period, String within, String thisPeriod,
+            String unit, String averageVolume) {
+        if (prior.isEmpty()) return "收盘未能保持" + within + "高位；此前" + period + "缺失，无法判定区间位置与压力状态。";
         BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
         BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
         String assessment;
         if (bar.close().compareTo(high) > 0) {
-            assessment = "收盘已突破前高，已有越过原区间上沿的证据，但单日突破不等于持续站稳";
+            assessment = "收盘已突破前高，已有越过原区间上沿的证据，但单" + unit + "突破不等于持续站稳";
         } else if (bar.close().compareTo(low) < 0) {
             assessment = "收盘跌破此前区间低点 " + money(low) + " 元，区间支撑失守，当前结构偏弱，上方压力尚未消化";
         } else if (bar.high().compareTo(high) >= 0) {
             assessment = "冲高未站稳前高，按收盘突破判据，前高压力尚未消化";
         } else {
-            assessment = "日内最高价尚未触及前高，收盘仍在此前区间内；本次上影反映区间内上冲回落，不能归因为前高受阻";
+            assessment = within + "最高价尚未触及前高，收盘仍在此前区间内；本次上影反映区间内上冲回落，不能归因为前高受阻";
         }
-        String volume = volumeRatio == null ? "此前 20 日均量不可用，量能证据不足"
-                : "成交量为此前 20 日均量的 " + volumeRatio + " 倍，"
+        String volume = volumeRatio == null ? "此前 " + averageVolume + "不可用，量能证据不足"
+                : "成交量为此前 " + averageVolume + "的 " + volumeRatio + " 倍，"
                         + (volumeRatio.compareTo(new BigDecimal("1.20")) >= 0
                         ? "达到放量阈值（1.20 倍），但放量本身不代表压力已消化"
                         : "未达到放量阈值（1.20 倍）");
-        return "收盘未能保持日内高位；" + trend + "。此前 " + prior.size() + " 根日线前高 "
-                + money(high) + " 元，当日最高 " + money(bar.high()) + " 元、收盘 " + money(bar.close())
+        return "收盘未能保持" + within + "高位；" + trend + "。此前 " + prior.size() + " 根" + period + "前高 "
+                + money(high) + " 元，" + thisPeriod + "最高 " + money(bar.high()) + " 元、收盘 " + money(bar.close())
                 + " 元：" + assessment + "。"
-                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根日线，不足 20 根，区间判断样本有限。" : "")
-                + volume + "。当日上影压力仍未获后续收盘突破确认，"
-                + "截至 " + bar.date() + " 尚无后续完整日线，不能判定未来能否消化。";
+                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根" + period + "，不足 20 根，区间判断样本有限。" : "")
+                + volume + "。" + thisPeriod + "上影压力仍未获后续收盘突破确认，"
+                + "截至 " + bar.date() + " 尚无后续完整" + period + "，不能判定未来能否消化。";
     }
 
     private static String lowerShadowInterpretation(DailyBar bar, List<DailyBar> prior,
-            String trend, BigDecimal volumeRatio) {
-        if (prior.isEmpty()) return "收盘脱离日内低点，但此前日线缺失，支撑位置不可判定。";
+            String trend, BigDecimal volumeRatio, String period, String within, String thisPeriod,
+            String span, String averageVolume) {
+        if (prior.isEmpty()) return "收盘脱离" + within + "低点，但此前" + period + "缺失，支撑位置不可判定。";
         BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
         BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
         String assessment;
@@ -218,36 +269,38 @@ public final class CandlestickAnalysisService {
         } else if (bar.close().compareTo(low) == 0) {
             assessment = "收盘仅回到前低，尚未收回其上方，支撑修复证据不足";
         } else if (bar.close().compareTo(high) > 0) {
-            assessment = "收盘已突破前高，日内回收同时形成区间向上突破，尚不等于持续站稳";
+            assessment = "收盘已突破前高，" + within + "回收同时形成区间向上突破，尚不等于持续站稳";
         } else if (bar.low().compareTo(low) <= 0) {
-            assessment = "下探前低后收回，前低获得当日收盘层面的承接证据，尚不构成跨日守稳或反转确认";
+            assessment = "下探前低后收回，前低获得" + thisPeriod + "收盘层面的承接证据，尚不构成" + span
+                    + "守稳或反转确认";
         } else {
             assessment = "最低价未触及前低，属于区间内回落后的承接，不能据此认定前低支撑已获验证";
         }
-        return trend + "。此前 " + prior.size() + " 根日线区间 " + money(low) + "—" + money(high)
-                + " 元；当日最低 " + money(bar.low()) + " 元，收盘 " + money(bar.close()) + " 元："
-                + assessment + "。" + sessionVolumeEvidence(volumeRatio)
-                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根日线，不足 20 根，区间判断样本有限。" : "");
+        return trend + "。此前 " + prior.size() + " 根" + period + "区间 " + money(low) + "—" + money(high)
+                + " 元；" + thisPeriod + "最低 " + money(bar.low()) + " 元，收盘 " + money(bar.close()) + " 元："
+                + assessment + "。" + sessionVolumeEvidence(volumeRatio, averageVolume)
+                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根" + period + "，不足 20 根，区间判断样本有限。" : "");
     }
 
     private static String sessionContext(DailyBar bar, List<DailyBar> prior, String trend,
-            String location, BigDecimal volumeRatio) {
-        String conclusion = "此前日线缺失，无法判定区间突破";
+            String location, BigDecimal volumeRatio, String period, String thisPeriod, String unit,
+            String averageVolume) {
+        String conclusion = "此前" + period + "缺失，无法判定区间突破";
         if (!prior.isEmpty()) {
             BigDecimal high = prior.stream().map(DailyBar::high).max(BigDecimal::compareTo).orElseThrow();
             BigDecimal low = prior.stream().map(DailyBar::low).min(BigDecimal::compareTo).orElseThrow();
-            conclusion = bar.close().compareTo(high) > 0 ? "收盘已突破此前区间上沿，形成当日向上突破"
+            conclusion = bar.close().compareTo(high) > 0 ? "收盘已突破此前区间上沿，形成" + thisPeriod + "向上突破"
                     : bar.close().compareTo(low) < 0 ? "收盘跌破此前区间下沿，原区间支撑失守"
                     : "收盘仍在此前区间内，未形成区间突破";
         }
         return trend + "；" + location + "。当前结论：收盘 " + money(bar.close()) + " 元，"
-                + conclusion + "；单日区间状态不等同于趋势反转。" + sessionVolumeEvidence(volumeRatio)
-                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根日线，不足 20 根，区间判断样本有限。" : "");
+                + conclusion + "；单" + unit + "区间状态不等同于趋势反转。" + sessionVolumeEvidence(volumeRatio, averageVolume)
+                + (prior.size() < 20 ? "此前仅有 " + prior.size() + " 根" + period + "，不足 20 根，区间判断样本有限。" : "");
     }
 
-    private static String sessionVolumeEvidence(BigDecimal volumeRatio) {
-        if (volumeRatio == null) return "此前 20 日均量不可用，量能证据不足。";
-        return "成交量为此前 20 日均量的 " + volumeRatio + " 倍，"
+    private static String sessionVolumeEvidence(BigDecimal volumeRatio, String averageVolume) {
+        if (volumeRatio == null) return "此前 " + averageVolume + "不可用，量能证据不足。";
+        return "成交量为此前 " + averageVolume + "的 " + volumeRatio + " 倍，"
                 + (volumeRatio.compareTo(new BigDecimal("1.20")) >= 0
                 ? "达到放量阈值（1.20 倍），成交活跃但不能单凭成交量确认支撑或反转。"
                 : "未达到放量阈值（1.20 倍），缺少放量配合。");

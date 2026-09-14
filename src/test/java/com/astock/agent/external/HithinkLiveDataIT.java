@@ -42,10 +42,19 @@ class HithinkLiveDataIT {
         assertThat(latest.equityAttributable()).isNull();
         assertThat(valuation.payload().orElseThrow().security()).isEqualTo(security);
         assertThat(valuation.payload().orElseThrow().peTtm()).isNotNull();
+        var indices = client.fetchIndexQuotes(java.util.List.of(
+                com.astock.agent.marketdata.model.BenchmarkId.SHANGHAI_COMPOSITE,
+                com.astock.agent.marketdata.model.BenchmarkId.SHENZHEN_COMPONENT,
+                com.astock.agent.marketdata.model.BenchmarkId.CHI_NEXT));
+        assertThat(indices).hasSize(3);
+        for (var section : indices) {
+            assertThat(section.payload()).as("index quote: %s", section.issues()).isPresent();
+            assertThat(section.payload().orElseThrow().lastPoint()).isNotNull();
+        }
         var output = Path.of("target", "data-verification", "hithink-600519.json");
         Files.createDirectories(output.getParent());
         json.writerWithDefaultPrettyPrinter().writeValue(output.toFile(),
                 Map.of("quote", quote, "bars", bars, "history", history, "valuation", valuation,
-                        "dividends", dividends, "dragonTiger", dragonTiger));
+                        "dividends", dividends, "dragonTiger", dragonTiger, "indices", indices));
     }
 }

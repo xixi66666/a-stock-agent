@@ -79,6 +79,14 @@ public final class UziResearchService implements AutoCloseable {
         return registry.availableModels(ROLE);
     }
 
+    private NamedChatClientRegistry.NamedModel resolveModel(String modelId) {
+        if (modelId == null || modelId.isBlank()) {
+            return registry.forRole(ROLE).orElse(null);
+        }
+        return registry.byId(modelId)
+                .orElseThrow(com.astock.agent.agent.model.ModelNotAvailableException::new);
+    }
+
     public Status status() {
         Path root = Path.of(properties.rootPath()).toAbsolutePath().normalize();
         boolean installed = Files.isRegularFile(root.resolve("run.py"));
@@ -90,9 +98,14 @@ public final class UziResearchService implements AutoCloseable {
     }
 
     public synchronized Task start(String code, String depth, String school) {
+        return start(code, depth, school, null);
+    }
+
+    public synchronized Task start(String code, String depth, String school, String modelId) {
         String normalizedCode = validateCode(code);
         String normalizedDepth = normalizeDepth(depth);
         String normalizedSchool = normalizeSchool(school);
+        NamedChatClientRegistry.NamedModel selected = resolveModel(modelId);
         for (Job current : jobs.values()) {
             if (current.code.equals(normalizedCode) && "RUNNING".equals(current.status)) {
                 return current.view();
@@ -102,7 +115,6 @@ public final class UziResearchService implements AutoCloseable {
             jobs.values().removeIf(job -> !"RUNNING".equals(job.status));
         }
 
-        NamedChatClientRegistry.NamedModel selected = registry.forRole(ROLE).orElse(null);
         String modelName = selected == null ? "" : selected.modelName();
         Job job = new Job(normalizedCode, normalizedDepth, normalizedSchool, modelName);
         jobs.put(job.id, job);

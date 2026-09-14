@@ -19,6 +19,10 @@ body:not([data-phase]) .workbench-backdrop { height: 100%; background-position: 
 .search-form input { color: var(--ink); }
 .primary-command { border-radius: 999px; background: #232725; color: #fff; box-shadow: none; }
 .header-status .status-chip { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.08); color: rgba(255,255,255,.85); }
+.header-status .model-picker-toggle:hover { border-color: rgba(255,255,255,.4); background: rgba(255,255,255,.16); }
+.header-status .model-picker-refresh { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: #fff; border-radius: 50%; }
+.header-status .model-picker-refresh:hover { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.4); }
+.header-status .model-picker-menu { color: var(--ink); }
 .header-status .icon-button { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: #fff; border-radius: 50%; }
 .header-status .icon-button:hover:not(:disabled) { background: rgba(255,255,255,.18); }
 .workbench-context { display: flex; align-items: center; gap: 14px; width: min(1504px, calc(100% - 40px)); margin: 22px auto 0; color: #fff; font-size: 12px; }

@@ -21,6 +21,7 @@ import com.astock.agent.marketdata.provider.ProviderHealthRegistry;
 import com.astock.agent.marketdata.provider.ProviderHttpClient;
 import com.astock.agent.marketdata.provider.ProviderThrottle;
 import com.astock.agent.marketdata.provider.BenchmarkDataGateway;
+import com.astock.agent.marketdata.provider.IndexQuoteGateway;
 import com.astock.agent.marketdata.provider.baidu.BaiduKlineClient;
 import com.astock.agent.marketdata.provider.cninfo.CninfoAnnouncementClient;
 import com.astock.agent.marketdata.provider.eastmoney.EastmoneyResearchClient;
@@ -105,6 +106,18 @@ public class MarketDataConfiguration {
                 new TencentBenchmarkDataGateway(http, parser, clock));
     }
 
+    @Bean
+    IndexQuoteGateway indexQuoteGateway(
+            com.astock.agent.marketdata.provider.hithink.HithinkFinanceClient hithink,
+            BenchmarkDataGateway benchmarkDataGateway) {
+        return new com.astock.agent.analysis.HithinkIndexQuoteGateway(hithink, benchmarkDataGateway);
+    }
+
+    @Bean
+    com.astock.agent.analysis.MarketIndexService marketIndexService(IndexQuoteGateway gateway) {
+        return new com.astock.agent.analysis.MarketIndexService(gateway);
+    }
+
     @Bean BaiduKlineClient baiduKlineClient(ProviderHttpClient http, Clock clock) {
         return new BaiduKlineClient(http, clock);
     }
@@ -149,9 +162,12 @@ public class MarketDataConfiguration {
             Cache<SecurityId, DataSection<List<NewsItem>>> newsCache,
             @Qualifier("announcementCache")
             Cache<SecurityId, DataSection<List<Announcement>>> announcementCache) {
-        return new com.astock.agent.analysis.HithinkResearchGateway(new ProviderResearchGateway(
+        var providerGateway = new ProviderResearchGateway(
                 tencent, baidu, eastmoney, sina, cninfo, industryValuation,
-                researchCache, newsCache, announcementCache), hithink);
+                researchCache, newsCache, announcementCache);
+        // 行情字段冗余：腾讯补齐后仍缺的字段由东财、新浪继续补；同花顺整体不可用按同序整段回退。
+        return new com.astock.agent.analysis.HithinkResearchGateway(providerGateway, hithink, List.of(
+                providerGateway::quote, eastmoney::fetchQuote, sina::fetchQuote));
     }
 
     @Bean

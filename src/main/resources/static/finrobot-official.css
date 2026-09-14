@@ -1,0 +1,18 @@
+.official-finrobot { min-width: 0; color: var(--ink); }
+.official-finrobot h2 { margin: 6px 0 10px; font-size: 24px; }
+.official-finrobot p { color: var(--body); overflow-wrap: anywhere; }
+.official-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+.official-controls select { max-width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.official-controls button { width: auto; min-height: 40px; padding: 8px 16px; white-space: normal; }
+.official-task-status { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+.official-task-status progress { max-width: 100%; accent-color: var(--accent); }
+.official-downloads { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
+.official-downloads a { color: var(--accent); text-underline-offset: 3px; }
+.official-section { border-top: 1px solid var(--hairline); padding: 16px 0; }
+.official-section h3 { font-size: 17px; margin: 0 0 8px; }
+.official-narrative { white-space: pre-wrap; line-height: 1.8; max-width: 85ch; }
+@media (max-width: 600px) {
+  .official-controls { align-items: stretch; }
+  .official-controls label, .official-controls select { width: 100%; }
+  .official-controls button { flex: 1 1 auto; }
+}

@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const snapshot = require('./fixtures/partial-snapshot.json');
+const aiModels = require('./fixtures/ai-models.json');
 
 const bundle = {
   schema: 'uzi-bundle-v1', ticker: '600519', generatedAt: '2026-09-13T00:00:00Z',
@@ -20,14 +21,15 @@ const completed = {
 
 async function setup(page) {
   await page.route('**/api/**', route => route.fulfill({ json: { status: 'UNAVAILABLE', payload: null, issues: [] } }));
+  await page.route('**/api/ai/models', route => route.fulfill({ json: aiModels }));
+  await page.addInitScript(() => window.localStorage.setItem('astock.selectedModelId', 'deepseek'));
   await page.route('**/api/stocks/*/snapshot', route => route.fulfill({ json: { ...snapshot, security: { ...snapshot.security, code: '600519' } } }));
   await page.route('**/api/uzi/status', route => route.fulfill({ json: {
     enabled: true, installed: true, pythonAvailable: true, reason: 'READY', rootPath: 'tools/uzi/UZI-Skill', python: 'python',
   } }));
-  await page.route('**/api/uzi/models', route => route.fulfill({ json: [{ id: 'deepseek', modelName: 'test-model', defaultModel: true }] }));
   await page.route('**/api/uzi/latest/*', route => route.fulfill({ status: 404, json: { detail: '尚未生成 UZI 报告' } }));
   await page.route('**/api/uzi/tasks', route => {
-    expect(route.request().postDataJSON()).toEqual({ code: '600519', depth: 'deep', school: 'F' });
+    expect(route.request().postDataJSON()).toEqual({ code: '600519', depth: 'deep', school: 'F', modelId: 'deepseek' });
     return route.fulfill({ json: completed });
   });
   await page.goto('/workbench.html');

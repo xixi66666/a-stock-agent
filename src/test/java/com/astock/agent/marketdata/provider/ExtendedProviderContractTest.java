@@ -36,6 +36,8 @@ class ExtendedProviderContractTest {
         assertThat(capital.marginHistory()).hasSize(1);
         assertThat(capital.blockTrades()).hasSize(1);
         assertThat(capital.shareholderChanges()).hasSize(1);
+        assertThat(capital.shareholderChanges().getFirst().averageShares())
+                .isEqualByComparingTo("4217.49");
         assertThat(capital.unlocks()).hasSize(1);
         assertThat(capital.dividends()).hasSize(1);
         assertThat(capital.dragonTigerRecords()).hasSize(1);

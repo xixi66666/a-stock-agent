@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/AI4Finance-Foundation/FinRobot",
+  "commit": "6d6ccd32c1b8b1904dc656cf06897438aba3daec",
+  "sha256": {
+    "financial_data_processor.py": "c4f9f900e2935cfb4d20a4dcfafe49851ce4d2763ba12e7407f838d8e16b1e19",
+    "LICENSE": "ef3d97b5113a0f224425680aceb7a9ed3baaa4fd9aa21e8ff445cb963fddcbf5",
+    "equity_agents/agent_manager.py": "ec9117ec3bd0a2508d2ffb95de1bdb4a71f0ca4c98a0fa37416c9b5077f2d830",
+    "equity_agents/company_overview_agent.py": "99500f5098dbe1fbaaff5bf672bc922944fe35a8f3e046f46d2af24582565d15",
+    "equity_agents/competitor_analysis_agent.py": "e0f90926e358dc23b9a80eb7c2b3c3cc84f4d2b3514de524bf1db134771cdb0e",
+    "equity_agents/investment_overview_agent.py": "f81ae51d699625e5c86831219d0e6f2bfbe4ff3209fcd14623f4eba3fa10a63b",
+    "equity_agents/major_takeaways_agent.py": "d48798a5cd8db838cc74c4b8b3f6059baf587779b1d07c2f949a8564964e83fc",
+    "equity_agents/news_summary_agent.py": "e5a8950b9279d00a83e6254653384692740e7303783d01747074cf0096018b2a",
+    "equity_agents/risks_agent.py": "6fa205d8de65b099b1baf79d3113f947a74c9166b06489ae32a641c85a2df97a",
+    "equity_agents/tagline_agent.py": "d4b985279ff10f7a6faec0985331c8c4a1d651179cc75eef0623242ef380e58e",
+    "equity_agents/valuation_overview_agent.py": "ecc061b672bb620982087c20dff5103a7f6473abe4e237b3c497f40970b1eb48",
+    "equity_agents/__init__.py": "9f4ca15134a2e7bca3eb4c0b84f2a5e6fa40b5c1923b59302dd496b73912e948"
+  }
+}

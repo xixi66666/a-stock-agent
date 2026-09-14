@@ -29,14 +29,20 @@ async function request(path, options = {}) {
   return body;
 }
 
+export const aiApi = {
+  models() {
+    return request('/api/ai/models');
+  },
+};
+
 export const stockApi = {
   uziStatus(signal) { return request('/api/uzi/status', { signal }); },
   uziModels(signal) { return request('/api/uzi/models', { signal }); },
   latestUzi(code, signal) { return request(`/api/uzi/latest/${encodeURIComponent(code)}`, { signal }); },
   uziTask(id, signal) { return request(`/api/uzi/tasks/${encodeURIComponent(id)}`, { signal }); },
-  startUzi(code, depth, school, signal) {
+  startUzi(code, depth, school, modelId, signal) {
     return request('/api/uzi/tasks', { method: 'POST', signal,
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, depth, school }) });
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, depth, school, modelId }) });
   },
   cycleModels(signal) { return request('/api/agent/cycle/models', { signal }); },
   latestCycle(code, signal) { return request(`/api/agent/cycle/latest/${encodeURIComponent(code)}`, { signal }); },
@@ -74,13 +80,19 @@ export const stockApi = {
       body: JSON.stringify({ code, modelId }),
     });
   },
-  financialReport(code) {
+  financialReport(code, modelId) {
     // 财报分析固定走 financial-report 后端角色；模型失败时后端返回确定性回退内容。
     return request("/api/agent/financial-report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, modelId }),
     });
+  },
+};
+
+export const marketApi = {
+  indices() {
+    return request('/api/market/indices');
   },
 };
 

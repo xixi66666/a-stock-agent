@@ -1,4 +1,5 @@
 import { stockApi } from './api.js';
+import { getSelectedModelId } from './model-selection.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '未提供';
@@ -41,21 +42,19 @@ function renderReport(task) {
 
 /** 离开标签或切换证券时停止轮询，后台任务可从 latest 恢复。 */
 export function activateCycleView(root, code) {
-  let disposed = false, timer = null, task = null, models = [], selected = '', busy = true, error = '';
+  let disposed = false, timer = null, task = null, busy = true, error = '';
   const controller = new AbortController(), signal = controller.signal;
   function render() {
     if (disposed) return;
     const running = task?.status === 'RUNNING';
     root.innerHTML = `<section class="cycle-workbench" aria-label="周期研究">
       <div class="cycle-toolbar"><div><h2>周期研究</h2><p>结合《周期》原书与当前证据，研究盈利、估值、信贷和市场心理。</p></div>
-      <div class="cycle-actions"><label for="cycle-model">研究模型</label><select id="cycle-model" ${busy || running ? 'disabled' : ''}>
-        ${models.length ? models.map(m => `<option value="${escape(m.id)}" ${m.id === selected ? 'selected' : ''}>${escape(m.modelName)}</option>`).join('') : '<option>暂无可用模型</option>'}</select>
-        <button id="run-cycle" ${busy || (running && !error) || !models.length ? 'disabled' : ''}>${running ? error ? '重试获取进度' : '研究进行中' : task ? '重新生成周期研究' : '生成周期研究'}</button></div></div>
+      <div class="cycle-actions">
+        <button id="run-cycle" ${busy || (running && !error) ? 'disabled' : ''}>${running ? error ? '重试获取进度' : '研究进行中' : task ? '重新生成周期研究' : '生成周期研究'}</button></div></div>
       <p id="cycle-progress" role="status">${escape(error || (busy && !task ? '正在加载研究状态…' : task?.stage || '按需生成，通常需要多轮检索和阅读。'))}</p>
       <div id="cycle-output" ${running ? 'aria-busy="true"' : ''}>
-        ${task?.status === 'COMPLETED' && task.report ? renderReport(task) : task?.status === 'FAILED' ? `<div class="cycle-empty" role="alert"><h3>周期研究未完成</h3><p>${escape(task.error)}</p></div>${renderTrace(task)}` : running ? `<div class="cycle-empty"><h3>${escape(task.stage)}</h3><p>研究会逐步核对原书和市场证据。切换标签后可回来继续查看。</p></div>${renderTrace(task)}` : `<div class="cycle-empty"><h3>从证据出发，理解周期位置</h3><p>报告将分别呈现书中观点、当前事实与分析推论，保留矛盾信号和数据缺口。</p>${!models.length && !busy ? '<p>暂无可用研究模型，请先在本地配置中启用支持工具调用的模型。</p>' : ''}</div>`}
+        ${task?.status === 'COMPLETED' && task.report ? renderReport(task) : task?.status === 'FAILED' ? `<div class="cycle-empty" role="alert"><h3>周期研究未完成</h3><p>${escape(task.error)}</p></div>${renderTrace(task)}` : running ? `<div class="cycle-empty"><h3>${escape(task.stage)}</h3><p>研究会逐步核对原书和市场证据。切换标签后可回来继续查看。</p></div>${renderTrace(task)}` : `<div class="cycle-empty"><h3>从证据出发，理解周期位置</h3><p>报告将分别呈现书中观点、当前事实与分析推论，保留矛盾信号和数据缺口。</p></div>`}
       </div></section>`;
-    root.querySelector('#cycle-model').addEventListener('change', event => { selected = event.target.value; });
     root.querySelector('#run-cycle').addEventListener('click', () => running ? poll() : start());
     root.querySelectorAll('[data-cycle-chapter]').forEach(link => link.addEventListener('click', () => { root.querySelector('.cycle-trace').open = true; }));
     root.querySelectorAll('[data-cycle-evidence]').forEach(link => link.addEventListener('click', () => { root.querySelector('.cycle-evidence').open = true; }));
@@ -76,7 +75,7 @@ export function activateCycleView(root, code) {
   async function start() {
     busy = true; error = ''; render();
     try {
-      const result = await stockApi.startCycle(code, selected, signal);
+      const result = await stockApi.startCycle(code, getSelectedModelId(), signal);
       if (disposed) return;
       task = result;
       if (task.status === 'COMPLETED' && task.error) error = task.error;
@@ -85,14 +84,14 @@ export function activateCycleView(root, code) {
     finally { busy = false; render(); }
   }
   render();
-  Promise.allSettled([stockApi.cycleModels(signal), stockApi.latestCycle(code, signal)]).then(results => {
+  stockApi.latestCycle(code, signal).then(result => {
     if (disposed) return;
-    if (results[0].status === 'fulfilled') {
-      models = Array.isArray(results[0].value) ? results[0].value : [];
-      selected = models.find(m => m.defaultModel)?.id || models[0]?.id || '';
-    } else error = `模型目录加载失败：${results[0].reason.message}`;
-    if (results[1].status === 'fulfilled') { task = results[1].value; if (task.error && task.status === 'COMPLETED') error = task.error; }
-    else if (results[1].reason.status !== 404) error = `历史研究加载失败：${results[1].reason.message}`;
+    task = result;
+    if (task.error && task.status === 'COMPLETED') error = task.error;
+    busy = false; render(); schedule();
+  }).catch(failure => {
+    if (disposed) return;
+    if (failure.status !== 404) error = `历史研究加载失败：${failure.message}`;
     busy = false; render(); schedule();
   });
   return { dispose() { disposed = true; clearTimeout(timer); controller.abort(); } };

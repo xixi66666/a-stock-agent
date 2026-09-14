@@ -1,5 +1,9 @@
 # A 股智能研究台 · FinRobot 投研
 
+> FinRobot 默认入口现已接入固定版本的官方 Equity 八个专题 Agent，通过 Python Worker 执行。
+> 安装、异步任务接口、复用范围和估值限制见 [官方 FinRobot 接入说明](docs/finrobot-official.md)。
+> 下文旧同步 `/api/finrobot/research` 流程暂时保留用于迁移对照，不代表新的默认实现。
+
 新增独立的“周期研究”标签：Agent 直接加载霍华德·马克斯原始 skill，检索原书并综合研究证据。配置、接口与边界见 [周期研究模块](docs/cycle-research.md)。
 
 一个用于学习 Agent 工程实践的 Spring AI 股票研究项目。它从多个公开数据源获取真实 A 股行情与研究数据，先完成归一化、校验和技术指标计算，再把有来源证据的数据交给 FinRobot Equity Research 流水线。未配置模型时，行情、技术分析和确定性投研报告仍可独立运行。
@@ -50,7 +54,7 @@ Copy-Item config/application-local.yml.example config/application-local.yml
 cp config/application-local.yml.example config/application-local.yml
 ```
 
-编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`finrobot-research` 默认使用 `deepseek`，财报专项仍使用 `financial-report` 角色。FinRobot 投研页面会读取所有已启用且配置完整的命名模型，生成前可以选择具体模型。修改模型、角色或密钥后请重启应用。
+编辑 `config/application-local.yml` 中的 `app.ai.models`，多个 OpenAI 兼容模型可以同时启用，不需要再通过注释整段 `spring:` 配置来切换。`app.ai.roles` 将业务角色映射到命名模型：`finrobot-research` 默认使用 `deepseek`，财报专项仍使用 `financial-report` 角色。顶部有一个全局模型选择器，FinRobot（官方/旧引擎）、周期研究、UZI 投研和财报分析共用同一个选择，选择结果保存在浏览器本地；应用启动时会对每个已配置模型做一次连通性探测（每模型限时 15 秒），选择器中用绿/红/灰点显示可用、不可用与未探测。修改模型、角色或密钥后请重启应用。
 
 ```yaml
 spring:
@@ -94,7 +98,7 @@ app:
       institutional-report: primary
 ```
 
-三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK。FinRobot 页面从后端安全模型目录动态生成选择器，选择后由服务端按命名模型 ID 路由请求。浏览器只接收模型 ID、实际模型名和默认标记，不会接收 API Key、Base URL 或连接参数。模型仅负责受校验约束的投研叙述，确定性指标、估值表、资金流、来源和缺失数据由 Java 数据链路生成。
+三家供应商都通过项目现有的 Spring AI OpenAI Chat Completions 客户端连接，不需要增加额外 SDK。页面顶部的全局模型选择器消费 `GET /api/ai/models` 的安全目录，选择后由服务端按命名模型 ID 路由请求；各生成入口不再各自维护下拉框。浏览器只接收模型 ID、实际模型名、角色归属和连通性状态，不会接收 API Key、Base URL 或连接参数。模型仅负责受校验约束的投研叙述，确定性指标、估值表、资金流、来源和缺失数据由 Java 数据链路生成。
 
 | 供应商 | Base URL | 默认示例模型 | 额外配置 |
 | --- | --- | --- | --- |
@@ -170,7 +174,8 @@ flowchart LR
 | GET | `/api/stocks/{code}/technical?timeframe=DAILY` | 技术指标 |
 | GET | `/api/stocks/{code}/sources` | 来源与质量状态 |
 | GET | `/api/finrobot/status` | FinRobot 模型配置状态 |
-| GET | `/api/finrobot/models` | 获取 FinRobot 安全模型目录 |
+| GET | `/api/ai/models` | 统一模型目录：安全字段、角色归属与启动探测的连通性 |
+| GET | `/api/finrobot/models` | 获取 FinRobot 安全模型目录（兼容保留） |
 | POST | `/api/finrobot/research` | 生成完整 FinRobot 单证券投研报告；`modelId` 可选 |
 | POST | `/api/agent/financial-report` | 财报分析（F-Score 财务质量评分 + 多期趋势 + DeepSeek 叙事，失败时确定性回退） |
 | GET | `/api/system/providers` | 数据源健康状态 |

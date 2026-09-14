@@ -7,6 +7,18 @@
  */
 const { test, expect } = require("@playwright/test");
 const baseSnapshot = require("./fixtures/partial-snapshot.json");
+const aiModels = require("./fixtures/ai-models.json");
+
+async function selectModel(page, modelId) {
+  await page.locator("#model-picker-toggle").click();
+  await page.locator(`.model-picker-option[data-model-id="${modelId}"]`).click();
+  await expect(page.locator("#model-picker-label")).toContainText(modelId);
+}
+
+// 旧流程仍可通过迁移配置选择；此文件保留原有兼容性测试，新引擎另有端到端测试。
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/finrobot/runtime', route => route.fulfill({ json: { engine: 'legacy' } }));
+});
 
 const indicators = [
   ["SMA_5", "趋势", "SMA 5"], ["SMA_10", "趋势", "SMA 10"],
@@ -104,13 +116,7 @@ function candlestickSection(timeframe = "DAILY") {
 async function mockApis(page) {
   // 每个测试从同一份快照开始，单个测试只覆盖它关心的响应或请求路由。
   await page.route("**/api/finrobot/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
-  await page.route("**/api/finrobot/models", (route) => route.fulfill({ json: {
-    models: [
-      { id: "deepseek", modelName: "deepseek-chat", defaultModel: true },
-      { id: "mimo", modelName: "mimo-v2.5-pro", defaultModel: false },
-      { id: "primary", modelName: "gpt-5", defaultModel: false },
-    ],
-  } }));
+  await page.route("**/api/ai/models", (route) => route.fulfill({ json: aiModels }));
   await page.route("**/api/stocks/600519/snapshot", (route) => route.fulfill({ json: snapshot() }));
   await page.route("**/api/stocks/600519/candlestick**", (route) => {
     const timeframe = new URL(route.request().url()).searchParams.get("timeframe") || "DAILY";
@@ -272,6 +278,29 @@ test("candle remains bounded when its stylesheet is unavailable", async ({ page 
   expect(bounds.height).toBeLessThanOrEqual(180);
 });
 
+test("previous session review follows the selected timeframe", async ({ page }) => {
+  await page.goto("/workbench.html");
+  await page.locator('[data-symbol="600519"]').click();
+
+  const review = page.locator(".previous-session");
+  const timeframes = page.locator(".candlestick-timeframes");
+  await expect(review).toContainText("最近已收盘日线分析");
+  await expect(review).toContainText("成交量 / 前20日均量");
+  await expect(review.getByRole("img", { name: /日线结构/ })).toBeVisible();
+
+  await timeframes.getByRole("button", { name: "周线" }).click();
+  await expect(review).toContainText("最近已收盘周线分析");
+  await expect(review).toContainText("周线复盘");
+  await expect(review).toContainText("成交量 / 前20期均量");
+  await expect(review.getByRole("img", { name: /周线结构/ })).toBeVisible();
+  await expect(review).toContainText("该复盘按所选周期（周线）聚合展示");
+
+  await timeframes.getByRole("button", { name: "月线" }).click();
+  await expect(review).toContainText("最近已收盘月线分析");
+  await expect(review).toContainText("月线复盘");
+  await expect(review.getByRole("img", { name: /月线结构/ })).toBeVisible();
+});
+
 function finRobotResponse(overrides = {}) {
   const base = {
     status: "MODEL_ASSISTED",
@@ -321,10 +350,8 @@ test("FinRobot model can be selected per research request", async ({ page }) => 
 
   await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
+  await selectModel(page, "mimo");
   await page.getByRole("tab", { name: "FinRobot 投研" }).click();
-  const selector = page.getByLabel("FinRobot 模型");
-  await expect(selector).toHaveValue("deepseek");
-  await selector.selectOption("mimo");
   await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
 
   expect(requestBody).toEqual({ code: "600519", modelId: "mimo" });
@@ -333,14 +360,20 @@ test("FinRobot model can be selected per research request", async ({ page }) => 
   await expect(page.locator("#finrobot-output")).not.toContainText("综合得分");
 });
 
-test("FinRobot header lists available models and reports generation mode first", async ({ page }) => {
+test("model picker defaults to the catalog model and shows connectivity", async ({ page }) => {
   await page.route("**/api/finrobot/research", (route) => route.fulfill({ json: finRobotResponse() }));
 
   await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
-  const modelStatus = page.locator("#finrobot-model-status");
-  await expect(modelStatus).toContainText("deepseek-chat");
-  await expect(modelStatus).toContainText("mimo-v2.5-pro");
+  await expect(page.locator("#model-picker-label")).toContainText("deepseek · deepseek-chat");
+  await expect(page.locator("#model-picker-dot")).toHaveAttribute("data-state", "ok");
+
+  await page.locator("#model-picker-toggle").click();
+  await expect(page.locator('.model-picker-option[data-model-id="mimo"] .status-dot'))
+    .toHaveAttribute("data-state", "failed");
+  await expect(page.locator('.model-picker-option[data-model-id="mimo"] .model-picker-state'))
+    .toContainText("不可用");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("tab", { name: "FinRobot 投研" }).click();
   await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
@@ -403,7 +436,7 @@ test("FinRobot result survives view remounting and surfaces a model response fai
   await finRobotTab.click();
   await expect(page.locator("#finrobot-output")).toContainText("第一份 FinRobot 结论");
 
-  await page.getByLabel("FinRobot 模型").selectOption("mimo");
+  await selectModel(page, "mimo");
   await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
   await expect(page.locator("#finrobot-output")).toContainText("所选模型生成失败");
 });
@@ -444,15 +477,14 @@ test("FinRobot keeps deterministic research available without a configured model
     message: "没有配置可用的 FinRobot 模型，已返回确定性研究结果",
     report: { modelName: null, generationMode: "DETERMINISTIC_FALLBACK", majorTakeaways: "确定性研究结果" },
   }) }));
-  await page.unroute("**/api/finrobot/models");
-  await page.route("**/api/finrobot/models", (route) => route.fulfill({ json: { models: [] } }));
+  await page.unroute("**/api/ai/models");
+  await page.route("**/api/ai/models", (route) => route.fulfill({ json: { models: [] } }));
 
   await page.goto("/workbench.html");
   await page.locator('[data-symbol="600519"]').click();
   await page.getByRole("tab", { name: "FinRobot 投研" }).click();
-  await expect(page.getByLabel("FinRobot 模型")).toBeDisabled();
+  await expect(page.locator("#model-picker-label")).toContainText("未配置");
   await expect(page.getByRole("button", { name: "运行 FinRobot 投研" })).toBeEnabled();
-  await expect(page.locator("#finrobot-model-help")).toContainText("没有可用模型");
   await page.getByRole("button", { name: "运行 FinRobot 投研" }).click();
   await expect(page.locator("#finrobot-output")).toContainText("确定性研究回退");
   await expect(page.locator("#finrobot-output")).toContainText("确定性研究结果");
@@ -532,20 +564,20 @@ for (const viewport of [
     await page.screenshot({ path: `target/ui-screenshots/dashboard-${viewport.width}x${viewport.height}.png`, fullPage: true });
 
     await page.getByRole("tab", { name: "FinRobot 投研" }).click();
-    await expect(page.getByLabel("FinRobot 模型")).toBeVisible();
+    await expect(page.locator("#model-picker-toggle")).toBeVisible();
     const agentLayout = await page.evaluate(() => {
       const button = document.querySelector("#run-finrobot");
-      const selector = document.querySelector("#finrobot-model-select");
+      const picker = document.querySelector("#model-picker-toggle");
       return {
         scrollWidth: document.documentElement.scrollWidth,
         viewportWidth: document.documentElement.clientWidth,
         buttonFits: button.scrollWidth <= button.clientWidth + 1 && button.scrollHeight <= button.clientHeight + 1,
-        selectorFits: selector.scrollWidth <= selector.clientWidth + 1,
+        pickerFits: picker.scrollWidth <= picker.clientWidth + 1,
       };
     });
     expect(agentLayout.scrollWidth).toBeLessThanOrEqual(agentLayout.viewportWidth);
     expect(agentLayout.buttonFits).toBe(true);
-    expect(agentLayout.selectorFits).toBe(true);
+    expect(agentLayout.pickerFits).toBe(true);
     await page.screenshot({ path: `target/ui-screenshots/finrobot-${viewport.width}x${viewport.height}.png`, fullPage: true });
   });
 }

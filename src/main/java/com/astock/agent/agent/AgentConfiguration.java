@@ -6,6 +6,9 @@ import com.astock.agent.agent.finrobot.FinRobotResearchService;
 import com.astock.agent.agent.uzi.UziProperties;
 import com.astock.agent.agent.uzi.UziResearchService;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
+import com.astock.agent.agent.model.ModelConnectivityProbe;
+import com.astock.agent.agent.model.ModelConnectivityRegistry;
+import com.astock.agent.agent.model.ModelConnectivityStartupProbe;
 import com.astock.agent.agent.report.InstitutionalReportComposer;
 import com.astock.agent.agent.report.ModelFailureClassifier;
 import com.astock.agent.analysis.ResearchAggregationService;
@@ -15,6 +18,8 @@ import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.github.benmanes.caffeine.cache.Cache;
+import java.time.Clock;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +32,15 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class AgentConfiguration {
+
+    @Bean
+    com.astock.agent.agent.finrobot.OfficialFinRobotService officialFinRobotService(
+            com.astock.agent.agent.finrobot.OfficialFinRobotProperties properties,
+            com.astock.agent.agent.model.AiModelProperties models,
+            StockAgentTools tools, ResearchGateway gateway) {
+        return new com.astock.agent.agent.finrobot.OfficialFinRobotService(properties, models,
+                new com.astock.agent.agent.finrobot.OfficialFinRobotWorker(properties, tools, gateway));
+    }
 
     @Bean
     AgentStatusService agentStatusService(NamedChatClientRegistry registry) {
@@ -64,5 +78,23 @@ public class AgentConfiguration {
             Cache<SecurityId, DataSection<FinancialStatementHistory>> historyCache) {
         return new FinancialReportService(gateway, tools, registry, historyCache,
                 new FinancialReportValidator(), new ModelFailureClassifier());
+    }
+
+    @Bean
+    ModelConnectivityRegistry modelConnectivityRegistry() {
+        return new ModelConnectivityRegistry();
+    }
+
+    @Bean
+    ModelConnectivityProbe modelConnectivityProbe(NamedChatClientRegistry registry,
+            ModelConnectivityRegistry states, Clock clock) {
+        // 启动时一次性探测；每模型限时 15 秒，失败只记录状态。
+        return new ModelConnectivityProbe(registry, states, new ModelFailureClassifier(), clock,
+                Duration.ofSeconds(15));
+    }
+
+    @Bean
+    ModelConnectivityStartupProbe modelConnectivityStartupProbe(ModelConnectivityProbe probe) {
+        return new ModelConnectivityStartupProbe(probe);
     }
 }

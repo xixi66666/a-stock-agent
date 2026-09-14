@@ -155,8 +155,59 @@ public final class HithinkFinanceClient {
 
     public DataSection<List<DailyBar>> fetchBenchmarkBars(BenchmarkId benchmark) {
         if (benchmark == null) return DataSection.unavailable("基准指数未指定");
-        String code = benchmark.tencentCode();
-        return history(code.substring(2) + "." + code.substring(0,2).toUpperCase(java.util.Locale.ROOT), true);
+        return history(benchmark.hithinkCode(), true);
+    }
+
+    /** Batch index snapshot; one index failing never invalidates healthy rows. */
+    public List<DataSection<IndexQuote>> fetchIndexQuotes(List<BenchmarkId> benchmarks) {
+        if (benchmarks == null || benchmarks.isEmpty()) return List.of();
+        List<BenchmarkId> requested = List.copyOf(benchmarks);
+        if (apiKey.isBlank()) return unavailableIndices(requested, "未启用或未配置 API Key");
+        String codes = requested.stream().map(BenchmarkId::hithinkCode)
+                .collect(java.util.stream.Collectors.joining(","));
+        URI uri = base.resolve("/api/a-share-index/prices/snapshot?thscodes=" + codes);
+        try {
+            JsonNode data = get(uri);
+            Instant time = timestamp(data.path("timestamp"));
+            var rows = new java.util.LinkedHashMap<String, JsonNode>();
+            for (JsonNode row : data.path("item")) {
+                String thscode = row.path("thscode").asText("");
+                boolean known = requested.stream().anyMatch(id -> id.hithinkCode().equals(thscode));
+                if (!known) throw new ContractFailure("指数行情返回未请求的身份");
+                if (rows.put(thscode, row) != null) throw new ContractFailure("指数行情重复身份");
+            }
+            var source = new Provenance(ProviderId.HITHINK.displayName(), uri, time, clock.instant(), false, null);
+            var result = new ArrayList<DataSection<IndexQuote>>();
+            for (BenchmarkId benchmark : requested) {
+                JsonNode row = rows.get(benchmark.hithinkCode());
+                if (row == null) {
+                    result.add(DataSection.unavailable("同花顺指数行情缺少 " + benchmark.displayName()));
+                    continue;
+                }
+                try {
+                    BigDecimal last = requiredPositive(row, "last_price");
+                    BigDecimal previous = requiredPositive(row, "prev_price");
+                    var quote = new IndexQuote(benchmark, benchmark.displayName(), last, previous,
+                            number(row, "price_change"), number(row, "price_change_ratio_pct"), time);
+                    var issues = new ArrayList<String>();
+                    issues.add("同花顺指数行情源时间是数据就绪时间，不是成交时间");
+                    if (time != null && time.isBefore(clock.instant().minus(Duration.ofDays(7)))) {
+                        result.add(DataSection.stale(quote, source, issues));
+                    } else {
+                        result.add(DataSection.unverified(quote, source, issues));
+                    }
+                } catch (Exception failure) {
+                    result.add(DataSection.unavailable("同花顺指数行情数值无效：" + safeFailure(failure)));
+                }
+            }
+            return result;
+        } catch (Exception failure) {
+            return unavailableIndices(requested, "同花顺指数行情不可用：" + safeFailure(failure));
+        }
+    }
+
+    private static List<DataSection<IndexQuote>> unavailableIndices(List<BenchmarkId> benchmarks, String issue) {
+        return benchmarks.stream().map(ignored -> DataSection.<IndexQuote>unavailable(issue)).toList();
     }
 
     private DataSection<List<DailyBar>> history(String code, boolean index) {

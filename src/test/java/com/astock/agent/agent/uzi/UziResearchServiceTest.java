@@ -60,4 +60,65 @@ class UziResearchServiceTest {
         } while (System.nanoTime() < deadline);
         return task;
     }
+
+    @Test
+    void explicitModelIdIsPassedToTheWorker() throws Exception {
+        Path temp = Path.of("target", "uzi-test-" + UUID.randomUUID()).toAbsolutePath();
+        Files.createDirectories(temp.resolve("UZI-Skill"));
+        Files.writeString(temp.resolve("UZI-Skill/run.py"), "# test fixture");
+        UziProperties properties = new UziProperties(
+                temp.resolve("UZI-Skill").toString(), "java", temp.resolve("reports").toString(),
+                Duration.ofSeconds(5), 1);
+        var seenModel = new java.util.concurrent.atomic.AtomicReference<String>();
+        var bundle = new UziResearchBundle(
+                "uzi-bundle-v1", "600519", "2026-09-13T00:00:00Z", null, null, null, null,
+                java.util.Map.of(), List.of(), List.of(),
+                temp.resolve("reports/600519/index.html").toString());
+        var registry = new NamedChatClientRegistry(
+                java.util.Map.of(
+                        "deepseek", new NamedChatClientRegistry.NamedModel(
+                                org.mockito.Mockito.mock(org.springframework.ai.chat.client.ChatClient.class),
+                                "deepseek-chat"),
+                        "mimo", new NamedChatClientRegistry.NamedModel(
+                                org.mockito.Mockito.mock(org.springframework.ai.chat.client.ChatClient.class),
+                                "mimo-v2")),
+                java.util.Map.of("uzi-research", "deepseek"));
+        UziResearchService service = new UziResearchService(properties, registry,
+                (code, depth, school, modelName, outputDir) -> {
+                    seenModel.set(modelName);
+                    return bundle;
+                });
+        try {
+            UziResearchService.Task started = service.start("600519", "deep", "F", "mimo");
+            await(service, started.id());
+            assertThat(started.modelName()).isEqualTo("mimo-v2");
+            assertThat(seenModel.get()).isEqualTo("mimo-v2");
+        } finally {
+            service.close();
+            try (var paths = Files.walk(temp)) {
+                paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                    try { Files.deleteIfExists(path); }
+                    catch (java.io.IOException ignored) { }
+                });
+            }
+        }
+    }
+
+    @Test
+    void unknownExplicitModelIdIsRejected() {
+        UziProperties properties = new UziProperties(
+                "target/uzi-missing", "java", "target/uzi-reports-missing", Duration.ofSeconds(1), 1);
+        UziResearchService service = new UziResearchService(properties,
+                new NamedChatClientRegistry(java.util.Map.of(), java.util.Map.of()),
+                (code, depth, school, modelName, outputDir) -> {
+                    throw new AssertionError("未知模型不得启动 worker");
+                });
+        try {
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> service.start("600519", "deep", "F", "ghost"))
+                    .isInstanceOf(com.astock.agent.agent.model.ModelNotAvailableException.class);
+        } finally {
+            service.close();
+        }
+    }
 }

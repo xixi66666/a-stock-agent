@@ -1,0 +1,34 @@
+{
+  "indices": [
+    {
+      "benchmark": "SHANGHAI_COMPOSITE",
+      "displayName": "上证指数",
+      "quote": {
+        "status": "UNVERIFIED",
+        "payload": { "benchmark": "SHANGHAI_COMPOSITE", "displayName": "上证指数", "lastPoint": 3123.45, "previousClose": 3113.2, "changeAmount": 10.25, "changePercent": 0.33, "quotedAt": "2026-09-14T01:36:13Z" },
+        "provenance": { "provider": "HiThink Finance", "sourceUrl": "https://fuyao.aicubes.cn/api/a-share-index/prices/snapshot", "providerTimestamp": "2026-09-14T01:36:00Z", "fetchedAt": "2026-09-14T01:36:10Z", "cached": false, "fallbackProvider": null },
+        "issues": ["同花顺指数行情源时间是数据就绪时间，不是成交时间"]
+      }
+    },
+    {
+      "benchmark": "SHENZHEN_COMPONENT",
+      "displayName": "深证成指",
+      "quote": {
+        "status": "UNVERIFIED",
+        "payload": { "benchmark": "SHENZHEN_COMPONENT", "displayName": "深证成指", "lastPoint": 10123.45, "previousClose": 10200, "changeAmount": -76.55, "changePercent": -0.75, "quotedAt": "2026-09-14T01:36:13Z" },
+        "provenance": { "provider": "Tencent", "sourceUrl": "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get", "providerTimestamp": null, "fetchedAt": "2026-09-14T01:36:10Z", "cached": false, "fallbackProvider": "HiThink Finance" },
+        "issues": ["腾讯基准日线回退：最新已完成交易日（2026-09-11）收盘口径，不是实时行情"]
+      }
+    },
+    {
+      "benchmark": "CHI_NEXT",
+      "displayName": "创业板指",
+      "quote": {
+        "status": "UNAVAILABLE",
+        "payload": null,
+        "provenance": null,
+        "issues": ["同花顺指数行情不可用；腾讯基准日线回退不可用"]
+      }
+    }
+  ]
+}

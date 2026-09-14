@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -182,5 +183,41 @@ class HithinkFinanceClientTest {
         assertThat(section.provenance().orElseThrow().provider()).isEqualTo("HiThink Finance");
         assertThat(section.provenance().orElseThrow().sourceUrl().toString()).doesNotContain("test-only-key");
         assertThat(auth.get()).isEqualTo("test-only-key");
+    }
+
+    @Test void indexSnapshotKeepsPerIndexStatusAndRejectsUnknownIdentity() {
+        body.set("""
+                {"code":0,"data":{"timestamp":1789081200000,"item":[
+                {"thscode":"000001.SH","name":"上证指数","last_price":3123.45,"prev_price":3113.2,
+                 "price_change":10.25,"price_change_ratio_pct":0.33},
+                {"thscode":"399001.SZ","name":"深证成指","last_price":10123.45,"prev_price":10200,
+                 "price_change":-76.55,"price_change_ratio_pct":-0.75}]}}
+                """);
+        var sections = client.fetchIndexQuotes(List.of(BenchmarkId.SHANGHAI_COMPOSITE,
+                BenchmarkId.SHENZHEN_COMPONENT, BenchmarkId.CHI_NEXT));
+        assertThat(sections).hasSize(3);
+        assertThat(sections.get(0).status()).isEqualTo(SectionStatus.UNVERIFIED);
+        var shanghai = sections.get(0).payload().orElseThrow();
+        assertThat(shanghai.benchmark()).isEqualTo(BenchmarkId.SHANGHAI_COMPOSITE);
+        assertThat(shanghai.displayName()).isEqualTo("上证指数");
+        assertThat(shanghai.lastPoint()).isEqualByComparingTo("3123.45");
+        assertThat(shanghai.changePercent()).isEqualByComparingTo("0.33");
+        assertThat(shanghai.quotedAt()).isEqualTo(Instant.parse("2026-09-10T23:00:00Z"));
+        assertThat(sections.get(1).payload().orElseThrow().changePercent()).isEqualByComparingTo("-0.75");
+        assertThat(sections.get(2).status()).isEqualTo(SectionStatus.UNAVAILABLE);
+        assertThat(sections.get(2).issues()).anyMatch(s -> s.contains("缺少"));
+        assertThat(sections.get(0).provenance().orElseThrow().sourceUrl().getQuery())
+                .contains("thscodes=000001.SH,399001.SZ,399006.SZ");
+        body.set(body.get().replace("\"399001.SZ\",\"name\":\"深证成指\"",
+                "\"399999.SZ\",\"name\":\"未知\""));
+        var rejected = client.fetchIndexQuotes(List.of(BenchmarkId.SHANGHAI_COMPOSITE));
+        assertThat(rejected.getFirst().status()).isEqualTo(SectionStatus.UNAVAILABLE);
+    }
+
+    @Test void indexSnapshotWithoutKeyDoesNotRequest() {
+        var unauthClient = new HithinkFinanceClient(null, clock, "", URI.create("http://127.0.0.1:1"));
+        var sections = unauthClient.fetchIndexQuotes(List.of(BenchmarkId.SHANGHAI_COMPOSITE));
+        assertThat(sections.getFirst().status()).isEqualTo(SectionStatus.UNAVAILABLE);
+        assertThat(sections.getFirst().issues()).anyMatch(s -> s.contains("API Key"));
     }
 }

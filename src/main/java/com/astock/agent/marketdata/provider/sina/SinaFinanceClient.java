@@ -6,6 +6,7 @@ import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.FinancialPeriodStatement;
 import com.astock.agent.marketdata.model.FinancialStatementHistory;
 import com.astock.agent.marketdata.model.Provenance;
+import com.astock.agent.marketdata.model.Quote;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.astock.agent.marketdata.provider.ProviderHttpClient;
 import com.astock.agent.marketdata.provider.ProviderId;
@@ -13,8 +14,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.charset.Charset;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -120,6 +125,70 @@ public final class SinaFinanceClient {
         } catch (Exception exception) {
             return DataSection.unavailable("Sina statements failed: " + exception.getMessage());
         }
+    }
+
+    public DataSection<Quote> fetchQuote(SecurityId security) {
+        ensureLiveClient();
+        String symbol = (security.exchange() == com.astock.agent.marketdata.model.Exchange.SHANGHAI ? "sh" : "sz")
+                + security.code();
+        URI uri = URI.create("https://hq.sinajs.cn/list=" + symbol);
+        try {
+            var response = http.get(ProviderId.SINA, uri, "https://finance.sina.com.cn/");
+            Quote quote = parseQuote(response.text(Charset.forName("GBK")), security);
+            return DataSection.healthy(quote,
+                    new Provenance(ProviderId.SINA.displayName(), uri, null, clock.instant(), false, null));
+        } catch (Exception exception) {
+            return DataSection.unavailable("Sina quote failed: " + exception.getMessage());
+        }
+    }
+
+    /** Sina hq.sinajs.cn only carries core price fields; valuation fields stay null on purpose. */
+    public Quote parseQuote(String body, SecurityId security) {
+        String symbol = (security.exchange() == com.astock.agent.marketdata.model.Exchange.SHANGHAI ? "sh" : "sz")
+                + security.code();
+        if (!body.contains("hq_str_" + symbol + "=")) {
+            throw new IllegalArgumentException("Sina quote identity mismatch");
+        }
+        int first = body.indexOf('"');
+        int last = body.lastIndexOf('"');
+        if (first < 0 || last <= first) {
+            throw new IllegalArgumentException("Sina quote payload malformed");
+        }
+        String[] values = body.substring(first + 1, last).split(",", -1);
+        if (values.length < 32) {
+            throw new IllegalArgumentException("Sina quote field count mismatch");
+        }
+        BigDecimal previous = positiveValue(values[2]);
+        BigDecimal price = positiveValue(values[3]);
+        BigDecimal open = positiveValue(values[1]);
+        BigDecimal high = positiveValue(values[4]);
+        BigDecimal low = positiveValue(values[5]);
+        if (high.compareTo(open.max(price)) < 0 || low.compareTo(open.min(price)) > 0) {
+            throw new IllegalArgumentException("Sina quote OHLC relationship invalid");
+        }
+        BigDecimal change = price.subtract(previous);
+        BigDecimal percent = change.multiply(BigDecimal.valueOf(100))
+                .divide(previous, 4, java.math.RoundingMode.HALF_UP);
+        Instant quotedAt = LocalDateTime.parse(values[30] + "T" + values[31])
+                .atZone(ZoneId.of("Asia/Shanghai")).toInstant();
+        return new Quote(security, values[0], price, previous, open, high, low,
+                change, percent, decimalValue(values[8]), decimalValue(values[9]),
+                null, null, null, null, null, null, null, null, null, null, quotedAt);
+    }
+
+    private static BigDecimal positiveValue(String value) {
+        BigDecimal number = decimalValue(value);
+        if (number == null || number.signum() <= 0) {
+            throw new IllegalArgumentException("Missing Sina price field");
+        }
+        return number;
+    }
+
+    private static BigDecimal decimalValue(String value) {
+        if (value == null || value.isBlank() || "-".equals(value) || "--".equals(value)) {
+            return null;
+        }
+        return new BigDecimal(value.trim().replace(",", ""));
     }
 
     public DataSection<List<FundFlow>> fetchFundFlow(SecurityId security) {

@@ -66,6 +66,11 @@ public final class NamedChatClientRegistry {
                 : AgentAvailability.DISABLED_CONFIGURATION_MISSING;
     }
 
+    /** 只读角色映射；用于把角色归属并入统一模型目录。 */
+    public Map<String, String> roles() {
+        return roles;
+    }
+
     public record NamedModel(ChatClient client, String modelName) {
         public NamedModel {
             if (client == null) {

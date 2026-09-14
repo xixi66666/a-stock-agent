@@ -8,6 +8,7 @@ const { test, expect } = require("@playwright/test");
 const path = require("path");
 const baseSnapshot = require("./fixtures/partial-snapshot.json");
 const financialReport = require("./fixtures/financial-report.json");
+const aiModels = require("./fixtures/ai-models.json");
 
 const viewports = [
   { width: 1440, height: 1000 },
@@ -18,7 +19,8 @@ const viewports = [
 
 async function mockApis(page) {
   await page.route("**/api/finrobot/status", (route) => route.fulfill({ json: { enabled: false, status: "DISABLED_CONFIGURATION_MISSING" } }));
-  await page.route("**/api/finrobot/models", (route) => route.fulfill({ json: { models: [] } }));
+  await page.route("**/api/ai/models", (route) => route.fulfill({ json: aiModels }));
+  await page.addInitScript(() => window.localStorage.setItem("astock.selectedModelId", "deepseek"));
   await page.route("**/api/stocks/600519/snapshot", (route) => route.fulfill({ json: baseSnapshot }));
   await page.route("**/api/stocks/600519/candlestick**", (route) => route.fulfill({ json: {
     status: "UNAVAILABLE", payload: null, provenance: null, issues: ["该测试不加载蜡烛图数据"],

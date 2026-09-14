@@ -5,14 +5,16 @@
  * 所有异步回调都要检查 code 和
  * loadGeneration，防止用户切换股票后旧请求覆盖新页面。
  */
-import { isPartialSnapshot, sectionPayload, stockApi } from "./api.js";
+import { aiApi, isPartialSnapshot, marketApi, sectionPayload, stockApi } from "./api.js";
 import { renderGenericView, renderLoading, renderUnavailable } from "./views.js";
 import { activateTechnicalView, renderTechnicalView } from "./technical-view.js";
-import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js?v=20260911-quotes";
+import { activateCandlestickWorkbench, renderCandlestickWorkbench } from "./candlestick-view.js?v=20260914-timeframe";
 import { renderFundFlowSummary, renderPeerValuationTable } from "./derived-market-view.js";
 import { activateFinancialChart, renderFinancialReport, renderFinancialViewShell } from "./financial-view.js";
 import { activateCycleView } from "./cycle-view.js";
 import { activateUziView } from "./uzi-view.js";
+import { activateOfficialFinRobot } from "./finrobot-official-view.js?v=20260914-model-persist";
+import { getSelectedModelId, setSelectedModelId } from "./model-selection.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -30,9 +32,9 @@ const state = {
   candlestickSections: {},
   candlestickRequestId: 0,
   finRobotPhase: "idle",
-  finRobotModelsPhase: "idle",
-  finRobotModels: [],
-  selectedFinRobotModelId: null,
+  modelCatalog: [],
+  modelCatalogPhase: "idle",
+  modelMenuOpen: false,
   finRobotResponse: null,
   finRobotFeedback: null,
   finRobotRequestId: 0,
@@ -42,6 +44,8 @@ const state = {
   financialController: null,
   cycleController: null,
   uziController: null,
+  officialFinRobotController: null,
+  finRobotEngine: "official",
   loadGeneration: 0,
 };
 
@@ -109,6 +113,50 @@ function renderOverview(snapshot) {
   $("#quality-label").textContent = !Number.isFinite(score) ? "尚未评分" : score >= 85 ? "可靠" : score >= 65 ? "可用，需复核" : "数据不完整";
 }
 
+function renderMarketIndices(snapshot) {
+  // 大盘条只渲染后端给出的状态与数值；前端不推导点位或涨跌幅。
+  const sections = Array.isArray(snapshot?.indices) ? snapshot.indices : [];
+  $$("#market-strip .market-index").forEach((node) => {
+    const section = sections.find((item) => item?.benchmark === node.dataset.benchmark);
+    const quote = sectionPayload(section?.quote);
+    const status = section?.quote?.status || "UNAVAILABLE";
+    const point = $('[data-field="point"]', node);
+    const change = $('[data-field="change"]', node);
+    const stateLabel = $('[data-field="state"]', node);
+    node.dataset.state = status === "UNAVAILABLE" ? "unavailable" : "ready";
+    node.title = section?.quote?.issues?.join("；") || "";
+    clearTone(point, change);
+    point.textContent = status === "UNAVAILABLE" ? "不可用"
+      : quote?.lastPoint == null ? "--" : formatNumber(quote.lastPoint);
+    const percent = Number(quote?.changePercent);
+    change.textContent = quote?.changePercent == null ? ""
+      : `${percent > 0 ? "↑ +" : percent < 0 ? "↓ " : ""}${formatNumber(percent)}%`;
+    if (percent > 0) { point.classList.add("is-up"); change.classList.add("is-up"); }
+    if (percent < 0) { point.classList.add("is-down"); change.classList.add("is-down"); }
+    const fallback = (section?.quote?.issues || []).some((issue) => issue.includes("腾讯基准日线回退"));
+    stateLabel.textContent = status === "STALE" ? "陈旧"
+      : status === "UNVERIFIED" && fallback ? "收盘口径" : "";
+    stateLabel.hidden = stateLabel.textContent === "";
+  });
+}
+
+async function loadMarketIndices(isCurrent) {
+  try {
+    const snapshot = await marketApi.indices();
+    if (!isCurrent()) return;
+    renderMarketIndices(snapshot);
+  } catch {
+    if (!isCurrent()) return;
+    $$("#market-strip .market-index").forEach((node) => {
+      node.dataset.state = "unavailable";
+      node.title = "大盘数据暂不可用";
+      $('[data-field="point"]', node).textContent = "不可用";
+      $('[data-field="change"]', node).textContent = "";
+      $('[data-field="state"]', node).hidden = true;
+    });
+  }
+}
+
 function renderCurrentView() {
   // 每次切换标签都重新绑定局部交互，并销毁旧图表控制器，避免重复监听和内存泄漏。
   if (!state.snapshot) return;
@@ -125,6 +173,15 @@ function renderCurrentView() {
   state.cycleController = null;
   state.uziController?.dispose();
   state.uziController = null;
+  state.officialFinRobotController?.dispose();
+  state.officialFinRobotController = null;
+  if (state.currentView === "finrobot" && state.finRobotEngine !== "legacy") {
+    state.officialFinRobotController = activateOfficialFinRobot(content, state.currentCode, () => {
+      state.finRobotEngine = "legacy";
+      renderCurrentView();
+    });
+    return;
+  }
   if (state.currentView === "cycle") {
     state.cycleController = activateCycleView(content, state.currentCode);
     return;
@@ -162,7 +219,6 @@ function renderCurrentView() {
     if (!candlestick && state.candlestickPhase !== "loading") loadCandlestick(state.candlestickTimeframe);
   }
   if (state.currentView === "finrobot") {
-    bindFinRobotModelControls();
     bindFinRobotAction();
     if (state.finRobotResponse) $("#finrobot-output").innerHTML = renderFinRobotResponse(state.finRobotResponse);
     renderFinRobotFeedback();
@@ -284,12 +340,11 @@ function bindFinRobotAction() {
     state.finRobotPhase = "loading";
     state.finRobotFeedback = { kind: "loading" };
     button.disabled = true;
-    syncFinRobotModelControls();
     renderFinRobotFeedback();
     output.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>FinRobot 正在综合</span><p>正在运行证据、分析、估值、风险与报告角色。</p>';
     try {
       // 请求期间记录股票和加载代数；返回时如果页面已切换，丢弃旧结果。
-      const payload = await stockApi.finRobotResearch(reportCode, state.selectedFinRobotModelId);
+      const payload = await stockApi.finRobotResearch(reportCode, getSelectedModelId());
       if (state.currentCode !== reportCode || state.loadGeneration !== generation || state.finRobotRequestId !== requestId) return;
       state.finRobotResponse = payload;
       state.finRobotFeedback = null;
@@ -305,89 +360,121 @@ function bindFinRobotAction() {
       if (state.currentCode === reportCode && state.loadGeneration === generation && state.finRobotRequestId === requestId) {
         state.finRobotPhase = "idle";
         button.disabled = false;
-        syncFinRobotModelControls();
       }
     }
   });
 }
 
-function syncFinRobotModelControls() {
-  const select = $("#finrobot-model-select");
-  const button = $("#run-finrobot");
-  const help = $("#finrobot-model-help");
-  if (!select || !button || !help) return;
-
-  const models = state.finRobotModels;
-  const selected = models.find((model) => model.id === state.selectedFinRobotModelId);
-  select.innerHTML = models.length
-    ? models.map((model) => `<option value="${escapeText(model.id)}">${escapeText(model.id)} · ${escapeText(model.modelName)}</option>`).join("")
-    : `<option value="">${state.finRobotModelsPhase === "loading" ? "正在加载可用模型" : "没有可用模型，将使用确定性研究"}</option>`;
-  select.value = selected?.id || "";
-  select.disabled = !models.length || state.finRobotPhase === "loading";
-  button.disabled = state.finRobotPhase === "loading";
-  help.textContent = state.finRobotModelsPhase === "failed"
-    ? "模型目录加载失败，请稍后重试"
-    : models.length
-      ? "请选择本次 FinRobot 投研使用的模型"
-      : state.finRobotModelsPhase === "loading"
-        ? "正在读取本地模型配置"
-        : "没有可用模型，将保留确定性研究结果";
+function modelStateText(value) {
+  return value === "OK" ? "可用" : value === "FAILED" ? "不可用" : "未探测";
 }
 
-function renderFinRobotModelStatus() {
-  const status = $("#finrobot-model-status");
-  if (!status) return;
-  if (state.finRobotModelsPhase === "loading" || state.finRobotModelsPhase === "idle") {
-    status.innerHTML = '<span class="status-dot"></span>模型：读取中';
-    status.dataset.tone = "muted";
-    status.title = "正在读取本地模型配置";
-    return;
-  }
-  if (state.finRobotModelsPhase === "failed") {
-    status.innerHTML = '<span class="status-dot"></span>模型：读取失败';
-    status.dataset.tone = "warning";
-    status.title = "模型目录读取失败，可切换 FinRobot 标签重试";
-    return;
-  }
-  if (!state.finRobotModels.length) {
-    status.innerHTML = '<span class="status-dot"></span>模型：未配置';
-    status.dataset.tone = "muted";
-    status.title = "没有已注册的可用模型，将使用确定性研究结果";
-    return;
-  }
-  const labels = state.finRobotModels.map((model) => `${model.id} · ${model.modelName}`).join(" / ");
-  status.innerHTML = `<span class="status-dot"></span>模型：${escapeText(labels)}`;
-  status.dataset.tone = "ok";
-  status.title = `可用模型：${labels}`;
+function connectedModel() {
+  const stored = getSelectedModelId();
+  const models = state.modelCatalog;
+  return models.find((model) => model.id === stored)
+    || models.find((model) => model.defaultModel)
+    || models[0]
+    || null;
 }
 
-async function loadFinRobotModels() {
-  // 模型目录只描述安全的 ID、实际模型名和默认标记，不包含任何连接秘密。
-  if (state.finRobotModelsPhase === "loading" || state.finRobotModelsPhase === "ready") {
-    syncFinRobotModelControls();
-    renderFinRobotModelStatus();
+function renderModelPicker() {
+  const toggle = $("#model-picker-toggle");
+  const label = $("#model-picker-label");
+  const dot = $("#model-picker-dot");
+  const menu = $("#model-picker-menu");
+  if (!toggle || !label || !dot || !menu) return;
+
+  if (state.modelCatalogPhase === "failed") {
+    label.textContent = "模型目录不可用";
+    dot.dataset.state = "unknown";
+    toggle.title = "模型目录读取失败，各模块将使用角色默认模型";
+    setModelMenu(false);
     return;
   }
-  state.finRobotModelsPhase = "loading";
-  syncFinRobotModelControls();
-  renderFinRobotModelStatus();
+  if (state.modelCatalogPhase !== "ready") {
+    label.textContent = "模型：读取中";
+    dot.dataset.state = "unknown";
+    return;
+  }
+  const selected = connectedModel();
+  if (!selected) {
+    label.textContent = "模型：未配置";
+    dot.dataset.state = "unknown";
+    toggle.title = "没有已注册的可用模型，将以确定性模式运行";
+    setModelMenu(false);
+    return;
+  }
+  if (selected.id !== getSelectedModelId()) setSelectedModelId(selected.id);
+  const connectivity = selected.connectivity || {};
+  dot.dataset.state = String(connectivity.state || "UNKNOWN").toLowerCase();
+  label.textContent = `${selected.id} · ${selected.modelName}`;
+  toggle.title = `当前模型：${selected.id} · ${selected.modelName}（${modelStateText(connectivity.state)}）`;
+
+  menu.innerHTML = state.modelCatalog.map((model) => {
+    const stateValue = String(model.connectivity?.state || "UNKNOWN");
+    const stateText = modelStateText(stateValue);
+    const latency = model.connectivity?.latencyMs != null ? ` · ${model.connectivity.latencyMs}ms` : "";
+    const isSelected = model.id === selected.id;
+    return `<button type="button" class="model-picker-option" role="option" data-model-id="${escapeText(model.id)}"
+      aria-selected="${isSelected ? "true" : "false"}"
+      title="${escapeText(`${model.id} · ${model.modelName} · ${stateText}${latency}`)}">
+      <span class="status-dot" data-state="${escapeText(stateValue.toLowerCase())}" aria-hidden="true"></span>
+      <span class="model-picker-name">${escapeText(model.id)} · ${escapeText(model.modelName)}</span>
+      <small class="model-picker-state">${escapeText(stateText)}${escapeText(latency)}</small>
+      ${model.defaultModel ? '<small class="model-picker-default">默认</small>' : ""}
+    </button>`;
+  }).join("");
+}
+
+async function loadModelCatalog() {
+  state.modelCatalogPhase = "loading";
+  renderModelPicker();
   try {
-    const response = await stockApi.finRobotModels();
-    state.finRobotModels = Array.isArray(response?.models) ? response.models : [];
-    const stillSelected = state.finRobotModels.some((model) => model.id === state.selectedFinRobotModelId);
-    if (!stillSelected) {
-      state.selectedFinRobotModelId = state.finRobotModels.find((model) => model.defaultModel)?.id
-        || state.finRobotModels[0]?.id
-        || null;
-    }
-    state.finRobotModelsPhase = "ready";
+    const payload = await aiApi.models();
+    state.modelCatalog = Array.isArray(payload?.models) ? payload.models : [];
+    state.modelCatalogPhase = "ready";
   } catch {
-    state.finRobotModels = [];
-    state.selectedFinRobotModelId = null;
-    state.finRobotModelsPhase = "failed";
+    state.modelCatalog = [];
+    state.modelCatalogPhase = "failed";
   }
-  syncFinRobotModelControls();
-  renderFinRobotModelStatus();
+  renderModelPicker();
+}
+
+function setModelMenu(open) {
+  const menu = $("#model-picker-menu");
+  const toggle = $("#model-picker-toggle");
+  if (!menu || !toggle) return;
+  state.modelMenuOpen = Boolean(open) && state.modelCatalogPhase === "ready" && state.modelCatalog.length > 0;
+  menu.hidden = !state.modelMenuOpen;
+  toggle.setAttribute("aria-expanded", String(state.modelMenuOpen));
+  if (state.modelMenuOpen) $(".model-picker-option", menu)?.focus();
+}
+
+function bindModelPicker() {
+  const toggle = $("#model-picker-toggle");
+  const menu = $("#model-picker-menu");
+  const refresh = $("#model-picker-refresh");
+  if (!toggle || !menu) return;
+  toggle.addEventListener("click", () => setModelMenu(!state.modelMenuOpen));
+  menu.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-model-id]");
+    if (!option) return;
+    setSelectedModelId(option.dataset.modelId);
+    setModelMenu(false);
+    renderModelPicker();
+  });
+  menu.addEventListener("keydown", (event) => {
+    const options = $$(".model-picker-option", menu);
+    const index = options.indexOf(document.activeElement);
+    if (event.key === "ArrowDown" && index < options.length - 1) { event.preventDefault(); options[index + 1]?.focus(); }
+    if (event.key === "ArrowUp" && index > 0) { event.preventDefault(); options[index - 1]?.focus(); }
+    if (event.key === "Escape") { setModelMenu(false); toggle.focus(); }
+  });
+  document.addEventListener("click", (event) => { if (!event.target.closest("#model-picker")) setModelMenu(false); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") setModelMenu(false); });
+  window.addEventListener("model-selection-change", () => renderModelPicker());
+  refresh?.addEventListener("click", () => { void loadModelCatalog(); });
 }
 
 function bindFinancialAction() {
@@ -406,7 +493,7 @@ function bindFinancialAction() {
     if (status) status.innerHTML = '<span class="source-status" data-status="DEGRADED"><span></span>正在生成财报分析</span>';
     const output = $("#financial-output");
     try {
-      const report = await stockApi.financialReport(reportCode);
+      const report = await stockApi.financialReport(reportCode, getSelectedModelId());
       if (!isCurrent()) return;
       state.financialReportResult = report;
       if (output) output.innerHTML = renderFinancialReport(report);
@@ -457,17 +544,9 @@ async function loadCandlestick(timeframe) {
   }
 }
 
-function bindFinRobotModelControls() {
-  const select = $("#finrobot-model-select");
-  if (!select) return;
-  select.addEventListener("change", () => {
-    state.selectedFinRobotModelId = select.value || null;
-    syncFinRobotModelControls();
-  });
-  loadFinRobotModels();
-}
-
 async function loadStock(code) {
+  state.officialFinRobotController?.dispose();
+  state.officialFinRobotController = null;
   // 快照加载是页面状态机的根请求；其余视图都从同一份 snapshot 派生。
   if (!/^\d{6}$/.test(code)) return;
   const newSecurity = state.currentCode !== code || !state.snapshot;
@@ -481,6 +560,7 @@ async function loadStock(code) {
   state.uziController = null;
   state.finRobotRequestId += 1;
   state.currentCode = code;
+  void loadMarketIndices(isCurrent);
   state.finRobotPhase = "idle";
   state.finRobotFeedback = null;
   state.finRobotResponse = null;
@@ -585,7 +665,8 @@ $("#refresh-data").addEventListener("click", () => state.currentCode && loadStoc
 
 refreshIcons();
 loadFinRobotStatus();
-loadFinRobotModels();
+bindModelPicker();
+loadModelCatalog();
 
 // The cinematic home links to a bounded security code and an existing research tab.
 const entryParameters = new URLSearchParams(window.location.search);

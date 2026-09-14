@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="基于真实公开数据与 Spring AI 的 A 股研究工作台">
   <title>A 股智能研究台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260913-model-status">
+  <link rel="stylesheet" href="/styles.css?v=20260914-model-picker">
   <link rel="stylesheet" href="/candlestick.css?v=20260911-quotes">
   <link rel="stylesheet" href="/cycle.css?v=20260910">
   <link rel="stylesheet" href="/uzi.css?v=20260913">
-  <link rel="stylesheet" href="/workbench-theme.css?v=20260913">
+  <link rel="stylesheet" href="/finrobot-official.css?v=20260914">
+  <link rel="stylesheet" href="/workbench-theme.css?v=20260914-model-picker">
 </head>
 <body>
   <div class="workbench-backdrop" aria-hidden="true"></div>
@@ -39,7 +40,18 @@
 
       <div class="header-status">
         <span id="finrobot-status" class="status-chip" data-tone="muted"><span class="status-dot"></span>FinRobot 未配置</span>
-        <span id="finrobot-model-status" class="status-chip model-status" data-tone="muted" aria-live="polite" title="正在读取可用模型"><span class="status-dot"></span>模型：读取中</span>
+        <div class="model-picker" id="model-picker">
+          <button id="model-picker-toggle" class="status-chip model-picker-toggle" type="button"
+                  aria-haspopup="listbox" aria-expanded="false" aria-label="选择大模型">
+            <span id="model-picker-dot" class="status-dot" data-state="unknown"></span>
+            <span id="model-picker-label">模型：读取中</span>
+          </button>
+          <button id="model-picker-refresh" class="model-picker-refresh" type="button"
+                  aria-label="重新读取模型列表" title="重新读取模型列表">
+            <i data-lucide="refresh-cw" aria-hidden="true"></i>
+          </button>
+          <div id="model-picker-menu" class="model-picker-menu" role="listbox" aria-label="可用模型" hidden></div>
+        </div>
         <button id="refresh-data" class="icon-button" type="button" aria-label="刷新当前股票" title="刷新当前股票" disabled>
           <i data-lucide="refresh-cw" aria-hidden="true"></i>
         </button>
@@ -51,6 +63,26 @@
 
   <main id="workspace" class="workspace" tabindex="-1">
     <section class="security-overview" aria-labelledby="security-name">
+      <div class="market-strip" id="market-strip" aria-label="大盘指数">
+        <div class="market-index" data-benchmark="SHANGHAI_COMPOSITE">
+          <span class="market-index-name">上证指数</span>
+          <span class="market-index-point" data-field="point">--</span>
+          <span class="market-index-change" data-field="change">--</span>
+          <small class="market-index-state" data-field="state" hidden></small>
+        </div>
+        <div class="market-index" data-benchmark="SHENZHEN_COMPONENT">
+          <span class="market-index-name">深证成指</span>
+          <span class="market-index-point" data-field="point">--</span>
+          <span class="market-index-change" data-field="change">--</span>
+          <small class="market-index-state" data-field="state" hidden></small>
+        </div>
+        <div class="market-index" data-benchmark="CHI_NEXT">
+          <span class="market-index-name">创业板指</span>
+          <span class="market-index-point" data-field="point">--</span>
+          <span class="market-index-change" data-field="change">--</span>
+          <small class="market-index-state" data-field="state" hidden></small>
+        </div>
+      </div>
       <div class="security-identity">
         <div class="security-title-line">
           <h1 id="security-name">等待选择股票</h1>
@@ -127,7 +159,7 @@
   <!-- 第三方库只提供图表和图标能力，不参与数据获取或模型调用。 -->
   <script src="/webjars/echarts/6.1.0/dist/echarts.min.js"></script>
   <script src="/webjars/lucide/1.16.0/dist/umd/lucide.min.js"></script>
-  <script type="module" src="/js/app.js?v=20260913-model-status"></script>
+  <script type="module" src="/js/app.js?v=20260914-model-persist"></script>
 
 </body>
 </html>

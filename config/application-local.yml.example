@@ -17,6 +17,12 @@ spring:
         transcription: none
 
 app:
+  finrobot:
+    engine: official
+    python: tools/finrobot/.venv/Scripts/python.exe
+    report-path: data/finrobot-reports
+    task-timeout: 20m
+    max-concurrent-tasks: 1
   ai:
     models:
       primary:

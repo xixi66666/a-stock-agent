@@ -9,7 +9,12 @@ config/application-local.yml
 data/cycle-reports/
 data/uzi-reports/
 tools/uzi/
+tools/finrobot/
+data/finrobot-reports/
+__pycache__/
 .idea/
 .worktrees/
 *.iml
 .DS_Store
+out/
+.playwright-cli/

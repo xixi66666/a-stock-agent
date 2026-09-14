@@ -151,13 +151,6 @@ function renderFinRobot(snapshot) {
             <li class="finrobot-step" data-state="next"><span class="finrobot-step-marker">5</span><span><strong>报告综合</strong><small>可追溯的投研结论</small></span><b>待生成</b></li>
           </ol>
           <button id="run-finrobot" class="primary-command finrobot-command" type="button"><i data-lucide="sparkles" aria-hidden="true"></i><span>运行 FinRobot 投研</span></button>
-          <label class="finrobot-model-field" for="finrobot-model-select">
-            <span>FinRobot 模型</span>
-            <select id="finrobot-model-select" disabled>
-              <option value="">正在加载可用模型</option>
-            </select>
-          </label>
-          <small id="finrobot-model-help" class="finrobot-model-help">正在读取本地模型配置</small>
           <div id="finrobot-request-status" class="finrobot-request-status" aria-live="polite"></div>
         </div>
       </aside>

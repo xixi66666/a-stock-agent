@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const snapshot = require('./fixtures/partial-snapshot.json');
+const aiModels = require('./fixtures/ai-models.json');
 const path = require('path');
 
 // 合成的研究结果只用于交互测试，不冒充真实模型或原书输出。
@@ -23,11 +24,12 @@ const completed = {
 };
 async function setup(page) {
   await page.route('**/api/**', route => route.fulfill({ json: { status: 'UNAVAILABLE', payload: null, issues: [] } }));
+  await page.route('**/api/ai/models', route => route.fulfill({ json: aiModels }));
+  await page.addInitScript(() => window.localStorage.setItem('astock.selectedModelId', 'deepseek'));
   await page.route('**/api/stocks/*/snapshot', route => {
     const code = route.request().url().match(/stocks\/(\d+)\/snapshot/)[1];
     return route.fulfill({ json: { ...snapshot, security: { ...snapshot.security, code } } });
   });
-  await page.route('**/api/agent/cycle/models', route => route.fulfill({ json: [{ id: 'deepseek', modelName: 'test-model', defaultModel: true }] }));
   await page.route('**/api/agent/cycle/latest/*', route => route.fulfill({ status: 404, json: { detail: '尚未生成周期报告' } }));
   await page.route('**/api/agent/cycle/tasks', route => {
     expect(route.request().postDataJSON()).toEqual({ code: '600519', modelId: 'deepseek' });

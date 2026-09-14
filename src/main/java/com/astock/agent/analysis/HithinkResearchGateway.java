@@ -6,12 +6,14 @@ import com.github.benmanes.caffeine.cache.*;
 import java.time.Duration;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** HiThink first for supported capabilities; existing providers remain independent fallbacks. */
 public final class HithinkResearchGateway implements ResearchGateway {
     private final ResearchGateway primary;
     private final HithinkFinanceClient hithink;
+    private final List<Function<SecurityId, DataSection<Quote>>> enrichments;
     private final Cache<SecurityId,DataSection<FinancialStatementHistory>> historyCache =
             Caffeine.newBuilder().maximumSize(200).expireAfterWrite(Duration.ofMinutes(30)).build();
     private final Cache<SecurityId,DataSection<ValuationSnapshot>> valuationCache =
@@ -22,8 +24,14 @@ public final class HithinkResearchGateway implements ResearchGateway {
             Caffeine.newBuilder().maximumSize(1000).expireAfterWrite(Duration.ofHours(1)).build();
 
     public HithinkResearchGateway(ResearchGateway primary, HithinkFinanceClient hithink) {
+        this(primary, hithink, List.of(primary::quote));
+    }
+
+    public HithinkResearchGateway(ResearchGateway primary, HithinkFinanceClient hithink,
+            List<Function<SecurityId, DataSection<Quote>>> enrichments) {
         this.primary = primary;
         this.hithink = hithink;
+        this.enrichments = List.copyOf(enrichments);
     }
 
     @Override public DataSection<ValuationSnapshot> valuation(SecurityId security) {
@@ -110,8 +118,75 @@ public final class HithinkResearchGateway implements ResearchGateway {
     }
 
     @Override public DataSection<Quote> quote(SecurityId s) {
-        return prefer(hithink.fetchQuote(s), () -> primary.quote(s));
+        DataSection<Quote> main = hithink.fetchQuote(s);
+        List<DataSection<Quote>> candidates = loadEnrichments(s);
+        if (hasData(main) && main.status() != SectionStatus.STALE) {
+            return enrichQuote(main, candidates);
+        }
+        return fallbackQuote(main, candidates);
     }
+
+    /** 字段级补齐：主源可用时只补空字段，不整体切换来源。 */
+    private DataSection<Quote> enrichQuote(DataSection<Quote> main, List<DataSection<Quote>> candidates) {
+        var sources = usableSources(candidates);
+        if (sources.isEmpty()) return main;
+        var outcome = QuoteMerger.merge(main.payload().orElseThrow(), sources);
+        if (outcome.filledByProvider().isEmpty()) return main;
+        var issues = new ArrayList<>(main.issues());
+        outcome.filledByProvider().forEach((provider, fields) ->
+                issues.add(provider + " 补齐 " + String.join("、", fields)));
+        Provenance base = main.provenance().orElseThrow();
+        var combined = new Provenance(
+                base.provider() + " + " + String.join(" + ", outcome.filledByProvider().keySet()),
+                base.sourceUrl(), base.providerTimestamp(), base.fetchedAt(), base.cached(), null);
+        return new DataSection<>(main.status(), Optional.of(outcome.quote()), Optional.of(combined), issues);
+    }
+
+    /** 整段回退：按候选顺序选择第一个可用来源，失败原因保留在 issues。 */
+    private DataSection<Quote> fallbackQuote(DataSection<Quote> main, List<DataSection<Quote>> candidates) {
+        var issues = new ArrayList<>(main.issues());
+        DataSection<Quote> chosen = null;
+        for (DataSection<Quote> candidate : candidates) {
+            if (hasData(candidate) && candidate.provenance().isPresent()) {
+                chosen = candidate;
+                break;
+            }
+            issues.addAll(candidate.issues());
+        }
+        if (chosen == null) {
+            if (issues.isEmpty()) issues.add("所有行情来源均不可用");
+            return DataSection.unavailable(String.join("；", issues));
+        }
+        Provenance p = chosen.provenance().orElseThrow();
+        issues.add("同花顺行情不可用或陈旧，使用 " + p.provider() + " 行情");
+        var source = new Provenance(p.provider(), p.sourceUrl(), p.providerTimestamp(), p.fetchedAt(),
+                p.cached(), "HiThink Finance");
+        return new DataSection<>(SectionStatus.DEGRADED, chosen.payload(), Optional.of(source), issues);
+    }
+
+    private List<DataSection<Quote>> loadEnrichments(SecurityId security) {
+        var result = new ArrayList<DataSection<Quote>>();
+        for (Function<SecurityId, DataSection<Quote>> loader : enrichments) {
+            try {
+                DataSection<Quote> section = loader.apply(security);
+                if (section != null) result.add(section);
+            } catch (RuntimeException failure) {
+                result.add(DataSection.unavailable("行情补充来源请求失败"));
+            }
+        }
+        return result;
+    }
+
+    private static List<QuoteMerger.Source> usableSources(List<DataSection<Quote>> candidates) {
+        var sources = new ArrayList<QuoteMerger.Source>();
+        for (DataSection<Quote> candidate : candidates) {
+            if (!hasData(candidate) || candidate.provenance().isEmpty()) continue;
+            sources.add(new QuoteMerger.Source(candidate.provenance().orElseThrow().provider(),
+                    candidate.payload().orElseThrow()));
+        }
+        return List.copyOf(sources);
+    }
+
     @Override public DataSection<List<DailyBar>> bars(SecurityId s) {
         return prefer(hithink.fetchDailyBars(s), () -> primary.bars(s));
     }

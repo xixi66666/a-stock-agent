@@ -39,7 +39,7 @@ public class UziController {
     @PostMapping("/tasks")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public UziResearchService.Task start(@RequestBody Request request) {
-        return service.start(request.code(), request.depth(), request.school());
+        return service.start(request.code(), request.depth(), request.school(), request.modelId());
     }
 
     @GetMapping("/tasks/{id}")
@@ -57,6 +57,9 @@ public class UziController {
         return ProblemDetail.forStatusAndDetail(failure.getStatusCode(), failure.getReason());
     }
 
-    public record Request(String code, String depth, String school) {
+    public record Request(String code, String depth, String school, String modelId) {
+        public Request(String code, String depth, String school) {
+            this(code, depth, school, null);
+        }
     }
 }

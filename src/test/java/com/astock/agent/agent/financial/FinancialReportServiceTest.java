@@ -60,6 +60,88 @@ class FinancialReportServiceTest {
     }
 
     @Test
+    void explicitModelIdSelectsThatModel() {
+        FinancialReportService service = new FinancialReportService(
+                gateway(history(12)),
+                tools(),
+                new NamedChatClientRegistry(
+                        Map.of("deepseek", new NamedChatClientRegistry.NamedModel(
+                                        mock(ChatClient.class), "deepseek-chat"),
+                                "mimo", new NamedChatClientRegistry.NamedModel(
+                                        mock(ChatClient.class), "mimo-v2")),
+                        Map.of("financial-report", "deepseek")),
+                Caffeine.newBuilder().build(),
+                new FinancialReportValidator(),
+                new ModelFailureClassifier(),
+                named -> assistedGenerator(named.modelName()));
+
+        FinancialReportAnalysis analysis = service.generate("600519", "mimo");
+
+        assertThat(analysis.generationMode()).isEqualTo(GenerationMode.MODEL_ASSISTED);
+        assertThat(analysis.modelName()).isEqualTo("mimo-v2");
+    }
+
+    @Test
+    void unknownExplicitModelIdIsRejectedBeforeReadingHistory() {
+        ResearchGateway gateway = mock(ResearchGateway.class);
+        FinancialReportService service = new FinancialReportService(
+                gateway,
+                tools(),
+                new NamedChatClientRegistry(Map.of(), Map.of()),
+                Caffeine.newBuilder().build(),
+                new FinancialReportValidator(),
+                new ModelFailureClassifier(),
+                named -> {
+                    throw new AssertionError("未知模型不得构造生成器");
+                });
+
+        assertThatThrownBy(() -> service.generate("600519", "ghost"))
+                .isInstanceOf(com.astock.agent.agent.model.ModelNotAvailableException.class);
+        org.mockito.Mockito.verifyNoInteractions(gateway);
+    }
+
+    @Test
+    void blankModelIdUsesRoleDefault() {
+        FinancialReportService service = new FinancialReportService(
+                gateway(history(12)),
+                tools(),
+                new NamedChatClientRegistry(
+                        Map.of("deepseek", new NamedChatClientRegistry.NamedModel(
+                                mock(ChatClient.class), "deepseek-chat")),
+                        Map.of("financial-report", "deepseek")),
+                Caffeine.newBuilder().build(),
+                new FinancialReportValidator(),
+                new ModelFailureClassifier(),
+                named -> assistedGenerator(named.modelName()));
+
+        assertThat(service.generate("600519", "  ").modelName()).isEqualTo("deepseek-chat");
+    }
+
+    private static FinancialReportGenerator assistedGenerator(String modelName) {
+        return new FinancialReportGenerator() {
+            @Override
+            public FinancialNarrativeDraft generate(FinancialEvidencePackage pack) {
+                return new FinancialNarrativeDraft(
+                        "F-Score 为 " + pack.qualityScore().total() + " 分，档位 "
+                                + pack.qualityScore().tier() + "。",
+                        "盈利信号通过。", "营收趋势上升。", "注意数据完整性限制。",
+                        FinancialDeterministicComposer.REQUIRED_DISCLAIMER);
+            }
+
+            @Override
+            public FinancialNarrativeDraft repair(FinancialEvidencePackage pack,
+                    FinancialNarrativeDraft draft, List<String> issues) {
+                throw new AssertionError("合法草稿不得触发修复");
+            }
+
+            @Override
+            public String modelName() {
+                return modelName;
+            }
+        };
+    }
+
+    @Test
     void validModelDraftReturnsModelAssisted() {
         FinancialReportService service = new FinancialReportService(
                 gateway(history(12)),

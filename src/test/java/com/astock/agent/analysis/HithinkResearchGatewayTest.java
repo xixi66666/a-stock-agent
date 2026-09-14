@@ -54,7 +54,7 @@ class HithinkResearchGatewayTest {
         when(hithink.fetchDailyBars(security)).thenReturn(bars);
         assertThat(gateway.quote(security)).isEqualTo(preferred);
         assertThat(gateway.bars(security)).isEqualTo(bars);
-        verify(primary,never()).quote(security);
+        verify(primary, atMostOnce()).quote(security);
         verify(primary,never()).bars(security);
         var sina = new Provenance("Sina Finance",URI.create("https://quotes.sina.cn/"),null,Instant.now(),false,null);
         when(hithink.fetchStatementHistory(security)).thenReturn(DataSection.unavailable("code=2003"));
@@ -96,5 +96,59 @@ class HithinkResearchGatewayTest {
         var result = service.research(security);
         assertThat(result.valuation()).isEqualTo(valuation);
         assertThat(result.withCrossSourceConsistent(false).valuation()).isEqualTo(valuation);
+    }
+
+    @Test void enrichesMissingQuoteFieldsWithoutReplacingPrimaryValues() {
+        when(hithink.fetchQuote(security)).thenReturn(DataSection.unverified(
+                quote(new BigDecimal("100"), null, null, null), source, List.of("trade time missing")));
+        var tencentSource = new Provenance("Tencent", URI.create("https://qt.gtimg.cn/q=sh600519"),
+                null, Instant.now(), false, null);
+        var tencentQuote = quote(new BigDecimal("999"), new BigDecimal("19.58"),
+                new BigDecimal("6.35"), new BigDecimal("0.11"));
+        var gateway = new HithinkResearchGateway(primary, hithink, List.of(
+                ignored -> DataSection.healthy(tencentQuote, tencentSource)));
+
+        var section = gateway.quote(security);
+        assertThat(section.payload().orElseThrow().price()).isEqualByComparingTo("100");
+        assertThat(section.payload().orElseThrow().peTtm()).isEqualByComparingTo("19.58");
+        assertThat(section.payload().orElseThrow().pb()).isEqualByComparingTo("6.35");
+        assertThat(section.payload().orElseThrow().turnoverPercent()).isEqualByComparingTo("0.11");
+        assertThat(section.status()).isEqualTo(SectionStatus.UNVERIFIED);
+        assertThat(section.provenance().orElseThrow().provider()).isEqualTo("HiThink Finance + Tencent");
+        assertThat(section.issues()).anyMatch(s -> s.contains("Tencent") && s.contains("市盈率TTM"));
+    }
+
+    @Test void fallsBackWholeSectionThroughOrderedSourcesWhenPrimaryUnavailable() {
+        when(hithink.fetchQuote(security)).thenReturn(DataSection.unavailable("code=2003"));
+        var eastmoneySource = new Provenance("Eastmoney",
+                URI.create("https://push2.eastmoney.com/api/qt/stock/get"), null, Instant.now(), false, null);
+        var eastmoneyQuote = quote(new BigDecimal("1275"), new BigDecimal("19.58"),
+                new BigDecimal("6.35"), new BigDecimal("0.11"));
+        var gateway = new HithinkResearchGateway(primary, hithink, List.of(
+                ignored -> DataSection.unavailable("Tencent offline"),
+                ignored -> DataSection.healthy(eastmoneyQuote, eastmoneySource)));
+
+        var section = gateway.quote(security);
+        assertThat(section.status()).isEqualTo(SectionStatus.DEGRADED);
+        assertThat(section.payload().orElseThrow().price()).isEqualByComparingTo("1275");
+        assertThat(section.provenance().orElseThrow().provider()).isEqualTo("Eastmoney");
+        assertThat(section.provenance().orElseThrow().fallbackProvider()).isEqualTo("HiThink Finance");
+        assertThat(section.issues()).anyMatch(s -> s.contains("同花顺"));
+    }
+
+    @Test void allQuoteSourcesUnavailableStaysUnavailable() {
+        when(hithink.fetchQuote(security)).thenReturn(DataSection.unavailable("code=2003"));
+        var gateway = new HithinkResearchGateway(primary, hithink,
+                List.of(ignored -> DataSection.unavailable("Tencent offline")));
+        var section = gateway.quote(security);
+        assertThat(section.status()).isEqualTo(SectionStatus.UNAVAILABLE);
+        assertThat(section.issues()).anyMatch(s -> s.contains("Tencent offline"));
+    }
+
+    private Quote quote(BigDecimal price, BigDecimal peTtm, BigDecimal pb, BigDecimal turnover) {
+        return new Quote(security, "贵州茅台", price, new BigDecimal("99"), new BigDecimal("98"),
+                new BigDecimal("101"), new BigDecimal("97"), null, null, null, null,
+                turnover, null, null, peTtm, null, pb, null, null, null, null,
+                Instant.parse("2026-09-14T01:00:00Z"));
     }
 }
