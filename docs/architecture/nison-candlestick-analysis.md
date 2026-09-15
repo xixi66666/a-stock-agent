@@ -8,7 +8,7 @@
 
 ## 数据流
 
-`Tencent/Baidu K 线 → MarketDataValidator → StockResearchSnapshot.bars → CandlestickAnalysisService → DataSection<CandlestickAnalysis> → REST/UI`
+`同花顺优先 / 腾讯回退 / 百度独立核验 K 线 → MarketDataValidator → StockResearchSnapshot.bars → CandlestickAnalysisService → DataSection<CandlestickAnalysis> → REST/UI`
 
 - 接口：`GET /api/stocks/{code}/candlestick?timeframe=DAILY|WEEKLY|MONTHLY`
 - 日线在交易日 15:05 前排除当天未完成 K 线。
@@ -32,8 +32,7 @@
 历史均量不足 20 根或均量为零时的量比为 null，UI 显示“不可计算”。
 结构描述比例阈值是工程近似（5%、30%、60%、70%），不代表原书机械交易规则。
 
-原书基础依据：[第三章 蜡烛图的绘制方法](D:/codex-book/books/japanese-candlestick-charting-techniques/content/chapters/009-section-009.md)
-及[第十章 蜡烛图信号的汇聚](D:/codex-book/books/japanese-candlestick-charting-techniques/content/chapters/017-section-017.md)。
+原书基础依据：第三章《蜡烛图的绘制方法》及第十章《蜡烛图信号的汇聚》。原始资料属于开发时的本地书库，不随仓库分发；可移植的方法笔记和部署边界见 [书本方法知识库](book-knowledge.md)。
 
 1. 前置趋势
 2. 形态构成

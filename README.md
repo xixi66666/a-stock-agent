@@ -12,8 +12,9 @@
 
 ## 功能范围
 
-- 股票代码或名称搜索，首版覆盖沪深北 A 股代码规则。
-- 腾讯实时行情与前复权日 K 线，百度 K 线独立交叉核验。
+- 支持沪深北 A 股六位代码输入；名称搜索目前只匹配内置热门股票列表，并非全市场名称检索。
+- 同花顺 Financial-API 优先提供已覆盖的行情、前复权日线、财报和估值；腾讯等来源按分区回退，百度日线独立交叉核验。配置见 [同花顺接入](docs/hithink-integration.md)。
+- 顶部大盘栏展示上证指数、深证成指和创业板指，保留来源、时间及回退状态。
 - 38 张技术指标卡：均线、MACD、RSI、KDJ、CCI、波动率、量价、收益、回撤、VaR、CVaR、偏度、峰度等。
 - 资金筹码、财务报表、估值预期、研报、新闻与公告分区展示。
 - 每个数据区块保留状态、来源、源时间、抓取时间、缓存和降级信息。
@@ -104,7 +105,7 @@ app:
 | --- | --- | --- | --- |
 | OpenAI | `https://api.openai.com` | 按账号填写 | 无 |
 | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | 无 |
-| Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | `mimo-v2.5-pro` | `chat.completions-path: /chat/completions` |
+| Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | `mimo-v2.5-pro` | 命名模型下设置 `completions-path: /chat/completions` |
 
 `config/application-local.yml` 已被 Git 忽略，可以在其中填写本机密钥。不要把真实密钥复制到 `application-local.yml.example`、README、日志、测试或提交历史中。模型只接收应用内部生成的完整规范化快照，不具备任意 URL、文件系统或命令执行能力；报告输出会经过本地结构校验，并固定保留“仅供学习研究，不构成投资建议”。修改供应商、密钥或模型后必须重启应用。
 
@@ -134,7 +135,7 @@ scripts\setup-uzi.cmd
 flowchart LR
   UI["Web 研究工作台"] --> API["Spring MVC API"]
   API --> Aggregate["研究聚合与缓存"]
-  Aggregate --> Providers["腾讯 / 百度 / 东财 / 新浪 / 巨潮"]
+  Aggregate --> Providers["同花顺优先 / 腾讯 / 百度 / 东财 / 新浪 / 巨潮"]
   Aggregate --> Validate["归一化与数据校验"]
   Aggregate --> Technical["ta4j + 自定义指标"]
   Aggregate --> Quality["0-100 质量评分"]
@@ -150,12 +151,12 @@ flowchart LR
 2. 阅读 `ProviderHttpClient`、`ProviderThrottle`、`ProviderHealthRegistry`，理解超时、重试、冷却与防封。
 3. 阅读 `ResearchAggregationService`，观察并行获取与区块级部分成功如何组合。
 4. 阅读 `TechnicalAnalysisService` 和 `DataQualityScorer`，理解确定性计算应在模型调用前完成。
-5. 阅读 `StockAgentTools`、`FinRobotResearchService` 和 `FinRobotReportMapper`，理解工具边界、角色编排、结构化输出和缺失数据披露。
-6. 在 `config/application-local.yml` 配置兼容模型，通过页面或 `/api/finrobot/research` 比较 FinRobot 叙述与原始证据。
+5. 阅读 `OfficialFinRobotService`、`OfficialFinRobotWorker` 和 `scripts/finrobot_worker.py`，理解默认异步任务、八个专题 Agent 与证据边界；旧同步链路从 `FinRobotResearchService` 阅读。
+6. 在 `config/application-local.yml` 配置兼容模型并安装 [FinRobot Python 环境](docs/finrobot-official.md)，通过页面或 `/api/finrobot/tasks` 生成报告，轮询任务完成后对照原始证据。
 
 ## 数据可靠性
 
-核心行情遵循 `a-stock-data` 的优先级：腾讯用于实时行情和 K 线，百度用于独立 K 线核验；东财只承担板块、资金、研报、新闻和筹码事件等独有数据，并通过全局串行限流器将请求间隔控制在至少 1 秒并加入抖动。新浪提供财务报表和资金流备份，巨潮用于官方公告。
+已启用并配置密钥时，同花顺优先提供已覆盖能力。个股行情由腾讯 → 东财 → 新浪补齐空字段或整段回退；个股日线回退腾讯，百度独立核验。财报回退新浪，估值快照单独保留在 `valuation`，不以其他口径冒充。板块、资金流、同行估值、研报和新闻等继续使用原适配器，巨潮提供公告。所有东财请求通过共享全局串行限流器，间隔至少 1 秒并加入抖动。完整能力边界见 [数据源矩阵](docs/data-sources/provider-matrix.md)。
 
 公开、脱敏的 `600519` 响应样本保存在 `src/test/resources/fixtures`。2026-07-15 验证样本中，贵州茅台最新价与收盘价为 `1251.06`，腾讯与百度的最近交易日收盘价一致。实时结果会随交易日变化，应以验证报告中的源时间为准。
 
@@ -172,13 +173,30 @@ flowchart LR
 | GET | `/api/stocks/search?q=600519` | 搜索股票 |
 | GET | `/api/stocks/{code}/snapshot` | 完整研究快照 |
 | GET | `/api/stocks/{code}/technical?timeframe=DAILY` | 技术指标 |
+| GET | `/api/stocks/{code}/candlestick?timeframe=DAILY` | 蜡烛图分析；周期支持 DAILY / WEEKLY / MONTHLY |
 | GET | `/api/stocks/{code}/sources` | 来源与质量状态 |
+| GET | `/api/market/indices` | 三大指数快照及各自来源状态 |
+| GET | `/api/finrobot/runtime` | 默认引擎及 Python 安装状态 |
+| POST | `/api/finrobot/tasks` | 默认官方异步报告，JSON `{code, modelId?}`，返回 202 和任务 |
+| GET | `/api/finrobot/tasks/{id}` | 查询官方任务进度和结果 |
+| GET | `/api/finrobot/latest/{code}` | 本次服务运行的最近任务；无任务返回 204 |
+| POST | `/api/finrobot/tasks/{id}/cancel` | 取消官方任务 |
+| GET | `/api/finrobot/tasks/{id}/artifacts/{kind}` | 下载 html / json / evidence；完整约定见官方接入说明 |
 | GET | `/api/finrobot/status` | FinRobot 模型配置状态 |
 | GET | `/api/ai/models` | 统一模型目录：安全字段、角色归属与启动探测的连通性 |
 | GET | `/api/finrobot/models` | 获取 FinRobot 安全模型目录（兼容保留） |
-| POST | `/api/finrobot/research` | 生成完整 FinRobot 单证券投研报告；`modelId` 可选 |
-| POST | `/api/agent/financial-report` | 财报分析（F-Score 财务质量评分 + 多期趋势 + DeepSeek 叙事，失败时确定性回退） |
-| GET | `/api/system/providers` | 数据源健康状态 |
+| POST | `/api/finrobot/research` | 旧同步报告，JSON `{code, modelId?}`；保留确定性回退 |
+| POST | `/api/agent/financial-report` | JSON `{code, modelId?}`；财务质量评分、多期趋势和可选模型叙事，失败时确定性回退 |
+| GET | `/api/agent/cycle/models` | 周期研究兼容模型目录 |
+| POST | `/api/agent/cycle/tasks` | 周期异步任务，JSON `{code, modelId?}` |
+| GET | `/api/agent/cycle/tasks/{id}` | 周期任务进度和结果 |
+| GET | `/api/agent/cycle/latest/{code}` | 最近周期任务或已落盘成功报告 |
+| GET | `/api/uzi/status` | UZI 环境状态 |
+| GET | `/api/uzi/models` | UZI 兼容模型目录 |
+| POST | `/api/uzi/tasks` | UZI 异步任务，JSON `{code, depth, school, modelId?}` |
+| GET | `/api/uzi/tasks/{id}` | UZI 任务进度和结果 |
+| GET | `/api/uzi/latest/{code}` | 最近 UZI 任务 |
+| GET | `/api/system/data-sources` | 数据源健康状态 |
 | GET | `/actuator/health` | 应用健康检查 |
 
 ### Agent 学习闭环
@@ -211,6 +229,9 @@ Embedding 和 Vector Store 当前是进程内确定性实现，仅用于学习�
 离线单元和契约测试不会访问公开数据源：
 
 ```powershell
+$env:JAVA_HOME = (Resolve-Path '.tools/jdk-21').Path
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+.\mvnw.cmd -version # 必须显示 Java 21；首次使用可先运行启动脚本准备工具链
 .\mvnw.cmd '-Dmaven.repo.local=.m2/repository' test
 ```
 
@@ -224,10 +245,10 @@ scripts\verify-data.cmd
 ./scripts/verify-data.sh
 ```
 
-前端回归测试需要 Node.js 20+ 和本机 Chrome：
+前端回归测试需要 Node.js 20+ 和本机 Chrome。先在另一终端运行 `start.cmd`，默认测试地址为 `http://127.0.0.1:10001`（可通过 `UI_BASE_URL` 覆盖）；Playwright 配置不会自动启动后端：
 
 ```powershell
-npm.cmd install --cache .npm-cache
+npm.cmd ci --cache .npm-cache
 npm.cmd run test:ui
 ```
 
@@ -258,13 +279,13 @@ Agent 显示“未配置”：这是默认状态。行情与指标仍正常工�
 ## 投资风险声明
 
 本项目仅用于软件工程、Spring AI 和 Agent 学习。公开数据可能延迟、缺失或因供应商接口调整而变化，技术指标基于历史数据，不能预测未来。本项目不提供买卖指令，不构成任何投资建议或收益承诺。
-## FinRobot equity research flow
+## 旧同步 FinRobot 链路（兼容保留）
 
-`POST /api/finrobot/research` first aggregates a single timestamped snapshot,
-then runs the fixed-weight `ResearchJudgementEngine` and the bounded FinRobot
-research roles. Its direction is one of `STRONGER`, `NEUTRAL`, `WEAKER` and
-`INSUFFICIENT`; the internal weighted score is never returned and
-`EvidenceStatus` is a data-availability state, not a confidence probability.
+`POST /api/finrobot/research` 先取得统一时间快照，模型可用时调用总体报告生成器；
+未配置模型或生成失败时，才通过 `ResearchJudgementEngine` 和
+`InstitutionalReportComposer` 生成确定性回退。回退方向为 `STRONGER`、`NEUTRAL`、
+`WEAKER` 或 `INSUFFICIENT`，内部加权分不返回；`EvidenceStatus` 表示数据可用性，
+不表示置信概率。默认官方 `/api/finrobot/tasks` 流程不会暗中回退到该旧链路。
 Industry PE/PB percentiles and consensus EPS are optional,
 provenance-preserving evidence.
 

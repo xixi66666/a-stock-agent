@@ -13,69 +13,53 @@ LLM / Presentation      负责受限叙述、报告编排和页面展示
 
 模型不是数据库、计算器或任意网络代理。它接收应用先整理好的数据，生成可以被服务端校验的叙述；方向、证据状态、来源和缺失项仍由 Java 侧控制。
 
-## 2. 主链路：生成研究报告
+## 2. 默认主链路：官方 FinRobot 异步报告
 
-点击页面的“生成研究报告”后，入口在 `static/js/app.js` 的 `bindAgentAction`：
+当前默认引擎为 `official`。从 `finrobot-official-view.js`、`OfficialFinRobotController` 开始阅读：
 
 ```text
-按钮
-  -> stockApi.analyze(code)
-  -> POST /api/agent/analyze
-  -> AgentController.analyze
-  -> StockAnalysisAgent.analyzeInstitutional
-  -> StockAgentTools.getResearchSnapshot
-  -> ResearchAggregationService.research
-  -> ResearchGateway / Provider Adapters
-  -> StockResearchSnapshot
-  -> ResearchJudgementEngine.assess
-  -> InstitutionalReportComposer.compose
-  -> SpringAiNarrativeGenerator.generate（模型已配置时）
-  -> ReportValidator.validate
-  -> InstitutionalReportComposer.assembleValidated
-  -> JSON
-  -> renderInstitutionalReport
+顶部全局模型选择器 GET /api/ai/models
+  -> POST /api/finrobot/tasks {code, modelId}
+  -> OfficialFinRobotService（任务、超时、并发与取消）
+  -> OfficialFinRobotWorker
+  -> scripts/finrobot_worker.py
+  -> third_party/finrobot 中固定版本的八个专题 Agent
+  -> GET /api/finrobot/tasks/{id} 轮询进度和结果
+  -> 下载 html / json / evidence 附件
 ```
+
+Java 整理股票快照和财报证据，Python Worker 通过 OpenAI Agents SDK 分别执行专题。模型章节标记 `UNVERIFIED`，结构校验不等于事实核验。缺失数据、章节失败和来源限制随报告保留。默认流程没有模型或执行失败时不会伪造确定性官方报告，也不会自动调用旧同步引擎。
+
+安装、任务状态、重启后的产物访问限制见 [官方 FinRobot 接入](../finrobot-official.md)。
 
 ### 2.1 获取快照
 
-`ResearchAggregationService` 并行请求行情、K 线和可选研究分区，然后把每个结果包装成 `DataSection<T>`。一个分区不可以因为失败而伪造空值；它必须明确表示 `HEALTHY`、`DEGRADED`、`STALE`、`UNVERIFIED` 或 `UNAVAILABLE`，并保留 `Provenance`。
+`ResearchAggregationService` 并行请求有界分区；`HithinkResearchGateway` 优先同花顺已覆盖能力，`ProviderResearchGateway` 提供原有数据和备用来源。所有东财请求仍共用串行 `ProviderThrottle`。
 
-### 2.2 确定性分析
+一个分区必须明确表示 `HEALTHY`、`DEGRADED`、`STALE`、`UNVERIFIED` 或 `UNAVAILABLE`，并保留 `Provenance`。行情或某个可选分区失败，不应抹去其他可用证据。
 
-`ResearchJudgementEngine` 使用固定权重和阈值分析技术、资金、事件、基本面和估值。这个阶段不调用模型，因为指标计算、缺失数据处理和冲突识别必须可重复、可测试、可解释。
+### 2.2 确定性分析与模型边界
 
-### 2.3 构造有界证据包
+`TechnicalAnalysisService`、财务趋势和质量评分先在 Java 中计算。模型不负责选择数据源、补造缺失值或重算数值。官方流程的模型输出、旧同步流程的确定性回退是不同路径，不能混用其状态含义。
 
-`InstitutionalReportComposer` 只把允许模型使用的事实、信号、事件、缺失项和冲突放入 `ReportEvidencePackage`。证据包中的每条内容都有稳定 ID，例如 `[quote-price]`。Prompt 要求模型引用这些 ID，服务端再检查引用是否真实存在。
+## 3. 旧同步 FinRobot 链路与全局模型选择
 
-### 2.4 模型叙述与回退
-
-模型只能生成叙述字段，不能改变 Java 已确定的方向和证据状态。返回后依次执行：
-
-1. 反序列化为 `ReportNarrativeDraft`。
-2. 检查空字段、长度、数字、证据 ID、冲突说明和交易指令。
-3. 如果是阻断问题，最多请求一次修复。
-4. 修复仍失败或模型调用异常时，回到确定性叙述。
-
-所以页面看到的 `MODEL_ASSISTED`、`MODEL_ASSISTED_PARTIAL` 或 `DETERMINISTIC_FALLBACK`，是一次真实的生成路径说明，而不是模型自报状态。
-
-## 3. 总体报告链路
-
-总体报告是独立的第二条链路，不使用研究报告按钮的模型选择：
+`app.finrobot.engine: legacy` 可切回兼容页面；同步接口仍保留：
 
 ```text
-页面选择模型
-  -> GET /api/agent/models?capability=overall-report
-  -> POST /api/agent/overall-report {code, modelId}
-  -> OverallReportService
-  -> NamedChatClientRegistry
+POST /api/finrobot/research {code, modelId}
+  -> FinRobotResearchService
   -> StockAgentTools.getResearchSnapshot
-  -> SpringAiOverallReportGenerator
-  -> OverallReportValidator
-  -> OverallResearchReport
+  -> NamedChatClientRegistry 选择命名模型
+  -> SpringAiOverallReportGenerator / OverallReportValidator
+  -> FinRobotReportMapper.fromOverall
 ```
 
-它允许本次请求选择命名模型，模型读取完整规范化快照，服务端校验报告章节、来源引用、数字边界和免责声明。总体报告失败不会覆盖右侧研究报告。
+未配置模型或生成失败时，转入 `ResearchJudgementEngine.assess`、`InstitutionalReportComposer.fallbackWithDiagnostic` 和 `FinRobotReportMapper.fromInstitutional`，返回带缺失项、冲突和免责声明的确定性结果。已有的 UZI 证据可作为旧同步模型链路的补充上下文。
+
+旧文档中的 `/api/agent/analyze`、`/api/agent/overall-report` 和 `/api/agent/models` 已不是当前 REST 入口；代码中保留的报告类也不意味着同名端点仍存在。财报专项使用 `/api/agent/financial-report`，周期和 UZI 使用各自异步任务接口。
+
+页面统一消费 `/api/ai/models`，`model-selection.js` 保存全局选择，FinRobot、周期、UZI、财报请求复用同一 `modelId`。兼容的各模块模型目录仍保留；连通性探测不代表工具调用和报告质量已通过验证。
 
 ## 4. 数据模型为什么要有 `DataSection`
 
@@ -95,7 +79,7 @@ issues       对缺失、冲突、过期或解析问题的解释
 1. `ProviderHttpClient`：统一超时、重试、敏感信息脱敏和健康状态。
 2. `ProviderThrottle`：理解为什么 Eastmoney 请求必须全局串行并带间隔抖动。
 3. `ProviderHealthRegistry`：理解失败冷却如何避免持续撞击被限制的来源。
-4. `ProviderResearchGateway`：理解优先来源、备用来源和区块级失败。
+4. `HithinkResearchGateway`、`QuoteMerger` 和 `ProviderResearchGateway`：理解优先来源、字段补齐、备用来源和区块级失败。
 5. `marketdata.provider.*`：阅读供应商响应解析，不让供应商字段泄漏到上层。
 6. `marketdata.model.*`：阅读统一后的领域记录和单位约束。
 
@@ -121,7 +105,7 @@ LearningAgentController
 
 - `api.js`：只负责请求地址、HTTP 方法和响应解包。
 - `app.js`：负责页面状态、异步请求竞态、模型选择和错误反馈。
-- `views.js`：负责把快照、研究报告和总体报告渲染为 HTML。
+- `views.js`：负责快照和旧同步报告展示；`finrobot-official-view.js`、`cycle-view.js`、`uzi-view.js`、`financial-view.js` 分别负责专题页面。
 - `technical-view.js`：负责 ECharts 技术图表和指标卡。
 - `derived-market-view.js`：负责从规范化数据派生页面展示值。
 - `styles.css`：负责研究工作台的语义 token、响应式布局和状态颜色。
@@ -138,9 +122,9 @@ LearningAgentController
 2. `StockResearchSnapshot`、`DataSection`、`Provenance`
 3. `ResearchAggregationService`
 4. `ResearchJudgementEngine`
-5. `StockAnalysisAgent`
+5. `OfficialFinRobotService`、`OfficialFinRobotWorker` 和 `scripts/finrobot_worker.py`
 6. `InstitutionalReportComposer`、`ReportValidator`
-7. `SpringAiNarrativeGenerator`
-8. `OverallReportService` 和总体报告校验
+7. `FinRobotResearchService`、`SpringAiOverallReportGenerator`
+8. `OverallReportValidator`、`FinancialReportService` 和专题报告校验
 9. Provider、RAG、MCP、Memory 和前端
 

@@ -10,7 +10,7 @@ sequenceDiagram
   participant UI as Web Workbench
   participant API as StockController
   participant AGG as ResearchAggregationService
-  participant GW as ProviderResearchGateway
+  participant GW as HithinkResearchGateway + ProviderResearchGateway
   participant SRC as Public Providers
   participant TECH as TechnicalAnalysisService
   participant QA as DataQualityScorer
@@ -57,27 +57,24 @@ request -> Chat Memory -> Trace/RAG Advisors -> deterministic Embedding
          -> evidence-only response
 ```
 
-## Institutional Report Path
+## Report Paths
 
-The fixed `POST /api/agent/analyze` flow is deliberately separate from interactive
-tool calling:
+默认页面使用 `POST /api/finrobot/tasks`：`OfficialFinRobotService` 管理异步任务，
+`OfficialFinRobotWorker` 整理规范化快照和财报证据，再由 `scripts/finrobot_worker.py`
+执行固定版本的八个官方专题 Agent。任务通过 `/api/finrobot/tasks/{id}` 轮询；章节失败
+可形成部分报告，全部失败不返回成功报告。模型章节为 UNVERIFIED，不自动回退旧报告。
 
-```text
-ResearchAggregationService
-  -> ResearchJudgementEngine (fixed weights and thresholds)
-  -> InstitutionalReportComposer (bounded evidence package)
-  -> ChatClient narrative draft (optional, no .tools(...))
-  -> ReportValidator
-  -> InstitutionalResearchReport
-```
+兼容的 `POST /api/finrobot/research` 由 `FinRobotResearchService` 调用总体报告生成器和
+校验器；无模型或生成失败时才使用 `ResearchJudgementEngine` 和
+`InstitutionalReportComposer` 生成确定性回退。内部加权分不序列化；缺失、冲突、
+来源和免责声明均保留。旧 `/api/agent/analyze` 已不在当前 REST Controller 中。
 
-`Direction` and `EvidenceStatus` are determined by Java. The internal weighted
-score is not serialized. Missing dimensions contribute zero and are reported as
-partial or insufficient evidence; they are never reweighted. Model timeout,
-invalid JSON, unsupported numbers, unknown evidence IDs or trade language return
-`DETERMINISTIC_FALLBACK`.
+财报使用 `/api/agent/financial-report`，周期研究使用 `/api/agent/cycle/tasks`，
+UZI 使用 `/api/uzi/tasks`。前端统一从 `/api/ai/models` 取得安全模型目录并传递 modelId。
+周期模块仅允许在配置书库内检索和阅读，不提供任意文件或 URL 工具。
 
-When an OpenAI-compatible chat model is configured, the same advisors are passed to `ChatClient`; otherwise the deterministic evidence response is returned. The local vector index stores only normalized research evidence and preserves security code, section, provider, source URL, provider time and fetch time. MCP server transport is disabled by default and must be explicitly enabled in local configuration.
+学习入口的 ChatClient（可选）继续使用 Trace/RAG Advisor 链；向量索引仅保存在内存中，
+元数据保留代码、分区、供应商、来源 URL 和时间。MCP 协议服务默认关闭。
 
 ## Partial Success
 
@@ -85,4 +82,4 @@ Each `DataSection<T>` is `HEALTHY`, `DEGRADED`, `STALE`, `UNVERIFIED`, or `UNAVA
 
 ## Cache And Freshness
 
-Caffeine stores completed snapshots by `SecurityId`. Explicit refresh invalidates the entry. Provenance differentiates source time from fetch time and records whether a result was cached or supplied by a fallback.
+Caffeine stores completed snapshots by `SecurityId`. `ResearchAggregationService.invalidate` can invalidate the entry internally; the current stock REST controller does not expose a force-refresh parameter. Provenance differentiates source time from fetch time and records whether a result was cached or supplied by a fallback.
