@@ -1,6 +1,7 @@
 package com.astock.agent.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.astock.agent.marketdata.model.DataSection;
 import com.astock.agent.marketdata.model.DailyBar;
@@ -16,6 +17,7 @@ import com.astock.agent.technical.TechnicalAnalysisService;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -147,6 +149,28 @@ class ResearchAggregationServiceTest {
                 .isEqualTo(LocalDate.of(2026, 9, 8));
     }
 
+    @Test
+    void stalledSectionDegradesLocallyInsteadOfHangingTheWholeSnapshot() {
+        ResearchGateway gateway = new StubGateway() {
+            @Override
+            public DataSection<?> announcements(SecurityId security) {
+                try {
+                    Thread.sleep(30_000);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+                return DataSection.healthy(List.of(), source);
+            }
+        };
+
+        StockResearchSnapshot result = assertTimeoutPreemptively(Duration.ofSeconds(5),
+                () -> service(gateway, Duration.ofMillis(200)).research(SecurityId.parse("600519")));
+
+        assertThat(result.quote().status()).isEqualTo(SectionStatus.HEALTHY);
+        assertThat(result.announcements().status()).isEqualTo(SectionStatus.UNAVAILABLE);
+        assertThat(result.announcements().issues()).anyMatch(issue -> issue.contains("timed out"));
+    }
+
     private static ResearchAggregationService service(ResearchGateway gateway) {
         return new ResearchAggregationService(
                 gateway,
@@ -154,6 +178,16 @@ class ResearchAggregationServiceTest {
                 new DataQualityScorer(),
                 new FundFlowSummaryCalculator(),
                 Caffeine.newBuilder().maximumSize(10).build());
+    }
+
+    private static ResearchAggregationService service(ResearchGateway gateway, Duration sectionTimeout) {
+        return new ResearchAggregationService(
+                gateway,
+                new TechnicalAnalysisService(new BarSeriesFactory()),
+                new DataQualityScorer(),
+                new FundFlowSummaryCalculator(),
+                Caffeine.newBuilder().maximumSize(10).build(),
+                sectionTimeout);
     }
 
     private static class StubGateway implements ResearchGateway {

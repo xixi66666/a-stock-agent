@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$UziRoot = "tools\uzi\UZI-Skill",
     [string]$Python = "",

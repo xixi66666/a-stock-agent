@@ -5,10 +5,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
@@ -97,7 +102,7 @@ public final class ProviderHttpClient {
                 HttpRequest request = requestFactory.get();
                 HttpClient transport = request.headers().firstValue("X-api-key").isPresent()
                         ? authenticatedClient : client;
-                HttpResponse<byte[]> response = transport.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                HttpResponse<byte[]> response = sendBounded(transport, request, uri);
                 int status = response.statusCode();
                 if (status >= 200 && status < 300) {
                     healthRegistry.recordSuccess(provider, clock.instant());
@@ -114,13 +119,37 @@ public final class ProviderHttpClient {
                 if (attempt == maxRetries) {
                     throw new ProviderException(provider, uri, "Provider connection failed: " + redact(uri), exception);
                 }
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new ProviderException(provider, uri, "Provider request interrupted", exception);
             }
             backoff(attempt);
         }
         throw new IllegalStateException("Unreachable retry loop");
+    }
+
+    /**
+     * 限时交换：{@link HttpRequest#timeout} 只约束响应头，响应体中途停滞时同步
+     * {@code send} 会永久阻塞；这里用 {@code sendAsync} 加整体超时兜底，超时按 IO 失败重试。
+     */
+    private HttpResponse<byte[]> sendBounded(HttpClient transport, HttpRequest request, URI uri)
+            throws IOException {
+        CompletableFuture<HttpResponse<byte[]>> exchange =
+                transport.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
+        try {
+            return exchange.orTimeout(Math.max(1L, requestTimeout.toMillis()), TimeUnit.MILLISECONDS).join();
+        } catch (CompletionException exception) {
+            exchange.cancel(true);
+            Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+            if (cause instanceof HttpTimeoutException timeout) {
+                throw timeout;
+            }
+            if (cause instanceof IOException failure) {
+                throw failure;
+            }
+            if (cause instanceof TimeoutException) {
+                throw new HttpTimeoutException(
+                        "Provider response exceeded " + requestTimeout.toMillis() + "ms: " + redact(uri));
+            }
+            throw new IOException("Provider exchange failed: " + redact(uri), cause);
+        }
     }
 
     private HttpRequest.Builder baseRequest(URI uri) {

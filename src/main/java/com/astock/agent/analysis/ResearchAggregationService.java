@@ -13,13 +13,17 @@ import com.astock.agent.technical.TechnicalAnalysisService;
 import com.astock.agent.technical.TechnicalSnapshot;
 import com.astock.agent.technical.Timeframe;
 import com.github.benmanes.caffeine.cache.Cache;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * 研究数据聚合服务。
@@ -30,11 +34,14 @@ import java.util.concurrent.Future;
  */
 public final class ResearchAggregationService {
 
+    private static final Duration DEFAULT_SECTION_TIMEOUT = Duration.ofSeconds(30);
+
     private final ResearchGateway gateway;
     private final TechnicalAnalysisService technicalService;
     private final DataQualityScorer qualityScorer;
     private final FundFlowSummaryCalculator fundFlowSummaryCalculator;
     private final Cache<SecurityId, StockResearchSnapshot> cache;
+    private final Duration sectionTimeout;
 
     public ResearchAggregationService(
             ResearchGateway gateway,
@@ -42,11 +49,23 @@ public final class ResearchAggregationService {
             DataQualityScorer qualityScorer,
             FundFlowSummaryCalculator fundFlowSummaryCalculator,
             Cache<SecurityId, StockResearchSnapshot> cache) {
+        this(gateway, technicalService, qualityScorer, fundFlowSummaryCalculator, cache,
+                DEFAULT_SECTION_TIMEOUT);
+    }
+
+    public ResearchAggregationService(
+            ResearchGateway gateway,
+            TechnicalAnalysisService technicalService,
+            DataQualityScorer qualityScorer,
+            FundFlowSummaryCalculator fundFlowSummaryCalculator,
+            Cache<SecurityId, StockResearchSnapshot> cache,
+            Duration sectionTimeout) {
         this.gateway = gateway;
         this.technicalService = technicalService;
         this.qualityScorer = qualityScorer;
         this.fundFlowSummaryCalculator = fundFlowSummaryCalculator;
         this.cache = cache;
+        this.sectionTimeout = sectionTimeout;
     }
 
     public StockResearchSnapshot research(SecurityId security) {
@@ -65,12 +84,13 @@ public final class ResearchAggregationService {
             Future<DataSection<List<DailyBar>>> barsFuture = executor.submit(() -> safeBars(security));
             Future<DataSection<List<DailyBar>>> crossFuture = executor.submit(() -> safeCrossBars(security));
             Future<DataSection<?>> sectorsFuture = submit(executor, () -> gateway.sectors(security));
-            var valuationFuture = executor.submit(() -> {
-                try { return gateway.valuation(security); }
-                catch (RuntimeException failure) {
-                    return DataSection.<com.astock.agent.marketdata.model.ValuationSnapshot>unavailable("估值请求失败");
-                }
-            });
+            Future<DataSection<com.astock.agent.marketdata.model.ValuationSnapshot>> valuationFuture =
+                    executor.submit(() -> {
+                        try { return gateway.valuation(security); }
+                        catch (RuntimeException failure) {
+                            return DataSection.<com.astock.agent.marketdata.model.ValuationSnapshot>unavailable("估值请求失败");
+                        }
+                    });
             Future<DataSection<IndustryValuationData>> industryValuationFuture =
                     executor.submit(() -> safeIndustryValuation(security));
             Future<DataSection<?>> flowFuture = submit(executor, () -> gateway.fundFlow(security));
@@ -80,9 +100,10 @@ public final class ResearchAggregationService {
             Future<DataSection<?>> newsFuture = submit(executor, () -> gateway.news(security));
             Future<DataSection<?>> announcementsFuture = submit(executor, () -> gateway.announcements(security));
 
-            DataSection<Quote> quote = quoteFuture.get();
-            DataSection<List<DailyBar>> primaryBars = barsFuture.get();
-            DataSection<List<DailyBar>> cross = crossFuture.get();
+            // 分区等待必须限时：单个 Provider 卡死只降级自己的分区，不能拖住整份快照和缓存单飞锁。
+            DataSection<Quote> quote = section(quoteFuture, "Quote");
+            DataSection<List<DailyBar>> primaryBars = section(barsFuture, "K-line");
+            DataSection<List<DailyBar>> cross = section(crossFuture, "Independent K-line");
             DataSection<List<DailyBar>> bars = preferFresherBars(primaryBars, cross);
             if (!usable(quote) && !usable(bars)) {
                 throw new ResearchUnavailableException("No core quote or K-line source is available for " + security.code());
@@ -96,14 +117,24 @@ public final class ResearchAggregationService {
                     .map(Provenance::provider)
                     .map(name -> name.contains("Tencent") || name.equals("HiThink Finance"))
                     .orElse(false);
-            DataSection<?> fundFlow = flowFuture.get();
+            var fundFlow = anySection(flowFuture, "Fund flow");
             DataSection<FundFlowSummary> fundFlowSummary = summarizeFlow(fundFlow);
+            var sectors = anySection(sectorsFuture, "Sectors");
+            DataSection<IndustryValuationData> industryValuation =
+                    section(industryValuationFuture, "Industry valuation");
+            var capital = anySection(capitalFuture, "Capital");
+            var fundamentals = anySection(fundamentalsFuture, "Fundamentals");
+            var research = anySection(researchFuture, "Institutional research");
+            var news = anySection(newsFuture, "News");
+            var announcements = anySection(announcementsFuture, "Announcements");
+            DataSection<com.astock.agent.marketdata.model.ValuationSnapshot> valuation =
+                    section(valuationFuture, "Valuation");
 
             StockResearchSnapshot snapshot = new StockResearchSnapshot(
                     security, quote, bars, technical,
-                    sectorsFuture.get(), industryValuationFuture.get(), fundFlow, fundFlowSummary,
-                    capitalFuture.get(), fundamentalsFuture.get(),
-                    researchFuture.get(), newsFuture.get(), announcementsFuture.get(), null,
+                    sectors, industryValuation, fundFlow, fundFlowSummary,
+                    capital, fundamentals,
+                    research, news, announcements, null,
                     consistent, complete, authoritative, Instant.now());
             DataQualityBreakdown quality = qualityScorer.score(snapshot);
             return new StockResearchSnapshot(
@@ -111,13 +142,44 @@ public final class ResearchAggregationService {
                     snapshot.sectors(), snapshot.industryValuation(), snapshot.fundFlow(), snapshot.fundFlowSummary(),
                     snapshot.capital(), snapshot.fundamentals(),
                     snapshot.research(), snapshot.news(), snapshot.announcements(), quality,
-                    consistent, complete, authoritative, snapshot.fetchedAt(), valuationFuture.get());
+                    consistent, complete, authoritative, snapshot.fetchedAt(), valuation);
         } catch (ResearchUnavailableException exception) {
             throw exception;
         } catch (Exception exception) {
             throw new ResearchUnavailableException("Unable to aggregate research for " + security.code()
                     + ": " + exception.getMessage());
         }
+    }
+
+    private <T> DataSection<T> section(Future<DataSection<T>> future, String label) {
+        return typed(sectionResult(future, label));
+    }
+
+    private DataSection<?> anySection(Future<? extends DataSection<?>> future, String label) {
+        return sectionResult(future, label);
+    }
+
+    /** 限时等待分区结果：超时取消任务并按不可用分区返回，避免单个 Provider 拖住整份快照。 */
+    private DataSection<?> sectionResult(Future<? extends DataSection<?>> future, String label) {
+        try {
+            return future.get(sectionTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException exception) {
+            future.cancel(true);
+            return DataSection.unavailable(label + " section timed out after " + sectionTimeout.toMillis() + "ms");
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            return DataSection.unavailable(label + " section request was interrupted");
+        } catch (ExecutionException exception) {
+            Throwable cause = exception.getCause();
+            return DataSection.unavailable(cause == null || cause.getMessage() == null
+                    ? label + " section failed" : cause.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> DataSection<T> typed(DataSection<?> result) {
+        return (DataSection<T>) result;
     }
 
     private Future<DataSection<?>> submit(
