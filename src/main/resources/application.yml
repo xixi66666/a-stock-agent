@@ -25,6 +25,11 @@ spring:
 server:
   port: 10001
 
+# 单独开启交互/请求/任务日志，避免为了排查而开启全局 DEBUG。
+logging:
+  level:
+    com.astock.agent.observability: INFO
+
 management:
   endpoints:
     web:
@@ -53,7 +58,6 @@ app:
       embedding-dimension: 128
   uzi:
     root-path: tools/uzi/UZI-Skill
-    python: python
     report-path: data/uzi-reports
     task-timeout: 30m
     max-concurrent-tasks: 1

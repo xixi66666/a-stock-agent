@@ -284,7 +284,7 @@ th, td { padding: 9px 7px; border-bottom: 1px solid var(--hairline); white-space
 .report-drivers li small { color: var(--muted); }
 .report-subsection { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--hairline); }
 .report-subsection > strong { display: block; margin-bottom: 4px; font-size: 12px; }
-.model-diagnostic { margin: 16px 0; border: 1px solid var(--strong-hairline); padding: 10px 12px; background: var(--canvas-soft); }
+.model-diagnostic { margin: 16px 0; border: 1px solid var(--hairline-strong); padding: 10px 12px; background: var(--canvas-soft); }
 .model-diagnostic summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
 .model-diagnostic dl { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 6px 12px; margin: 12px 0 0; }
 .model-diagnostic dt { color: var(--muted); }

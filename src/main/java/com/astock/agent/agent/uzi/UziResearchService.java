@@ -1,6 +1,7 @@
 package com.astock.agent.agent.uzi;
 
 import com.astock.agent.agent.model.NamedChatClientRegistry;
+import com.astock.agent.observability.TaskTrace;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
@@ -108,6 +109,7 @@ public final class UziResearchService implements AutoCloseable {
         NamedChatClientRegistry.NamedModel selected = resolveModel(modelId);
         for (Job current : jobs.values()) {
             if (current.code.equals(normalizedCode) && "RUNNING".equals(current.status)) {
+                current.trace.event("REUSED");
                 return current.view();
             }
         }
@@ -127,21 +129,23 @@ public final class UziResearchService implements AutoCloseable {
             return job.view();
         }
         if (!capacity.tryAcquire()) {
+            job.trace.event("REJECTED");
             jobs.remove(job.id);
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "UZI 研究任务繁忙，请稍后重试");
         }
 
-        job.future = executor.submit(() -> {
+        job.future = executor.submit(job.trace.wrap(() -> {
             try {
                 execute(job);
             } finally {
                 capacity.release();
             }
-        });
+        }));
         job.timeout = timer.schedule(() -> {
             synchronized (job) {
                 if ("RUNNING".equals(job.status)) {
+                    job.trace.event("TIMEOUT");
                     job.fail("UZI 研究超时，请检查模型响应速度或缩小分析深度");
                     if (job.future != null) job.future.cancel(true);
                 }
@@ -183,15 +187,18 @@ public final class UziResearchService implements AutoCloseable {
                 job.snapshotAt = parseInstant(bundle.generatedAt());
                 job.reportPath = bundle.reportPath();
                 job.status = "COMPLETED";
+                job.trace.event("COMPLETED");
                 job.stage = "研究完成";
                 job.updatedAt = Instant.now();
                 try {
                     save(job.view());
                 } catch (Exception unavailableStorage) {
+                    job.trace.failure(unavailableStorage);
                     job.error = "UZI bundle 已生成，但本地保存失败；请检查报告目录权限";
                 }
             }
         } catch (Exception failure) {
+            job.trace.failure(failure);
             synchronized (job) {
                 if ("RUNNING".equals(job.status)) {
                     job.fail("UZI 研究未完成：" + safeMessage(failure));
@@ -332,6 +339,7 @@ public final class UziResearchService implements AutoCloseable {
     private final class Job {
         final String id = UUID.randomUUID().toString();
         final String code;
+        final TaskTrace trace;
         final String depth;
         final String school;
         final String modelName;
@@ -347,6 +355,7 @@ public final class UziResearchService implements AutoCloseable {
         ScheduledFuture<?> timeout;
 
         Job(String code, String depth, String school, String modelName) {
+            this.trace = new TaskTrace("uzi", id, code);
             this.code = code;
             this.depth = depth;
             this.school = school;
@@ -354,6 +363,7 @@ public final class UziResearchService implements AutoCloseable {
         }
 
         void fail(String message) {
+            trace.event("FAILED");
             status = "FAILED";
             stage = "研究未完成";
             error = message;

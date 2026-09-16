@@ -3,6 +3,7 @@
  * 业务状态（例如 DataSection 的 UNAVAILABLE）交给 app.js/views.js 解释，避免请求层
  * 偷偷把缺失数据变成默认数值。
  */
+import { tracedFetch } from './interaction-tracing.js';
 const DEFAULT_HEADERS = { Accept: "application/json" };
 
 export class ApiError extends Error {
@@ -16,7 +17,7 @@ export class ApiError extends Error {
 
 async function request(path, options = {}) {
   // 统一解析 JSON 或文本错误，页面层只处理 ApiError，不重复编写 fetch 错误逻辑。
-  const response = await fetch(path, {
+  const response = await tracedFetch(path, {
     ...options,
     headers: { ...DEFAULT_HEADERS, ...(options.headers || {}) },
   });

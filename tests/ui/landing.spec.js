@@ -25,6 +25,19 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 1024, height: 76
   });
 }
 
+test('hero search draws one pill-shaped focus ring instead of a box over the input', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/');
+  const input = page.getByRole('textbox', { name: '六位股票代码' });
+  await input.click();
+  await input.fill('002354');
+  const form = page.locator('.hero-form');
+  await expect(form).toHaveCSS('border-radius', '999px');
+  await expect(form).toHaveCSS('outline-style', 'solid');
+  await expect(form).toHaveCSS('outline-offset', '4px');
+  await expect(input).toHaveCSS('outline-style', 'none');
+});
+
 test('stock entry navigates and loads the requested stock', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: '六位股票代码' }).fill('600519');

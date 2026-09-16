@@ -1,3 +1,4 @@
+import './interaction-tracing.js';
 const icons = () => window.lucide?.createIcons();
 const menu = document.querySelector('#mobile-menu');
 const toggle = document.querySelector('.menu-toggle');

@@ -12,10 +12,11 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class UziResearchServiceTest {
 
     @Test
-    void completesAnAsyncTaskAndKeepsTheStructuredBundle() throws Exception {
+    void completesAnAsyncTaskAndKeepsTheStructuredBundle(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
         Path temp = Path.of("target", "uzi-test-" + UUID.randomUUID()).toAbsolutePath();
         Files.createDirectories(temp.resolve("UZI-Skill"));
         Files.writeString(temp.resolve("UZI-Skill/run.py"), "# test fixture");
@@ -31,7 +32,11 @@ class UziResearchServiceTest {
                 new NamedChatClientRegistry(null, null),
                 (code, depth, school, modelName, outputDir) -> bundle);
         try {
-            UziResearchService.Task started = service.start("600519", "deep", "F");
+            org.slf4j.MDC.put("requestId", "request-uzi-test");
+            org.slf4j.MDC.put("interactionId", "click-uzi-test");
+            UziResearchService.Task started;
+            try { started = service.start("600519", "deep", "F"); }
+            finally { org.slf4j.MDC.clear(); }
             UziResearchService.Task completed = await(service, started.id());
 
             assertThat(completed.status()).isEqualTo("COMPLETED");
@@ -39,6 +44,10 @@ class UziResearchServiceTest {
             assertThat(completed.bundle().structured()).containsKey("companyProfile");
             assertThat(completed.bundle().sources()).hasSize(1);
             assertThat(completed.reportPath()).isNull();
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                    assertThat(output.getOut()).contains("TASK_CREATED", "TASK_START", "TASK_COMPLETED",
+                            "module=uzi", "taskId=" + started.id(), "requestId=request-uzi-test",
+                            "interactionId=click-uzi-test"));
         } finally {
             service.close();
             try (var paths = Files.walk(temp)) {

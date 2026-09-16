@@ -1,6 +1,7 @@
 package com.astock.agent.agent.finrobot;
 
 import com.astock.agent.agent.model.AiModelProperties;
+import com.astock.agent.observability.TaskTrace;
 import com.astock.agent.agent.model.ModelNotAvailableException;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -49,7 +50,10 @@ public final class OfficialFinRobotService implements AutoCloseable {
         var model = selectedId == null ? null : models.models().get(selectedId);
         if (model == null || !model.configured()) throw new ModelNotAvailableException();
         for (Job job : jobs.values()) if (job.code.equals(code) && job.modelId.equals(selectedId)
-                && job.status.equals("RUNNING")) return view(job);
+                && job.status.equals("RUNNING")) {
+            job.trace.event("REUSED");
+            return view(job);
+        }
         if (!capacity.tryAcquire()) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "FinRobot 研究任务繁忙");
         if (jobs.size() >= 100) jobs.values().removeIf(job -> !job.status.equals("RUNNING"));
         Job job = new Job(code, selectedId, model.model());
@@ -57,12 +61,13 @@ public final class OfficialFinRobotService implements AutoCloseable {
         job.timeout = timer.schedule(() -> {
             synchronized (job) {
                 if (job.status.equals("RUNNING")) {
+                    job.trace.event("TIMEOUT");
                     job.fail("研究超时，请稍后重试");
                     if (job.worker != null) job.worker.interrupt();
                 }
             }
         }, properties.taskTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        job.future = executor.submit(() -> {
+        job.future = executor.submit(job.trace.wrap(() -> {
             try {
                 synchronized (job) {
                     job.worker = Thread.currentThread();
@@ -81,14 +86,16 @@ public final class OfficialFinRobotService implements AutoCloseable {
                         job.fail("官方专题生成失败，请检查所选模型的兼容性与连接配置");
                     } else {
                         job.report = report; job.status = status; job.updatedAt = Instant.now();
+                        job.trace.event(status);
                     }
                 }
             } catch (Exception failure) {
+                job.trace.failure(failure);
                 synchronized (job) { if (job.status.equals("RUNNING")) job.fail("官方引擎执行失败，请检查 Python 环境、模型连接和数据状态"); }
             } finally {
                 job.timeout.cancel(false); capacity.release();
             }
-        });
+        }));
         return view(job);
     }
 
@@ -105,6 +112,7 @@ public final class OfficialFinRobotService implements AutoCloseable {
         synchronized (job) {
             if (job.status.equals("RUNNING")) {
                 job.status = "CANCELLED"; job.updatedAt = Instant.now();
+                job.trace.event("CANCELLED");
                 if (job.worker != null) job.worker.interrupt();
                 job.timeout.cancel(false);
             }
@@ -153,12 +161,19 @@ public final class OfficialFinRobotService implements AutoCloseable {
     private static final class Job {
         final String id = UUID.randomUUID().toString();
         final String code, modelId, modelName;
+        final TaskTrace trace;
         final Instant startedAt = Instant.now();
         volatile Instant updatedAt = startedAt;
         volatile String status = "RUNNING";
         JsonNode report; String error; Future<?> future; Thread worker; ScheduledFuture<?> timeout;
-        Job(String code, String modelId, String modelName) { this.code = code; this.modelId = modelId; this.modelName = modelName; }
-        void fail(String message) { status = "FAILED"; error = message; report = null; updatedAt = Instant.now(); }
+        Job(String code, String modelId, String modelName) {
+            this.code = code; this.modelId = modelId; this.modelName = modelName;
+            this.trace = new TaskTrace("finrobot", id, code);
+        }
+        void fail(String message) {
+            trace.event("FAILED");
+            status = "FAILED"; error = message; report = null; updatedAt = Instant.now();
+        }
     }
 
     @PreDestroy @Override public void close() {

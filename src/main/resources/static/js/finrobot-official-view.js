@@ -1,4 +1,5 @@
 import { getSelectedModelId } from './model-selection.js';
+import { tracedFetch } from './interaction-tracing.js';
 
 const escape = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
   .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -10,7 +11,7 @@ export function activateOfficialFinRobot(root, code, onLegacy) {
   const controller = new AbortController();
   let disposed = false, timer, task = null, runtime, error = '', busy = true;
   const request = async (path, body) => {
-    const response = await fetch('/api/finrobot/' + path, { signal: controller.signal,
+    const response = await tracedFetch('/api/finrobot/' + path, { signal: controller.signal,
       ...(body !== undefined ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
     if (response.status === 204) return null;
     const result = await response.json();

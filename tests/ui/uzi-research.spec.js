@@ -36,6 +36,25 @@ async function setup(page) {
   await page.locator('[data-symbol="600519"]').click();
 }
 
+test('UZI run command keeps an opaque accent fill instead of blending into the page', async ({ page }) => {
+  await setup(page);
+  await page.getByRole('tab', { name: 'UZI 投研' }).click();
+  const runCommand = page.locator('#run-uzi');
+  await expect(runCommand).toBeVisible();
+  const accent = await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.backgroundColor = 'var(--accent)';
+    document.body.appendChild(probe);
+    const value = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return value;
+  });
+  const textColor = await runCommand.evaluate((element) => getComputedStyle(element).color);
+  expect(accent).not.toBe('rgba(0, 0, 0, 0)');
+  expect(accent).not.toBe(textColor);
+  await expect(runCommand).toHaveCSS('background-color', accent);
+});
+
 test('UZI research exposes depth, school and four structured research dimensions', async ({ page }) => {
   await setup(page);
   await page.getByRole('tab', { name: 'UZI 投研' }).click();

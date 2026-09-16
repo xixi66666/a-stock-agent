@@ -10,7 +10,7 @@ public record UziProperties(String rootPath, String python, String reportPath,
 
     public UziProperties {
         rootPath = fallback(rootPath, "tools/uzi/UZI-Skill");
-        python = fallback(python, "python");
+        python = fallback(python, "tools/uzi/.venv/Scripts/python.exe");
         reportPath = fallback(reportPath, "data/uzi-reports");
         taskTimeout = taskTimeout == null || taskTimeout.isNegative() || taskTimeout.isZero()
                 ? Duration.ofMinutes(30) : taskTimeout;

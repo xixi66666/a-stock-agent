@@ -68,6 +68,8 @@ h1 { max-width: 576px; margin: 0; font-size: 30px; font-weight: 600; line-height
  .hero-form { display: inline-flex; flex-direction: row; align-items: center; gap: 0; margin-top: 32px; padding: 6px; border-radius: 999px; background: white; }
  .hero-form input { width: 256px; padding: 8px 16px; border-radius: 0; background: transparent; }
  .hero-form .hero-cta { padding: 10px 24px; }
+ .hero-form input:focus-visible, .hero-form .hero-cta:focus-visible { outline: 0; }
+ .hero-form:focus-within { outline: 2px solid currentColor; outline-offset: 4px; }
  .hero-cards { flex-direction: row; }
  .hero-card { width: 256px; padding: 24px; }
  .stats-number { font-size: 40px; }

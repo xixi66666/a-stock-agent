@@ -13,9 +13,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import org.springframework.http.MediaType;
 
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class CycleResearchServiceTest {
     @Test
-    void runningTaskIsReusedAndSuccessfulReportSurvivesServiceRestart() throws Exception {
+    void runningTaskIsReusedAndSuccessfulReportSurvivesServiceRestart(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
         var directory = java.nio.file.Files.createTempDirectory(Path.of("target"), "cycle-store-");
         var properties = new CycleProperties("missing", "missing", "python", directory.toString());
         var client = org.springframework.ai.chat.client.ChatClient.create(mock(org.springframework.ai.chat.model.ChatModel.class));
@@ -36,6 +37,7 @@ class CycleResearchServiceTest {
                     .until(() -> service.get(task.id()).status().equals("COMPLETED"));
             assertThat(service.get(task.id()).error()).isNull();
             verify(tools, times(1)).getResearchSnapshot("600519");
+            assertThat(output.getOut()).contains("TASK_CREATED", "TASK_START", "TASK_REUSED", "TASK_COMPLETED", "module=cycle", "taskId=" + task.id());
         } finally { gate.countDown(); }
         try (var restored = new CycleResearchService(registry, tools, properties)) {
             assertThat(restored.latest("600519").report().conclusion()).isEqualTo("测试保存结果");

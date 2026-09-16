@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class OfficialFinRobotServiceTest {
     Path output = Path.of("target", "finrobot-test-" + java.util.UUID.randomUUID());
 
@@ -31,7 +32,7 @@ class OfficialFinRobotServiceTest {
         }
     }
 
-    @Test void taskRunsAsynchronouslyAndKeepsFailureSeparateFromReport() throws Exception {
+    @Test void taskRunsAsynchronouslyAndKeepsFailureSeparateFromReport(org.springframework.boot.test.system.CapturedOutput logOutput) throws Exception {
         var started = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         var properties = new OfficialFinRobotProperties("official", "python", output.toString(), Duration.ofSeconds(5), 1);
@@ -52,6 +53,10 @@ class OfficialFinRobotServiceTest {
             assertThat(failed.status()).isEqualTo("FAILED");
             assertThat(failed.report()).isNull();
             assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(failed)).doesNotContain("private", "fixture", "apiKey");
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                    assertThat(logOutput.getOut()).contains("TASK_CREATED", "TASK_START", "TASK_FAILED", "TASK_ERROR",
+                            "module=finrobot", "taskId=" + task.id(), "failureType=IllegalStateException")
+                            .doesNotContain("private upstream error", "fixture"));
         }
     }
 }

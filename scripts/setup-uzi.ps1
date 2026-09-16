@@ -50,6 +50,8 @@ if (-not (Test-Path -LiteralPath $runScript -PathType Leaf)) {
 }
 
 if (-not $SkipInstall) {
+    # 中文 Windows 的 pip 默认按 GBK 读取含中文注释的 requirements.txt，先切到 UTF-8 模式。
+    $env:PYTHONUTF8 = "1"
     if (-not (Test-Path -LiteralPath $venvRoot)) {
         Invoke-Checked $pythonCommand @("-m", "venv", $venvRoot)
     }

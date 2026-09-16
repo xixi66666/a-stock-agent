@@ -5,10 +5,10 @@
 .cycle-toolbar p { margin: 0; line-height: 1.65; }
 .cycle-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
 .cycle-actions select { max-width: 220px; min-height: 40px; padding: 8px; border: 1px solid var(--hairline-strong); background: var(--surface); border-radius: 6px; color: var(--ink); }
-.cycle-actions button { min-height: 40px; padding: 8px 14px; border: 1px solid var(--purple); border-radius: 6px; background: var(--purple); color: var(--surface); cursor: pointer; white-space: nowrap; }
+.cycle-actions button { min-height: 40px; padding: 8px 14px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--on-accent); cursor: pointer; white-space: nowrap; }
 .cycle-actions button:disabled { opacity: .6; cursor: default; }
 .cycle-actions button:hover:not(:disabled) { filter: brightness(.94); }
-.cycle-workbench :focus-visible { outline: 2px solid var(--purple); outline-offset: 3px; }
+.cycle-workbench :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 #cycle-progress { margin: 6px 0 18px; color: var(--body); line-height: 1.6; overflow-wrap: anywhere; }
 .cycle-empty { padding: 32px 0; border-top: 1px solid var(--hairline); }
 .cycle-empty h3 { font-size: 16px; color: var(--ink); margin: 0 0 10px; }
@@ -25,7 +25,7 @@
 .cycle-dimension dd { margin: 0; max-width: 85ch; line-height: 1.8; }
 .cycle-dimension dd ul { margin: 0; }
 .cycle-citations { display: block; font-size: 12px; }
-.cycle-workbench a { color: var(--purple); text-underline-offset: 3px; }
+.cycle-workbench a { color: var(--accent); text-underline-offset: 3px; }
 .cycle-scenarios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .cycle-scenarios h4 { margin: 0; font-size: 14px; color: var(--ink); }
 .cycle-trace, .cycle-evidence { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--hairline); }

@@ -10,7 +10,7 @@
 .uzi-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
 .uzi-actions label { color: var(--ink); font-size: 13px; font-weight: 600; }
 .uzi-actions select { min-height: 38px; max-width: 180px; padding: 7px 9px; border: 1px solid var(--hairline-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
-.uzi-actions button { min-height: 38px; padding: 8px 14px; border: 1px solid var(--purple); border-radius: 6px; background: var(--purple); color: var(--surface); cursor: pointer; white-space: nowrap; }
+.uzi-actions button { min-height: 38px; padding: 8px 14px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--on-accent); cursor: pointer; white-space: nowrap; }
 .uzi-actions button:disabled { cursor: default; opacity: .55; }
 .uzi-model { margin-left: auto; color: var(--muted); font-size: 12px; }
 #uzi-progress { min-height: 24px; margin: 10px 0 18px; line-height: 1.6; }
@@ -33,7 +33,7 @@
 .uzi-dimension li, .uzi-section li { margin: 5px 0; line-height: 1.65; }
 .uzi-section { margin-top: 24px; }
 .uzi-section summary { cursor: pointer; color: var(--ink); font-weight: 600; }
-.uzi-sources a { color: var(--purple); text-underline-offset: 3px; }
+.uzi-sources a { color: var(--accent); text-underline-offset: 3px; }
 .uzi-missing { color: var(--muted); }
 @media (max-width: 760px) {
   .uzi-actions { align-items: stretch; }

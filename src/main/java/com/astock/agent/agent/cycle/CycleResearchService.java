@@ -1,6 +1,7 @@
 package com.astock.agent.agent.cycle;
 
 import com.astock.agent.agent.StockAgentTools;
+import com.astock.agent.observability.TaskTrace;
 import com.astock.agent.agent.model.NamedChatClientRegistry;
 import com.astock.agent.marketdata.model.SecurityId;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,7 +61,10 @@ public final class CycleResearchService implements AutoCloseable {
         }
         var selected = modelId == null ? registry.forRole("cycle-report") : registry.byId(modelId);
         for (Job current : jobs.values()) {
-            if (current.code.equals(code) && "RUNNING".equals(current.status)) return current.view();
+            if (current.code.equals(code) && "RUNNING".equals(current.status)) {
+                current.trace.event("REUSED");
+                return current.view();
+            }
         }
         // 仅淘汰已结束任务；最新成功报告另存本地，可跨重启读取。
         if (jobs.size() >= 100) jobs.entrySet().removeIf(e -> !"RUNNING".equals(e.getValue().status));
@@ -72,13 +76,14 @@ public final class CycleResearchService implements AutoCloseable {
         }
         if (!capacity.tryAcquire()) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "周期研究任务繁忙，请稍后重试");
         jobs.put(job.id, job);
-        job.future = executor.submit(() -> {
+        job.future = executor.submit(job.trace.wrap(() -> {
             try { execute(job, selected.orElseThrow()); }
             finally { capacity.release(); }
-        });
+        }));
         job.timeout = timer.schedule(() -> {
             synchronized (job) {
                 if ("RUNNING".equals(job.status)) {
+                    job.trace.event("TIMEOUT");
                     job.fail("周期研究超时，请稍后重试或检查模型响应速度");
                     job.future.cancel(true);
                 }
@@ -104,14 +109,17 @@ public final class CycleResearchService implements AutoCloseable {
                 if (!"RUNNING".equals(job.status) || Thread.currentThread().isInterrupted()) return;
                 job.report = report;
                 job.status = "COMPLETED";
+                job.trace.event("COMPLETED");
                 job.stage = "研究完成";
                 job.updatedAt = Instant.now();
                 try { save(job.view()); }
                 catch (Exception unavailableStorage) {
+                    job.trace.failure(unavailableStorage);
                     job.error = "报告已生成，但本地保存失败；刷新页面后可能无法恢复，请检查报告目录权限";
                 }
             }
         } catch (Exception failure) {
+            job.trace.failure(failure);
             synchronized (job) {
                 if ("RUNNING".equals(job.status)) {
                     job.fail("加载研究方法".equals(job.stage)
@@ -171,6 +179,7 @@ public final class CycleResearchService implements AutoCloseable {
     private static final class Job {
         final String id = UUID.randomUUID().toString();
         final String code;
+        final TaskTrace trace;
         final String modelName;
         final Instant startedAt = Instant.now();
         volatile Instant updatedAt = startedAt;
@@ -183,8 +192,14 @@ public final class CycleResearchService implements AutoCloseable {
         volatile CycleSession session;
         Future<?> future;
         ScheduledFuture<?> timeout;
-        Job(String code, String modelName) { this.code = code; this.modelName = modelName; }
-        void fail(String message) { status = "FAILED"; stage = "研究未完成"; error = message; updatedAt = Instant.now(); }
+        Job(String code, String modelName) {
+            this.code = code; this.modelName = modelName;
+            this.trace = new TaskTrace("cycle", id, code);
+        }
+        void fail(String message) {
+            trace.event("FAILED");
+            status = "FAILED"; stage = "研究未完成"; error = message; updatedAt = Instant.now();
+        }
         synchronized Task view() {
             boolean completed = "COMPLETED".equals(status);
             return new Task(id, code, status, stage, modelName, startedAt, updatedAt, snapshotAt, skillDigest,

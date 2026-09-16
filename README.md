@@ -115,7 +115,7 @@ IDEA 的 Project SDK、模块 SDK、Maven Runner 和 Maven Importer 都应选择
 
 ## UZI Python 环境
 
-UZI 页面通过项目内固定的 `scripts/uzi-worker.py` 调用官方 `wbh604/UZI-Skill` 的 `run.py`。官方仓库和虚拟环境放在 Git 忽略目录中，不复制进本项目，也不把 Python 命令、路径或密钥暴露给页面。Windows 首次准备环境：
+UZI 页面通过项目内固定的 `scripts/uzi-worker.py` 调用官方 `wbh604/UZI-Skill` 的 `run.py`。官方仓库和虚拟环境放在 Git 忽略目录中，不复制进本项目，也不把 Python 命令、路径或密钥暴露给页面。前置条件是 Python 3.11+、Git，以及首次安装时可访问 GitHub 与 PyPI 的网络；UZI 不依赖本项目配置的模型。Windows 首次准备环境：
 
 ```powershell
 .\scripts\setup-uzi.ps1
@@ -127,7 +127,7 @@ UZI 页面通过项目内固定的 `scripts/uzi-worker.py` 调用官方 `wbh604/
 scripts\setup-uzi.cmd
 ```
 
-脚本会准备 `tools/uzi/UZI-Skill` 和 `tools/uzi/.venv`，并打印应写入 `config/application-local.yml` 的 `app.uzi.python` 路径。UZI 的模型密钥只放在被忽略的本地配置或系统环境变量中；未安装、Python 不可用、依赖不完整、模型失败和数据缺口都会在 UZI 页面中单独显示，不会生成伪造的研究结论。
+脚本会准备 `tools/uzi/UZI-Skill` 和 `tools/uzi/.venv`，并打印应写入 `config/application-local.yml` 的 `app.uzi.python` 路径。官方数据源的可选密钥（如 `MX_APIKEY`）只放在被忽略的 `tools/uzi/UZI-Skill/.env` 或系统环境变量中；未安装、Python 不可用、依赖不完整、模型失败和数据缺口都会在 UZI 页面中单独显示，不会生成伪造的研究结论。完整的前置条件、Linux/macOS 手动步骤、配置字段、命令行烟测与排障见 [UZI 投研模块](docs/uzi-research.md)。
 
 ## 架构
 
